@@ -240,3 +240,13 @@ buildConfigField("String", "HUBSPOT_CLIENT_SECRET", "\"${localProps["hubspot.cli
 - **Rate limit awareness**: HubSpot Contacts API search endpoint is rate-limited; handle failures gracefully by falling back to treating the sender as unknown or retrying.
 - **Error states**: if Google or HubSpot lookup fails due to network/API issues during real-time processing, default to processing the message for opt-outs (err on the side of safety) and surface connection warnings in Settings.
 - Minimum viable happy path must work without HubSpot connected (Google Contacts only mode).
+
+---
+
+### Play Store & Production Readiness
+
+- **Foreground Service Type**: Since the target SDK is 35, the `SmsProcessingService` must declare `android:foregroundServiceType="specialUse"` (or another approved type) in the `AndroidManifest.xml` and request the appropriate service-specific permissions.
+- **R8/ProGuard Rules**: Provide a `proguard-rules.pro` file configured to preserve Hilt modules, Room database entities/DAOs, and Moshi/serialization data classes used for HubSpot API communication to prevent runtime crashes in release builds.
+- **Release Signing**: `build.gradle.kts` must load release keystore passwords and paths from local environment variables or a git-ignored properties file rather than hardcoding them.
+- **String Externalization**: All UI strings must be declared in `res/values/strings.xml` to support potential localization and clean resource management.
+- **Google Play SMS Policy Compliance**: Since Google Play restricts SMS permissions, document that this app is designed for enterprise side-loading distribution (via APK or MDM) or include a fallback strategy if Google Play compliance is required.
