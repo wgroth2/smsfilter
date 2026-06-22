@@ -212,6 +212,7 @@ app/
     test/                     # Unit tests
     androidTest/              # Instrumented tests
   TEST_CASES.md
+  INSTALL_GUIDE.md
   local.properties.example
 ```
 
@@ -243,10 +244,12 @@ buildConfigField("String", "HUBSPOT_CLIENT_SECRET", "\"${localProps["hubspot.cli
 
 ---
 
-### Play Store & Production Readiness
+### Distribution & Production Readiness
 
+- **Distribution Method**: The primary distribution method is private APK distribution for sideloading.
+- **Installation Documentation**: A comprehensive installation guide (`INSTALL_GUIDE.md`) must be generated for the web/users. This guide must explain step-by-step how to download the APK, enable the "Install unknown apps" permission for browsers/file managers, and bypass/resolve standard Google Play Protect warnings for sideloaded apps.
+- **APK Integrity & Safety Signals**: The APK must be digitally signed using a production-grade release Keystore (configured securely via Gradle from environment variables). Signing with a release key rather than a debug key is critical to signal to Android and Google Play Protect that the APK is safe and has not been tampered with.
 - **Foreground Service Type**: Since the target SDK is 35, the `SmsProcessingService` must declare `android:foregroundServiceType="specialUse"` (or another approved type) in the `AndroidManifest.xml` and request the appropriate service-specific permissions.
 - **R8/ProGuard Rules**: Provide a `proguard-rules.pro` file configured to preserve Hilt modules, Room database entities/DAOs, and Moshi/serialization data classes used for HubSpot API communication to prevent runtime crashes in release builds.
-- **Release Signing**: `build.gradle.kts` must load release keystore passwords and paths from local environment variables or a git-ignored properties file rather than hardcoding them.
 - **String Externalization**: All UI strings must be declared in `res/values/strings.xml` to support potential localization and clean resource management.
-- **Google Play SMS Policy Compliance**: Since Google Play restricts SMS permissions, document that this app is designed for enterprise side-loading distribution (via APK or MDM) or include a fallback strategy if Google Play compliance is required.
+- **Git Version Control**: All generated source code, project files, assets, documentation (`TEST_CASES.md`, `INSTALL_GUIDE.md`), and build scripts must be fully tracked and committed to git.
