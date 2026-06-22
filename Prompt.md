@@ -36,12 +36,12 @@ Request all required permissions (see Permissions section). The user cannot adva
 **Step 3 — Google Account**
 Prompt the user to connect their Google account. Connecting is required to advance; show a "Skip Google (not recommended)" escape hatch that records a `googleSkipped: Boolean` flag and advances.
 
-**Step 4 — HubSpot (conditional)**
-Only shown if the "Use HubSpot" toggle is on (which it is by default).
-- The toggle is shown in this step and defaults to **on**.
-- If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, immediately launch OAuth on arrival at this step. The step is not completable until OAuth succeeds or the toggle is turned off.
-- If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show the inline Client ID text field (same behavior as the Settings screen). The user must either enter a valid Client ID and complete OAuth, or turn the toggle off, to advance.
-- Turning the toggle off skips OAuth entirely and advances with one tap.
+**Step 4 — HubSpot (optional)**
+- The "Use HubSpot" toggle defaults to **off** during onboarding to minimize setup friction for non-HubSpot users.
+- If the user turns the toggle **on**:
+  - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, launch OAuth.
+  - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show the inline Client ID text field, along with a help link: *"Where do I find my Client ID?"* which links to developer documentation.
+  - The step is not completable until OAuth succeeds, or the user turns the toggle back off, or taps *"Skip HubSpot setup for now"*.
 - The OAuth screen offers both HubSpot login and Google login natively — no additional code required beyond launching the standard HubSpot OAuth URL.
 
 **Step 5 — Connection Test**
@@ -66,11 +66,11 @@ If the app is force-stopped and restarted mid-wizard, resume at the last incompl
 
 #### 2. Real-Time Contact Verification
 
-To protect user privacy, the app must not store phone numbers locally in any database or cache. All contact lookups are performed in real-time:
+To protect user privacy, the app must not store phone numbers locally in any persistent database. All contact lookups are performed in real-time:
 - **Google Contacts:** Query the system's `ContactsContract.PhoneLookup` using a `ContentResolver` to check if the incoming phone number belongs to a saved contact. Since this uses the Android local Contacts database, it requires `READ_CONTACTS` permission but does not require network calls.
 - **HubSpot Contacts:** If HubSpot is connected, query the HubSpot Search Contacts API (`/crm/v3/objects/contacts/search`) in real-time. Use a search filter to match the `phone` or `mobilephone` properties against the incoming phone number.
 - **Normalization:** Prior to lookup, normalize the incoming phone number to E.164 format. When querying HubSpot, search for both the E.164 normalized format and the raw incoming format to ensure a robust match.
-- **Caching & Privacy:** Do not persist query results or contact details locally.
+- **In-Memory Caching:** To minimize network latency for frequent senders, implement a small, time-limited in-memory cache (e.g., LruCache with a 15-minute expiration) that stores verified known contact numbers. When an SMS arrives from a cached number, skip the external HubSpot API lookup. Never persist this cache to disk.
 
 #### 3. Opt-Out Detection
 
@@ -97,21 +97,29 @@ When an opt-out signal is detected:
 
 ### Settings Screen
 
-Single-screen Settings UI built in Jetpack Compose. Sections:
+Single-screen Settings UI built in Jetpack Compose. 
+
+#### Connection Health Summary
+- Rendered at the very top of the Settings screen, showing real-time connection status indicators (active/disconnected) with colored dots:
+  - **Google Contacts**: Green dot ("Connected") or Red dot ("Permissions required / Disconnected").
+  - **HubSpot CRM**: Green dot ("Connected") or Red dot ("Token expired / Disconnected").
+- **Privacy & Latency Info Card**: A dismissible card explaining: *"To protect your privacy, this app does not store your contacts locally. Lookups are done in real-time, which may cause a 1-2 second delay for unknown numbers."*
+
+Sections:
 
 #### Google Account
 - "Connect Google Account" button → launches Google Sign-In via `CredentialManager` API (preferred) or legacy `GoogleSignInClient`.
-- Once connected, display the account name and a "Disconnect" option.
+- Once connected, display the account name, a "Disconnect" option, and a **"Test Connection"** button (verifies access to Google Contacts by making a diagnostic query).
 - Scopes required: `https://www.googleapis.com/auth/contacts.readonly`.
 
 #### HubSpot Account
 - **"Use HubSpot" toggle switch** at the top of this section (default: **on/true**).
 - When the toggle is **on**, immediately check whether `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty:
-  - **If the client ID is missing:** Show an inline error directly beneath the toggle: *"No HubSpot Client ID is configured. Please enter your Client ID below before connecting."* Render an editable text field for the user to enter the Client ID inline. Do not launch OAuth until the field is non-empty and the user taps "Save Client ID." Once saved, write the value to `EncryptedSharedPreferences` under the key `hubspot_client_id_override` and use it in place of `BuildConfig.HUBSPOT_CLIENT_ID` for all subsequent OAuth and API calls.
+  - **If the client ID is missing:** Show an inline error directly beneath the toggle: *"No HubSpot Client ID is configured. Please enter your Client ID below before connecting."* Render an editable text field for the user to enter the Client ID inline, along with a *"Where do I find my Client ID?"* help link. Do not launch OAuth until the field is non-empty and the user taps "Save Client ID." Once saved, write the value to `EncryptedSharedPreferences` under the key `hubspot_client_id_override` and use it in place of `BuildConfig.HUBSPOT_CLIENT_ID` for all subsequent OAuth and API calls.
   - **If the client ID is present** (either from `BuildConfig` or from the saved override): Immediately launch the HubSpot OAuth 2.0 flow via `CustomTabsIntent`. Offer both **HubSpot login** and **Google login** as identity options within the OAuth flow — HubSpot's standard OAuth screen surfaces both natively, so no extra code is needed beyond launching the standard auth URL. The user cannot dismiss this flow without either completing it or turning the toggle back off — enforce this by showing a non-cancelable dialog if they navigate away without completing auth.
 - When the toggle is turned **off**, all HubSpot logic — OAuth, index sync, API calls — is completely bypassed. The rest of this section is grayed out and non-interactive.
 - Store access token and refresh token securely using `EncryptedSharedPreferences`.
-- Once authenticated, display the connected portal name and a "Disconnect" option. Disconnecting clears stored tokens and the client ID override (if one was entered manually), and turns the toggle off.
+- Once authenticated, display the connected portal name, a "Disconnect" option, and a **"Test Connection"** button (verifies token validity by making a quick test call to HubSpot's endpoints).
 - Required HubSpot scope: `crm.objects.contacts.read`.
 - During SMS processing or connection testing, check the "Use HubSpot" toggle before making the HubSpot API calls. If off, skip HubSpot lookups entirely.
 
@@ -126,14 +134,15 @@ Single-screen Settings UI built in Jetpack Compose. Sections:
 - Note in the UI: "All matching is case-insensitive. `stop` and `end` are matched only on the last line; others match anywhere."
 
 #### Connection Testing
-- "Test Connection" button that runs a diagnostic check:
-  1. Verifies Google Contacts read access.
-  2. Verifies HubSpot API accessibility (makes a test request to HubSpot API).
-- Display the status (Success/Failure) of the latest diagnostic check.
+- **"Test All Connections"** button that runs a complete diagnostic check (both Google and HubSpot).
+- Display the detailed status (Success/Failure with error reason) of the diagnostic checks.
 
-#### Detection Log
-- Link/button to open a scrollable log screen showing recent detections (last 100 entries).
-- Each entry: timestamp, matched pattern, message preview (no phone number).
+#### Activity & Detection Log
+- Link/button to open a scrollable log screen showing recent activities and detections (last 100 entries).
+- **UI Filter Chips**: "All", "Detections Only", "Ignored Only" at the top of the log screen.
+- Log entries:
+  - **Detections**: timestamp, matched pattern, message preview (no phone number).
+  - **Ignored Events**: timestamp, ignore reason (e.g. "Ignored: Known Google Contact", "Ignored: Known HubSpot Contact", "Ignored: Matched Stop List word 'promo'"), message preview (no phone number).
 - "Clear Log" button.
 
 ---
