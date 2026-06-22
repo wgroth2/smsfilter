@@ -15,7 +15,7 @@ Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readabl
 Use a clean architecture pattern with these layers:
 
 - **UI Layer** — Jetpack Compose for all screens
-- **Service Layer** — Foreground Service for SMS monitoring
+- **Background Layer** — BroadcastReceiver + WorkManager for SMS monitoring and real-time lookups (no persistent background service)
 - **Data Layer** — Room database for settings, stop list, opt-out patterns, and detection logs (no phone number data is stored locally)
 - **Repository Layer** — abstracts Contact, HubSpot, and Settings data sources
 
@@ -45,7 +45,7 @@ Only shown if the "Use HubSpot" toggle is on (which it is by default).
 - The OAuth screen offers both HubSpot login and Google login natively — no additional code required beyond launching the standard HubSpot OAuth URL.
 
 **Step 5 — Connection Test**
-Trigger a real-time connection test to verify access to Google Contacts and (if HubSpot is toggled on) HubSpot CRM. Show connection status results: *"Google Contacts: Accessible, HubSpot CRM: Connected"* (or just Google if HubSpot is off). "Done" button marks `firstRunComplete = true`, starts the `SmsProcessingService`, and navigates to the main Settings screen.
+Trigger a real-time connection test to verify access to Google Contacts and (if HubSpot is toggled on) HubSpot CRM. Show connection status results: *"Google Contacts: Accessible, HubSpot CRM: Connected"* (or just Google if HubSpot is off). "Done" button marks `firstRunComplete = true` and navigates to the main Settings screen.
 
 If the app is force-stopped and restarted mid-wizard, resume at the last incomplete step.
 
@@ -53,11 +53,11 @@ If the app is force-stopped and restarted mid-wizard, resume at the last incompl
 
 ### Core Components
 
-#### 1. SMS Receiver & Processing Service
+#### 1. SMS Receiver & WorkManager Lookup
 
-- Register a `BroadcastReceiver` for `android.provider.Telephony.SMS_RECEIVED` (requires `RECEIVE_SMS` permission).
-- On receipt, pass the message to a `ForegroundService` (`SmsProcessingService`) for processing. The service must show a persistent notification to satisfy Android 8+ background execution requirements.
-- Processing pipeline (in order):
+- Register a manifest-declared `BroadcastReceiver` (`SmsReceiver`) for `android.provider.Telephony.SMS_RECEIVED` (requires `RECEIVE_SMS` permission).
+- On receipt, execute `GoAsync()` or delegate message details (sender, body, timestamp) immediately to a one-time `WorkManager` worker (`SmsLookupWorker`) for async processing. This avoids running a persistent foreground service, saving battery and satisfying Android background execution policies.
+- Processing pipeline inside the worker (in order):
   1. Check stop list words (case-insensitive) → if any match → **ignore** (checked first to avoid redundant API queries).
   2. If not ignored → query Google Contacts (via Android ContactsProvider ContentResolver) and HubSpot CRM (via real-time Contacts API search call) to check if the sender is a known contact.
   3. If found in either → **ignore**.
@@ -147,14 +147,10 @@ RECEIVE_SMS
 READ_SMS
 READ_CONTACTS
 INTERNET
-FOREGROUND_SERVICE
 POST_NOTIFICATIONS          (API 33+)
-RECEIVE_BOOT_COMPLETED      (to restart service after reboot)
 ```
 
 Use `ActivityResultContracts.RequestMultiplePermissions`. Show rationale dialogs for `RECEIVE_SMS` and `READ_CONTACTS` explaining why each is needed. If any critical permission is denied, show a persistent banner in the UI and disable the relevant feature gracefully.
-
-Restart the foreground service on device boot via a `BootReceiver`.
 
 ---
 
@@ -199,7 +195,7 @@ app/
         data/
           db/                 # Room DB, DAOs, Entities
           repository/         # ContactRepository, HubSpotRepository
-        service/              # SmsProcessingService, BootReceiver
+        worker/               # SmsLookupWorker
         receiver/             # SmsReceiver
         detection/            # OptOutDetector, StopListMatcher
         ui/
@@ -257,6 +253,9 @@ defaultConfig {
 - **Rate limit awareness**: HubSpot Contacts API search endpoint is rate-limited; handle failures gracefully by falling back to treating the sender as unknown or retrying.
 - **Error states**: if Google or HubSpot lookup fails due to network/API issues during real-time processing, default to processing the message for opt-outs (err on the side of safety) and surface connection warnings in Settings.
 - Minimum viable happy path must work without HubSpot connected (Google Contacts only mode).
+- **State Collection in Compose**: Use `collectAsStateWithLifecycle()` from `androidx.lifecycle:lifecycle-runtime-compose` instead of the standard `collectAsState()` to observe flows reactively in a lifecycle-aware manner.
+- **Asynchronous Threading**: Ensure all network calls (HubSpot API), database queries (Room), and system content resolver queries (Google Contacts) are explicitly dispatched on `Dispatchers.IO` in their repositories/workers to avoid blocking the Main thread.
+- **Dependency Management**: Manage all dependency coordinates and version numbers globally in a unified Gradle Version Catalog (`gradle/libs.versions.toml`).
 
 ---
 
@@ -265,7 +264,7 @@ defaultConfig {
 - **Distribution Method**: The primary distribution method is private APK distribution for sideloading.
 - **Installation Documentation**: A comprehensive installation guide (`INSTALL_GUIDE.md`) must be generated for the web/users. This guide must explain step-by-step how to download the APK, enable the "Install unknown apps" permission for browsers/file managers, and bypass/resolve standard Google Play Protect warnings for sideloaded apps.
 - **APK Integrity & Safety Signals**: The APK must be digitally signed using a production-grade release Keystore (configured securely via Gradle from environment variables). Signing with a release key rather than a debug key is critical to signal to Android and Google Play Protect that the APK is safe and has not been tampered with.
-- **Foreground Service Type**: Since the target SDK is 35, the `SmsProcessingService` must declare `android:foregroundServiceType="specialUse"` (or another approved type) in the `AndroidManifest.xml` and request the appropriate service-specific permissions.
+- **Play Protect Compliance**: Since we are side-loading the application, the APK must not request any unnecessary permissions like `FOREGROUND_SERVICE` or launch persistent services from the background, which might trigger warnings in Google Play Protect.
 - **R8/ProGuard Rules**: Provide a `proguard-rules.pro` file configured to preserve Hilt modules, Room database entities/DAOs, and Moshi/serialization data classes used for HubSpot API communication to prevent runtime crashes in release builds.
 - **String Externalization**: All UI strings must be declared in `res/values/strings.xml` to support potential localization and clean resource management. Spanish strings should be included as well and a setting should be added to switch languages. But the default is to use us english strings.
 - **Git Version Control**: All generated source code, project files, assets, documentation (`TEST_CASES.md`, `INSTALL_GUIDE.md`), and build scripts must be fully tracked and committed to git.
