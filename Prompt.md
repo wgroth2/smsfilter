@@ -1,4 +1,3 @@
-```markdown
 ## Android SMS Compliance Filter — App Specification
 
 ### Overview
@@ -241,4 +240,3 @@ buildConfigField("String", "HUBSPOT_CLIENT_SECRET", "\"${localProps["hubspot.cli
 - **Rate limit awareness**: HubSpot Contacts API search endpoint is rate-limited; handle failures gracefully by falling back to treating the sender as unknown or retrying.
 - **Error states**: if Google or HubSpot lookup fails due to network/API issues during real-time processing, default to processing the message for opt-outs (err on the side of safety) and surface connection warnings in Settings.
 - Minimum viable happy path must work without HubSpot connected (Google Contacts only mode).
-```
