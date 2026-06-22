@@ -220,7 +220,7 @@ app/
 
 ### Additional Requirements
 
-- **No hardcoded secrets.** HubSpot client ID and client secret must be defined in `local.properties` and injected at build time as `BuildConfig` fields via `build.gradle.kts`:
+- **No hardcoded secrets.** HubSpot client ID and client secret must be defined in `local.properties` and injected at build time as `BuildConfig` fields via `build.gradle.kts`. The Gradle script must safely handle the absence of `local.properties` to prevent sync crashes on fresh checkouts, and must explicitly enable the `BuildConfig` feature:
 
 ```kotlin
 // local.properties (never commit this file — it is in .gitignore)
@@ -228,13 +228,29 @@ hubspot.clientId=YOUR_CLIENT_ID_HERE
 hubspot.clientSecret=YOUR_CLIENT_SECRET_HERE
 
 // build.gradle.kts
-val localProps = Properties().apply {
-    load(rootProject.file("local.properties").inputStream())
+android {
+    ...
+    buildFeatures {
+        buildConfig = true // Required in AGP 8.0+ / Android Studio Quail to generate BuildConfig fields
+    }
 }
-buildConfigField("String", "HUBSPOT_CLIENT_ID", "\"${localProps["hubspot.clientId"]}\"")
-buildConfigField("String", "HUBSPOT_CLIENT_SECRET", "\"${localProps["hubspot.clientSecret"]}\"")
+
+val localProps = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hubspotClientId = localProps.getProperty("hubspot.clientId", "")
+val hubspotClientSecret = localProps.getProperty("hubspot.clientSecret", "")
+
+defaultConfig {
+    buildConfigField("String", "HUBSPOT_CLIENT_ID", "\"$hubspotClientId\"")
+    buildConfigField("String", "HUBSPOT_CLIENT_SECRET", "\"$hubspotClientSecret\"")
+}
 ```
 
+- **Modern Annotation Processing**: Use **Kotlin Symbol Processing (KSP)** instead of the legacy `kapt` tool for room database compiler and Hilt compiler dependencies to ensure compatibility with modern Kotlin versions in Android Studio Quail.
 - Include a `local.properties.example` file in the repo with placeholder values and a comment explaining how to populate it. `local.properties` must be listed in `.gitignore`.
 - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty at runtime and no override has been saved in `EncryptedSharedPreferences`, the "Use HubSpot" toggle must show the inline Client ID entry field as described in the Settings section above.
 - **Retry logic** for HubSpot API calls: exponential backoff, max 3 retries.
