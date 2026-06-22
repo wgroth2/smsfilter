@@ -5,7 +5,7 @@
 
 Build a production-ready Android application in Kotlin that monitors incoming SMS messages and flags potential opt-out requests from unknown senders. The app runs as a persistent background service and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic.
 
-Target: Android API 26+ (Android 8.0 minimum). All code must be readable and buildable in Android Studio Hedgehog or later. All files and public functions must use KDoc documentation.
+Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation.
 
 **Package:** `com.digiroth.smsfilter` — use this package name everywhere in the generated code.
 
