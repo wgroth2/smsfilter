@@ -39,8 +39,9 @@ Prompt the user to connect their Google account. Connecting is required to advan
 **Step 4 — HubSpot (optional)**
 - The "Use HubSpot" toggle defaults to **off** during onboarding to minimize setup friction for non-HubSpot users.
 - If the user turns the toggle **on**:
-  - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, launch OAuth.
-  - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show the inline Client ID text field, along with a help link: *"Where do I find my Client ID?"* which links to developer documentation.
+  - Show a descriptive card with a prominent **"Connect HubSpot Account"** button to start the connection. Do not launch the OAuth browser flow automatically on step arrival to avoid a jarring user transition.
+  - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, tapping the connect button launches the OAuth flow via `CustomTabsIntent`.
+  - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show the inline Client ID text field along with a help link (*"Where do I find my Client ID?"*). The user must enter and save the Client ID before the "Connect HubSpot Account" button becomes active.
   - The step is not completable until OAuth succeeds, or the user turns the toggle back off, or taps *"Skip HubSpot setup for now"*.
 - The OAuth screen offers both HubSpot login and Google login natively — no additional code required beyond launching the standard HubSpot OAuth URL.
 
@@ -56,7 +57,8 @@ If the app is force-stopped and restarted mid-wizard, resume at the last incompl
 #### 1. SMS Receiver & WorkManager Lookup
 
 - Register a manifest-declared `BroadcastReceiver` (`SmsReceiver`) for `android.provider.Telephony.SMS_RECEIVED` (requires `RECEIVE_SMS` permission).
-- On receipt, execute `GoAsync()` or delegate message details (sender, body, timestamp) immediately to a one-time `WorkManager` worker (`SmsLookupWorker`) for async processing. This avoids running a persistent foreground service, saving battery and satisfying Android background execution policies.
+- On receipt, delegate message details (sender, body, timestamp) immediately to a one-time `WorkManager` worker (`SmsLookupWorker`) for async processing.
+- **Expedited Work Requirement**: The lookup worker must be executed as an **Expedited Work Request** (`setExpedited(...)` with `OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST`) to guarantee immediate execution even if the device is in Doze mode or battery saver. This avoids running a persistent foreground service while still ensuring real-time notification delivery.
 - Processing pipeline inside the worker (in order):
   1. Check stop list words (case-insensitive) → if any match → **ignore** (checked first to avoid redundant API queries).
   2. If not ignored → query Google Contacts (via Android ContactsProvider ContentResolver) and HubSpot CRM (via real-time Contacts API search call) to check if the sender is a known contact.
