@@ -297,7 +297,9 @@ defaultConfig {
 
 ### Distribution & Production Readiness
 
-- **Distribution Method**: The primary distribution method is private APK distribution for sideloading.
+- **Distribution Method**: The app will be distributed as an APK (private distribution for sideloading). There must be two configured build types to compile the APK:
+  - **Debug Mode**: Uses the default debug keystore, keeps logging active, bypasses ProGuard/R8 optimization, and does not require release signing environment variables.
+  - **Production/Release Mode**: Uses a production-grade release keystore (configured securely via environment variables), enables full R8/ProGuard code shrinking and optimization, and strips out debug log statements to maintain efficiency and security.
 - **Installation Documentation**: A comprehensive installation guide (`INSTALL_GUIDE.md`) must be generated for the web/users. This guide must explain step-by-step how to download the APK, enable the "Install unknown apps" permission for browsers/file managers, and bypass/resolve standard Google Play Protect warnings for sideloaded apps.
 - **APK Integrity & Safety Signals**: The APK must be digitally signed using a production-grade release Keystore (configured securely via Gradle from environment variables). Signing with a release key rather than a debug key is critical to signal to Android and Google Play Protect that the APK is safe and has not been tampered with.
 - **Play Protect Compliance**: Since we are side-loading the application, the APK must not request any unnecessary permissions like `FOREGROUND_SERVICE` or launch persistent services from the background, which might trigger warnings in Google Play Protect.
