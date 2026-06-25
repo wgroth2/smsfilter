@@ -2,9 +2,11 @@
 
 ### Overview
 
-Build a production-ready Android application in Kotlin that monitors incoming SMS messages and sends opt-out responses to stop messages from unknown senders. The app runs as a persistent background service and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic.
+Build a production-ready Android application in Kotlin that monitors incoming SMS messages and sends opt-out responses to stop messages from unknown senders. The app runs in the background reactively using a BroadcastReceiver and WorkManager (without a persistent background service) and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic. If the message is from an unknown sender and contains opt-out language, the app should automatically reply to the sender with the appropriate one-word opt-out keyword ("stop" or "end") to unsubscribe. 
 
-Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation.
+Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation. All files should have the BSD license and attribute the authorship to Bill Roth, bill.roth@gmail.com. 
+
+The principal files should be saved in a git repo. The purpose of the git repo is to be able to backup the source code to GitHub and allow those who pull it down or close it to be able to recreate the app and build it on their own systems.
 
 **Package:** `com.digiroth.smsfilter` — use this package name everywhere in the generated code.
 
