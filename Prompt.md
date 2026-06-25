@@ -2,7 +2,7 @@
 
 ### Overview
 
-Build a production-ready Android application in Kotlin that monitors incoming SMS messages and flags potential opt-out requests from unknown senders. The app runs as a persistent background service and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic.
+Build a production-ready Android application in Kotlin that monitors incoming SMS messages and sends opt-out responses to stop messages from unknown senders. The app runs as a persistent background service and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic.
 
 Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation.
 
@@ -31,22 +31,19 @@ On first launch (detected via a `firstRunComplete: Boolean` flag in `DataStore<P
 Brief explanation of what the app does. "Get Started" button advances to Step 2.
 
 **Step 2 — Permissions**
-Request all required permissions (see Permissions section). The user cannot advance until `RECEIVE_SMS` and `POST_NOTIFICATIONS` (API 33+) are granted. Other permissions show a warning if denied but do not block advancement.
+Request all required permissions (see Permissions section). The user cannot advance until `RECEIVE_SMS`, `SEND_SMS`, and `POST_NOTIFICATIONS` (API 33+) are granted. Other permissions (such as `READ_CONTACTS` and `READ_SMS`) show a warning if denied but do not block advancement.
 
-**Step 3 — Google Account**
-Prompt the user to connect their Google account. Connecting is required to advance; show a "Skip Google (not recommended)" escape hatch that records a `googleSkipped: Boolean` flag and advances.
-
-**Step 4 — HubSpot (optional)**
+**Step 3 — HubSpot (optional)**
 - The "Use HubSpot" toggle defaults to **off** during onboarding to minimize setup friction for non-HubSpot users.
 - If the user turns the toggle **on**:
   - Show a descriptive card with a prominent **"Connect HubSpot Account"** button to start the connection. Do not launch the OAuth browser flow automatically on step arrival to avoid a jarring user transition.
-  - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, tapping the connect button launches the OAuth flow via `CustomTabsIntent`.
-  - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show the inline Client ID text field along with a help link (*"Where do I find my Client ID?"*). The user must enter and save the Client ID before the "Connect HubSpot Account" button becomes active.
+  - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, tapping the connect button launches the OAuth flow via `CustomTabsIntent` using the redirect URI `smsfilter://oauth`.
+  - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show inline text fields for both the Client ID and Client Secret, along with a help link (*"Where do I find my credentials?"*). The user must enter and save both fields before the "Connect HubSpot Account" button becomes active.
   - The step is not completable until OAuth succeeds, or the user turns the toggle back off, or taps *"Skip HubSpot setup for now"*.
 - The OAuth screen offers both HubSpot login and Google login natively — no additional code required beyond launching the standard HubSpot OAuth URL.
 
-**Step 5 — Connection Test**
-Trigger a real-time connection test to verify access to Google Contacts and (if HubSpot is toggled on) HubSpot CRM. Show connection status results: *"Google Contacts: Accessible, HubSpot CRM: Connected"* (or just Google if HubSpot is off). "Done" button marks `firstRunComplete = true` and navigates to the main Settings screen.
+**Step 4 — Connection Test**
+Trigger a real-time connection test to verify access to Google Contacts (by checking if the system contacts database can be queried) and (if HubSpot is toggled on) HubSpot CRM. Show connection status results: *"Google Contacts: Accessible, HubSpot CRM: Connected"* (or just Google if HubSpot is off). "Done" button marks `firstRunComplete = true` and navigates to the main Settings screen.
 
 If the app is force-stopped and restarted mid-wizard, resume at the last incomplete step.
 
@@ -58,7 +55,7 @@ If the app is force-stopped and restarted mid-wizard, resume at the last incompl
 
 - Register a manifest-declared `BroadcastReceiver` (`SmsReceiver`) for `android.provider.Telephony.SMS_RECEIVED` (requires `RECEIVE_SMS` permission).
 - On receipt, delegate message details (sender, body, timestamp) immediately to a one-time `WorkManager` worker (`SmsLookupWorker`) for async processing.
-- **Expedited Work Requirement**: The lookup worker must be executed as an **Expedited Work Request** (`setExpedited(...)` with `OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST`) to guarantee immediate execution even if the device is in Doze mode or battery saver. This avoids running a persistent foreground service while still ensuring real-time notification delivery.
+- **Expedited Work Requirement**: The lookup worker must be executed as an **Expedited Work Request** (`setExpedited(...)` with `OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST`) to guarantee immediate execution even if the device is in Doze mode or battery saver. This avoids running a persistent foreground service while still ensuring real-time notification delivery. To prevent crashes on older Android versions (API levels < 31) where expedited work runs as a foreground service, the `SmsLookupWorker` must override `getForegroundInfo()` to display a transient system notification when fallback execution is required.
 - Processing pipeline inside the worker (in order):
   1. Check stop list words (case-insensitive) → if any match → **ignore** (checked first to avoid redundant API queries).
   2. If not ignored → query Google Contacts (via Android ContactsProvider ContentResolver) and HubSpot CRM (via real-time Contacts API search call) to check if the sender is a known contact.
@@ -92,8 +89,10 @@ Applies only if Tier 1 produces no match. Check for:
 Store the configured opt-out strings in Room DB as a `OptOutPatternEntity` so they are editable. Seed with the four defaults above on first launch.
 
 When an opt-out signal is detected:
-- Show a high-priority notification: "Opt-out request detected".
-- Log the event to a `DetectionLogEntity` (message preview — first 50 chars, timestamp, matched pattern). Note that the phone number must be omitted entirely from the log entity and notification body to prevent storing phone number data locally.
+- Show a high-priority notification: "Opt-out request detected". Include a setting for this to be disabled.
+- Automatically reply with a one word message of either "stop" or "end" to the incoming number:
+  - If `stop2stop` or `stop` (last line) is matched $\rightarrow$ reply "stop".
+  - If `end2end` or `end` (last line) is matched $\rightarrow$ reply "end".
 
 ---
 
@@ -109,16 +108,17 @@ Single-screen Settings UI built in Jetpack Compose.
 
 Sections:
 
-#### Google Account
-- "Connect Google Account" button → launches Google Sign-In via `CredentialManager` API (preferred) or legacy `GoogleSignInClient`.
-- Once connected, display the account name, a "Disconnect" option, and a **"Test Connection"** button (verifies access to Google Contacts by making a diagnostic query).
-- Scopes required: `https://www.googleapis.com/auth/contacts.readonly`.
+#### Google Contacts
+- Since the app queries system-synced Google Contacts locally, it does not require Google Sign-In or OAuth.
+- Display the status of the local contact permission: *"Permission Granted"* or *"Permission Denied"* (with a button to open App Settings to grant it if denied).
+- Provide a **"Test Connection"** button that performs a local query via ContentResolver and displays the status along with the number of local contacts found: *"Google Contacts: Accessible (X contacts found)"*.
 
 #### HubSpot Account
 - **"Use HubSpot" toggle switch** at the top of this section (default: **on/true**).
 - When the toggle is **on**, immediately check whether `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty:
-  - **If the client ID is missing:** Show an inline error directly beneath the toggle: *"No HubSpot Client ID is configured. Please enter your Client ID below before connecting."* Render an editable text field for the user to enter the Client ID inline, along with a *"Where do I find my Client ID?"* help link. Do not launch OAuth until the field is non-empty and the user taps "Save Client ID." Once saved, write the value to `EncryptedSharedPreferences` under the key `hubspot_client_id_override` and use it in place of `BuildConfig.HUBSPOT_CLIENT_ID` for all subsequent OAuth and API calls.
-  - **If the client ID is present** (either from `BuildConfig` or from the saved override): Immediately launch the HubSpot OAuth 2.0 flow via `CustomTabsIntent`. Offer both **HubSpot login** and **Google login** as identity options within the OAuth flow — HubSpot's standard OAuth screen surfaces both natively, so no extra code is needed beyond launching the standard auth URL. The user cannot dismiss this flow without either completing it or turning the toggle back off — enforce this by showing a non-cancelable dialog if they navigate away without completing auth.
+  - **If the client ID is missing:** Show an inline error directly beneath the toggle: *"No HubSpot Client ID and Secret are configured. Please enter them below before connecting."* Render editable text fields for both the Client ID and Client Secret inline, along with a *"Where do I find my credentials?"* help link. Do not launch OAuth until both fields are non-empty and the user taps "Save Credentials." Once saved, write the values to `EncryptedSharedPreferences` under the keys `hubspot_client_id_override` and `hubspot_client_secret_override`, and use them in place of `BuildConfig.HUBSPOT_CLIENT_ID` and `BuildConfig.HUBSPOT_CLIENT_SECRET` for all subsequent OAuth and API calls.
+  - **If the credentials are present** (either from `BuildConfig` or from the saved overrides): Immediately launch the HubSpot OAuth 2.0 flow via `CustomTabsIntent` targeting the redirect URI `smsfilter://oauth`. Offer both **HubSpot login** and **Google login** as identity options within the OAuth flow — HubSpot's standard OAuth screen surfaces both natively, so no extra code is needed beyond launching the standard auth URL. The user cannot dismiss this flow without either completing it or turning the toggle back off — enforce this by showing a non-cancelable dialog if they navigate away without completing auth.
+- **OAuth Redirect Handling:** Define a custom scheme (`smsfilter://oauth`) in the app's `AndroidManifest.xml` via an `<intent-filter>` on an OAuth redirect Activity. This Activity intercepts the browser redirect, extracts the authorization code (`code`), initiates the token exchange request on `Dispatchers.IO`, stores the resulting access and refresh tokens securely in `EncryptedSharedPreferences`, and finishes the Activity to return the user to the app settings or onboarding flow.
 - When the toggle is turned **off**, all HubSpot logic — OAuth, index sync, API calls — is completely bypassed. The rest of this section is grayed out and non-interactive.
 - Store access token and refresh token securely using `EncryptedSharedPreferences`.
 - Once authenticated, display the connected portal name, a "Disconnect" option, and a **"Test Connection"** button (verifies token validity by making a quick test call to HubSpot's endpoints).
@@ -131,9 +131,14 @@ Sections:
 - Keywords stored in Room DB (`StopListEntity`).
 
 #### Opt-Out Patterns
-- Same add/delete UI pattern as Stop List.
-- Pre-seeded with: `stop2stop`, `end2end`, `stop`, `end`.
+- Same add/delete UI pattern as Stop List. However, when adding a new pattern, the user must select the reply type (either "stop" or "end") via a dropdown or radio buttons.
+- Pre-seeded with:
+  - `stop2stop` (reply type: "stop")
+  - `end2end` (reply type: "end")
+  - `stop` (reply type: "stop")
+  - `end` (reply type: "end")
 - Note in the UI: "All matching is case-insensitive. `stop` and `end` are matched only on the last line; others match anywhere."
+- The `OptOutPatternEntity` in Room DB must store the pattern string and its associated `replyType` (as a string or enum).
 
 #### Connection Testing
 - **"Test All Connections"** button that runs a complete diagnostic check (both Google and HubSpot).
@@ -155,13 +160,14 @@ Request all required permissions on first launch via the onboarding wizard. Requ
 
 ```
 RECEIVE_SMS
+SEND_SMS
 READ_SMS
 READ_CONTACTS
 INTERNET
 POST_NOTIFICATIONS          (API 33+)
 ```
 
-Use `ActivityResultContracts.RequestMultiplePermissions`. Show rationale dialogs for `RECEIVE_SMS` and `READ_CONTACTS` explaining why each is needed. If any critical permission is denied, show a persistent banner in the UI and disable the relevant feature gracefully.
+Use `ActivityResultContracts.RequestMultiplePermissions`. Show rationale dialogs for `RECEIVE_SMS`, `SEND_SMS`, and `READ_CONTACTS` explaining why each is needed. If any critical permission is denied, show a persistent banner in the UI and disable the relevant feature gracefully.
 
 ---
 
@@ -259,10 +265,13 @@ defaultConfig {
 
 - **Modern Annotation Processing**: Use **Kotlin Symbol Processing (KSP)** instead of the legacy `kapt` tool for room database compiler and Hilt compiler dependencies to ensure compatibility with modern Kotlin versions in Android Studio Quail.
 - Include a `local.properties.example` file in the repo with placeholder values and a comment explaining how to populate it. `local.properties` must be listed in `.gitignore`.
-- If `BuildConfig.HUBSPOT_CLIENT_ID` is empty at runtime and no override has been saved in `EncryptedSharedPreferences`, the "Use HubSpot" toggle must show the inline Client ID entry field as described in the Settings section above.
+- If `BuildConfig.HUBSPOT_CLIENT_ID` or `BuildConfig.HUBSPOT_CLIENT_SECRET` is empty at runtime and no overrides have been saved in `EncryptedSharedPreferences`, the "Use HubSpot" toggle must show the inline credentials entry fields as described in the Settings section above.
 - **Retry logic** for HubSpot API calls: exponential backoff, max 3 retries.
 - **Rate limit awareness**: HubSpot Contacts API search endpoint is rate-limited; handle failures gracefully by falling back to treating the sender as unknown or retrying.
 - **Error states**: if Google or HubSpot lookup fails due to network/API issues during real-time processing, default to processing the message for opt-outs (err on the side of safety) and surface connection warnings in Settings.
+- **HTTP Client Timeout**: For all HubSpot API network calls, configure a strict HTTP timeout (e.g., 5 seconds) to prevent `SmsLookupWorker` from hanging and exceeding its expedited execution quota.
+- **Notification Channels**: Register the required notification channels (e.g., "Opt-out Alerts" for detections, and a status channel for background execution if needed) inside a custom `Application` class at app startup.
+- **SmsManager Retrieval**: To send the automatic replies, retrieve the `SmsManager` instance using `context.getSystemService(SmsManager::class.java)` on API 31+, falling back to `SmsManager.getDefault()` on older versions to avoid deprecation warnings.
 - Minimum viable happy path must work without HubSpot connected (Google Contacts only mode).
 - **State Collection in Compose**: Use `collectAsStateWithLifecycle()` from `androidx.lifecycle:lifecycle-runtime-compose` instead of the standard `collectAsState()` to observe flows reactively in a lifecycle-aware manner.
 - **Asynchronous Threading**: Ensure all network calls (HubSpot API), database queries (Room), and system content resolver queries (Google Contacts) are explicitly dispatched on `Dispatchers.IO` in their repositories/workers to avoid blocking the Main thread.
