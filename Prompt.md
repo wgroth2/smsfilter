@@ -54,6 +54,12 @@ Trigger a real-time connection test to verify access to Google Contacts (by chec
 
 If the app is force-stopped and restarted mid-wizard, resume at the last incomplete step.
 
+### Subsequent Startup Flow
+
+On any subsequent app startup (where `firstRunComplete` is `true` in `DataStore<Preferences>`):
+- **Default Action:** The app should run in the background. When the main Activity is launched (e.g., from the launcher icon), it must immediately move itself to the background by calling `moveTaskToBack(true)` to run silently, without showing any UI to the user.
+- **Exception for Notifications:** If the main Activity is launched with a specific intent flag or extra indicating it was opened via a notification click (such as clicking an opt-out detection notification), bypass the backgrounding action and display the Settings screen or the Activity & Detection Log screen as appropriate.
+
 ---
 
 ### Core Components
