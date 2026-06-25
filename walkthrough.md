@@ -45,6 +45,12 @@ graph TD
 * **Database Migrations**: Configured the Room DB builder with `fallbackToDestructiveMigration()` to simplify early-phase schema alterations.
 * **JSON Serialization**: Standardized on **Moshi** (via KSP code generation) for all API requests and response model parsing.
 
+### 5. Distribution & Dual Build Modes
+* **APK Sideloading**: Standardized on private APK distribution for sideloading, including documentation (`INSTALL_GUIDE.md`) to help users bypass Play Protect warnings.
+* **Dual Build Modes**: Configured two specific build configurations:
+  - **Debug Mode**: Uses default debug keystores, keeps verbose logging active, and bypasses R8/ProGuard optimizations to simplify development testing.
+  - **Production/Release Mode**: Uses a production release keystore (loaded securely via environment variables), enables full ProGuard/R8 code shrinking and optimization, and strips out debug logs.
+
 ---
 
 ## Next Steps for Implementation
