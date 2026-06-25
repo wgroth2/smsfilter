@@ -117,6 +117,7 @@ Single-screen Settings UI built in Jetpack Compose.
 - Rendered at the very top of the Settings screen, showing real-time connection status indicators (active/disconnected) with colored dots:
   - **Google Contacts**: Green dot ("Connected") or Red dot ("Permissions required / Disconnected").
   - **HubSpot CRM**: Green dot ("Connected") or Red dot ("Token expired / Disconnected").
+- **State Persistence**: To avoid redundant API requests on UI recompositions, the connection health status for Google and HubSpot must be persisted in `DataStore<Preferences>` under a shared connection status key (e.g., as string values representing `CONNECTED`, `DISCONNECTED`, `AUTH_ERROR`, etc.). Both the UI's connection tests and the background `SmsLookupWorker` must update this state on success/failure. The Settings screen will observe this state to update the status indicator colors.
 - **Privacy & Latency Info Card**: A dismissible card explaining: *"To protect your privacy, this app does not store your contacts locally. Lookups are done in real-time, which may cause a 1-2 second delay for unknown numbers."*
 
 Sections:
@@ -285,6 +286,8 @@ defaultConfig {
 - **HTTP Client Timeout**: For all HubSpot API network calls, configure a strict HTTP timeout (e.g., 5 seconds) to prevent `SmsLookupWorker` from hanging and exceeding its expedited execution quota.
 - **Notification Channels**: Register the required notification channels (e.g., "Opt-out Alerts" for detections, and a status channel for background execution if needed) inside a custom `Application` class at app startup.
 - **SmsManager Retrieval**: To send the automatic replies, retrieve the `SmsManager` instance using `context.getSystemService(SmsManager::class.java)` on API 31+, falling back to `SmsManager.getDefault()` on older versions to avoid deprecation warnings.
+- **Database Migration Strategy**: To prevent crashes during development and updates, configure the Room database builder with `fallbackToDestructiveMigration()` so that the database schema is safely recreated if changed, without requiring manual migration scripts.
+- **JSON Serialization**: Standardize on **Moshi** (using Kotlin Code Gen via KSP) as the unified JSON serialization library for all HubSpot API request and response parsing.
 - Minimum viable happy path must work without HubSpot connected (Google Contacts only mode).
 - **State Collection in Compose**: Use `collectAsStateWithLifecycle()` from `androidx.lifecycle:lifecycle-runtime-compose` instead of the standard `collectAsState()` to observe flows reactively in a lifecycle-aware manner.
 - **Asynchronous Threading**: Ensure all network calls (HubSpot API), database queries (Room), and system content resolver queries (Google Contacts) are explicitly dispatched on `Dispatchers.IO` in their repositories/workers to avoid blocking the Main thread.
