@@ -4,7 +4,7 @@
 
 Build a production-ready Android application in Kotlin that monitors incoming SMS messages and sends opt-out responses to stop messages from unknown senders. The app runs in the background reactively using a BroadcastReceiver and WorkManager (without a persistent background service) and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic. If the message is from an unknown sender and contains opt-out language, the app should automatically reply to the sender with the appropriate one-word opt-out keyword ("stop" or "end") to unsubscribe. 
 
-Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation. All files should have the BSD license and attribute the authorship to Bill Roth, bill.roth@gmail.com. 
+Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable, editable, and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation. All files should have the BSD license and attribute the authorship to Bill Roth, bill.roth@gmail.com. 
 
 The principal files should be saved in a git repo. The purpose of the git repo is to be able to backup the source code to GitHub and allow those who pull it down or close it to be able to recreate the app and build it on their own systems.
 
@@ -14,14 +14,19 @@ The principal files should be saved in a git repo. The purpose of the git repo i
 
 ### Architecture
 
-Use a clean architecture pattern with these layers:
+Follow Google's official Guide to App Architecture, structuring the codebase with Unidirectional Data Flow (UDF) across these layers:
 
-- **UI Layer** — Jetpack Compose for all screens
-- **Background Layer** — BroadcastReceiver + WorkManager for SMS monitoring and real-time lookups (no persistent background service)
-- **Data Layer** — Room database for settings, stop list, opt-out patterns, and detection logs (no phone number data is stored locally)
-- **Repository Layer** — abstracts Contact, HubSpot, and Settings data sources
+- **UI Layer**:
+  - Jetpack Compose for all screens and composables.
+  - Hilt-injected Jetpack ViewModels (`@HiltViewModel`) to act as state holders, manage UI logic, and expose UI State reactively via `StateFlow`.
+- **Background Layer**:
+  - Manifest-declared `BroadcastReceiver` and `WorkManager` for reactive background SMS monitoring and real-time lookups (no persistent background service or foreground service, except for the expedited worker's foreground fallback notification).
+- **Data Layer**:
+  - Local Data Sources: Room database for settings, stop list, opt-out patterns, and detection logs (no phone number data is stored locally), and `DataStore<Preferences>` for onboarding flags.
+  - Remote Data Sources: Retrofit/OkHttp API services for HubSpot communication.
+  - Repositories: Coordinate local and remote data sources, acting as the Single Source of Truth (SSOT) for the rest of the application.
 
-Use Hilt for dependency injection. Use Kotlin Coroutines + Flow throughout.
+Use Hilt for dependency injection. Use Kotlin Coroutines and asynchronous Flows throughout.
 
 ---
 
