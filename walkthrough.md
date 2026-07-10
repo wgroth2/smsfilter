@@ -37,6 +37,8 @@ graph TD
 * **SEND_SMS Permission**: Added `android.permission.SEND_SMS` to the manifest and runtime onboarding permission list to enable the automatic replies.
 * **Custom Opt-Out Pattern Mapping**: Standardized custom opt-out patterns in the database (`OptOutPatternEntity`) to include a `replyType` field (`"stop"` or `"end"`), which is selected in the UI when users add custom rules.
 * **SmsManager Retrieval**: Standardized on retrieving `SmsManager` using `context.getSystemService(SmsManager::class.java)` on API 31+, falling back to `SmsManager.getDefault()` on older versions to avoid deprecation warnings.
+* **Beep On Opt-Out & Sound Customization**: Added the option to trigger a beep sound (defaulting to the system beep, or utilizing a selected sound file URI) whenever an auto-reply is dispatched.
+* **Localization Settings**: Added support for switching app language between English and Spanish via an in-app setting, utilizing externalized string resources.
 
 ### 4. Resilient Network & Data Persistence
 * **HubSpot Credentials Overrides**: Updated onboarding (Step 3) and Settings (HubSpot Account) to let users enter both Client ID and Client Secret overrides, which are written to `EncryptedSharedPreferences`.

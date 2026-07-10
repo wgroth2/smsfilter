@@ -2,7 +2,7 @@
 
 ### Overview
 
-Build a production-ready Android application in Kotlin that monitors incoming SMS messages and sends opt-out responses to stop messages from unknown senders. The app runs in the background reactively using a BroadcastReceiver and WorkManager (without a persistent background service) and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic. If the message is from an unknown sender and contains opt-out language, the app should automatically reply to the sender with the appropriate one-word opt-out keyword ("stop" or "end") to unsubscribe. 
+Build a production-ready Android application in Kotlin that monitors incoming SMS messages and sends opt-out responses to stop messages from unknown senders. The app runs in the background reactively using a BroadcastReceiver and WorkManager (without a persistent background service) and cross-references incoming numbers in real-time against Google Contacts and HubSpot CRM (without storing any phone number data locally) before applying opt-out detection logic. If the message is from an unknown sender and contains opt-out language, the app should automatically reply to the sender with the appropriate one-word opt-out keyword ("stop" or "end") to unsubscribe. There should be a setting called "Beep On Opt-Out", and if the setting is true, the app should beep when it sends an opt-out response. If the setting is false, it should not make any noise. Settings should also contain a setting for the sound file to be used, defaulting to the system beep.
 
 Target SDK: 35 (Android 15), Min SDK: 26 (Android 8.0). All code must be readable, editable, and buildable in Android Studio Quail 1 | 2026.1.1 Patch 2 or later. All files and public functions must use KDoc documentation. All files should have the BSD license and attribute the authorship to Bill Roth, bill.roth@gmail.com. 
 
@@ -22,7 +22,7 @@ Follow Google's official Guide to App Architecture, structuring the codebase wit
 - **Background Layer**:
   - Manifest-declared `BroadcastReceiver` and `WorkManager` for reactive background SMS monitoring and real-time lookups (no persistent background service or foreground service, except for the expedited worker's foreground fallback notification).
 - **Data Layer**:
-  - Local Data Sources: Room database for settings, stop list, opt-out patterns, and detection logs (no phone number data is stored locally), and `DataStore<Preferences>` for onboarding flags.
+  - Local Data Sources: Room database for settings (storing application configuration like beep on opt-out, sound file URI, and app language), stop list, opt-out patterns, and detection logs (no phone number data is stored locally), and `DataStore<Preferences>` for onboarding flags.
   - Remote Data Sources: Retrofit/OkHttp API services for HubSpot communication.
   - Repositories: Coordinate local and remote data sources, acting as the Single Source of Truth (SSOT) for the rest of the application.
 
@@ -106,6 +106,7 @@ When an opt-out signal is detected:
 - Automatically reply with a one word message of either "stop" or "end" to the incoming number:
   - If `stop2stop` or `stop` (last line) is matched $\rightarrow$ reply "stop".
   - If `end2end` or `end` (last line) is matched $\rightarrow$ reply "end".
+- If the "Beep On Opt-Out" setting is true, play a beep sound (using the configured sound file URI, or falling back to the system beep) when the opt-out response is sent. If false, do not play any sound.
 
 ---
 
@@ -153,6 +154,11 @@ Sections:
   - `end` (reply type: "end")
 - Note in the UI: "All matching is case-insensitive. `stop` and `end` are matched only on the last line; others match anywhere."
 - The `OptOutPatternEntity` in Room DB must store the pattern string and its associated `replyType` (as a string or enum).
+
+#### Sound & Language Settings
+- **"Beep On Opt-Out" toggle**: Enable or disable playing a beep sound when an opt-out response is sent (default: true).
+- **Sound File Selector**: Allow selecting a sound file (URI) for the beep using a system ringtone/notification sound picker, defaulting to the system beep sound.
+- **Language Selector**: A dropdown or list preference to switch the app's language between English and Spanish, defaulting to US English.
 
 #### Connection Testing
 - **"Test All Connections"** button that runs a complete diagnostic check (both Google and HubSpot).
@@ -212,6 +218,9 @@ Generate a comprehensive test suite:
 | 8 | Unknown | "end2end encryption rocks" | Alert — end2end match |
 | 9 | Unknown | "Postop care instructions\nCall us" | No alert — "stop" embedded in word on non-last line |
 | 10 | Unknown | Empty message | No alert |
+| 11 | Unknown | "Hello\nSTOP" with Beep On Opt-Out enabled | Alert, auto-reply "stop", and configured sound/beep plays |
+| 12 | Unknown | "Hello\nSTOP" with Beep On Opt-Out disabled | Alert and auto-reply "stop" without any sound playing |
+| 13 | N/A | Switching app language to Spanish in settings | All UI screens display in Spanish |
 
 ---
 
