@@ -47,22 +47,33 @@ graph TD
 * **Database Migrations**: Configured the Room DB builder with `fallbackToDestructiveMigration()` to simplify early-phase schema alterations.
 * **JSON Serialization**: Standardized on **Moshi** (via KSP code generation) for all API requests and response model parsing.
 
-### 5. Distribution & Dual Build Modes
+### 5. Distribution, Code Standards & Build Strategy
 * **APK Sideloading**: Standardized on private APK distribution for sideloading, including documentation (`INSTALL_GUIDE.md`) to help users bypass Play Protect warnings.
 * **Dual Build Modes**: Configured two specific build configurations:
   - **Debug Mode**: Uses default debug keystores, keeps verbose logging active, and bypasses R8/ProGuard optimizations to simplify development testing.
   - **Production/Release Mode**: Uses a production release keystore (loaded securely via environment variables), enables full ProGuard/R8 code shrinking and optimization, and strips out debug logs.
+* **Pinned Dependency Version Catalog**: All library dependencies and Gradle plugins are strictly locked in `gradle/libs.versions.toml` to prevent version drift across Kotlin, KSP, Compose BOM, and Hilt.
+* **KDoc & Licensing Standards**: Enforced full BSD 3-Clause licensing headers (authored by Bill Roth <bill.roth@gmail.com>) and mandatory KDoc comments across all Kotlin classes, functions, interfaces, and constants via `.agents/AGENTS.md`.
+* **7-Phase Incremental Build Strategy**: Development is structured into 7 sequential phases with mandatory verification steps (`assembleDebug` and unit tests) after each phase to guarantee token safety and compile-correct builds:
+  1. *Phase 1 — Project Scaffolding & Build Configuration*
+  2. *Phase 2 — Room Database, DataStore & Secure Storage (includes `di/DatabaseModule`)*
+  3. *Phase 3 — Detection Engine & Utility Layer (Pure unit-testable components)*
+  4. *Phase 4 — Background SMS Pipeline (includes `SmsLookupWorker` and `di/RepositoryModule` with placeholder interface binding)*
+  5. *Phase 5 — HubSpot API & OAuth Layer (includes `HubSpotRepositoryImpl` and `di/NetworkModule`)*
+  6. *Phase 6 — Onboarding UI & Permissions Screen (`OnboardingScreen`, `PermissionsScreen`, `MainActivity`)*
+  7. *Phase 7 — Settings, Detection Log UI & Localization (`SettingsScreen`, `DetectionLogScreen`, English/Spanish `strings.xml`)*
 
 ---
 
 ## Next Steps for Implementation
 
-When resuming this project to generate the Kotlin source code, the next developer/agent should:
+When ready to generate the Kotlin codebase, execute the phases sequentially as defined in [Prompt.md](file:///Users/bill/code/smsfilter/Prompt.md):
 
-1. **Scaffold the Project**: Create a new Android project targeting API 35 with the package name `com.digiroth.smsfilter`.
-2. **Setup Dependencies**: Configure the unified Version Catalog (`gradle/libs.versions.toml`) with Hilt, Room, Compose, WorkManager, DataStore, Moshi, CustomTabs, and Jetpack Security.
-3. **Implement Application Class**: Create a custom `Application` class to initialize Hilt, configure the Room builder with destructive migrations, and register notification channels ("Opt-out Alerts") on startup.
-4. **Implement Data Layer**: Build Room entities/DAOs (with `replyType` in `OptOutPatternEntity`), `DataStore` preferences, `EncryptedSharedPreferences` for credentials, and Retrofit/Moshi HubSpot services.
-5. **Implement Repositories**: Create the local Contacts repository (reading `ContactsContract`) and the HubSpot repository (performing Contacts Search API queries with timeouts).
-6. **Implement Worker & Receiver**: Implement `SmsReceiver` and `SmsLookupWorker` (incorporating `getForegroundInfo()` and dynamic `SmsManager` SMS replies).
-7. **Implement UI & Navigation**: Design the 4-step wizard onboarding flow, startup routing check, subsequent startup auto-backgrounding, and Settings screen with shared connection indicators.
+1. **Run Phase 1**: Scaffold `libs.versions.toml`, `build.gradle.kts`, `AndroidManifest.xml`, and `@HiltAndroidApp Application` class. Verify with `./gradlew assembleDebug`.
+2. **Run Phase 2**: Implement Room entities, DAOs, `AppDatabase`, `DataStore`, `EncryptedSharedPreferences`, and `di/DatabaseModule`. Verify with `RoomDatabaseTest`.
+3. **Run Phase 3**: Implement `PhoneNumberNormalizer`, `StopListMatcher`, `OptOutDetector`, and `OptOutResult`. Verify with unit tests.
+4. **Run Phase 4**: Implement `ContactRepository`, `HubSpotRepository` interface, `SmsReceiver`, `SmsLookupWorker`, and `di/RepositoryModule`. Verify with worker tests.
+5. **Run Phase 5**: Implement Moshi models, `HubSpotApiService`, `HubSpotRepositoryImpl`, `OAuthRedirectActivity`, and `di/NetworkModule`. Verify with `MockWebServer` tests.
+6. **Run Phase 6**: Implement `OnboardingViewModel`, `OnboardingScreen.kt`, `PermissionsScreen.kt`, and `MainActivity.kt`. Verify with `./gradlew assembleDebug`.
+7. **Run Phase 7**: Implement `SettingsViewModel`, `SettingsScreen.kt`, `DetectionLogViewModel`, `DetectionLogScreen.kt`, English/Spanish `strings.xml`, `TEST_CASES.md`, and `INSTALL_GUIDE.md`. Verify with `./gradlew test assembleRelease`.
+
