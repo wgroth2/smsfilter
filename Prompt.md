@@ -463,7 +463,11 @@ To prevent token truncation, stubbed implementation code, and version drift duri
    - Implement `ContactRepository` (Google Contacts `ContactsContract.PhoneLookup` via `ContentResolver` + 15-minute in-memory `LruCache`).
    - Define `HubSpotRepository` as a **Kotlin interface** only (full implementation comes in Phase 5). The interface must declare all methods needed by `SmsLookupWorker` so the worker compiles without the real implementation.
    - Implement `SmsReceiver` (manifest-declared, multi-part PDU reconstruction via `getMessagesFromIntent()`, synchronous reconstruction in `onReceive()` before enqueuing the worker).
-   - Implement `SmsLookupWorker` as an Expedited Work Request: `getForegroundInfo()` fallback notification, stop list check → contact lookups (Google + HubSpot interface) → opt-out detection → `SmsManager` auto-reply → beep/sound trigger → `DetectionLogEntity` write.
+   - Implement `SmsLookupWorker` as an Expedited Work Request with `getForegroundInfo()` fallback notification. The worker must inject the **settings DAO** (generated in Phase 2) and read the following three values on `Dispatchers.IO` **before any processing logic runs**:
+     - `useHubSpot: Boolean` — if `false`, skip all `HubSpotRepository` calls entirely; treat sender as unknown if not found in Google Contacts.
+     - `beepOnOptOut: Boolean` — if `true`, play audio after sending an opt-out reply; if `false`, produce no sound.
+     - `soundFileUri: String?` — the URI of the configured beep sound; fall back to the system notification sound (`RingtoneManager.TYPE_NOTIFICATION`) if null or empty.
+   - The full worker processing pipeline must execute in this exact order: (1) read runtime settings from DAO → (2) stop list check → (3) Google Contacts lookup → (4) HubSpot lookup (only if `useHubSpot = true`) → (5) opt-out detection → (6) `SmsManager` auto-reply → (7) sound playback using `soundFileUri` (only if `beepOnOptOut = true`) → (8) `DetectionLogEntity` write.
    - Generate `di/RepositoryModule` — binds `ContactRepository` as its concrete type and binds the `HubSpotRepository` interface to a no-op placeholder implementation so Hilt can satisfy the dependency. This placeholder will be replaced in Phase 5. **Do not generate `NetworkModule` here** — Retrofit/OkHttp/Moshi do not exist until Phase 5.
    - *Verification:* Execute worker unit tests with the `HubSpotRepository` interface mocked via the placeholder. The AI must generate these tests as part of this phase.
 
