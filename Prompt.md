@@ -333,3 +333,36 @@ defaultConfig {
 - **R8/ProGuard Rules**: Provide a `proguard-rules.pro` file configured to preserve Hilt modules, Room database entities/DAOs, and Moshi/serialization data classes used for HubSpot API communication to prevent runtime crashes in release builds.
 - **String Externalization**: All UI strings must be declared in `res/values/strings.xml` to support potential localization and clean resource management. Spanish strings should be included as well and a setting should be added to switch languages. But the default is to use us english strings.
 - **Git Version Control**: All generated source code, project files, assets, documentation (`TEST_CASES.md`, `INSTALL_GUIDE.md`), and build scripts must be fully tracked and committed to git.
+
+---
+
+### Phased Code Generation & Build Strategy
+
+To prevent token truncation, stubbed implementation code, and version drift during code generation, development must be executed sequentially across 5 incremental phases. After each phase, verify that the generated components compile cleanly:
+
+1. **Phase 1 — Project Scaffolding & Build Configuration**
+   - Configure `gradle/libs.versions.toml` (AGP 8.x+, Kotlin 2.x, KSP, Hilt, Room, Compose, Moshi, Retrofit).
+   - Generate `build.gradle.kts` (root & app), `local.properties.example`, `proguard-rules.pro`, `AndroidManifest.xml`, and the custom `@HiltAndroidApp Application` class.
+   - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the base application skeleton.
+
+2. **Phase 2 — Core Data Layer & Database**
+   - Implement Room entities (`StopListEntity`, `OptOutPatternEntity`, `DetectionLogEntity`), DAOs, Room database (configured with `fallbackToDestructiveMigration()`), `DataStore<Preferences>`, and `EncryptedSharedPreferences`.
+   - Implement `ContactRepository` (Google Contacts ContentResolver query logic + in-memory LruCache) and `StopListMatcher`.
+   - *Verification:* Execute unit tests (`RoomDatabaseTest`, `StopListMatcherTest`, `PhoneNumberNormalizerTest`).
+
+3. **Phase 3 — Background SMS Processing Pipeline**
+   - Implement `SmsReceiver` (multi-part PDU reconstruction via `getMessagesFromIntent()`).
+   - Implement `SmsLookupWorker` (Expedited Work request setup, `getForegroundInfo()` system notification fallback, contact verification, opt-out detection, sound/beep trigger, and `SmsManager` auto-reply logic).
+   - Implement `OptOutDetector`.
+   - *Verification:* Execute `OptOutDetectorTest` and worker unit tests.
+
+4. **Phase 4 — HubSpot API & OAuth Layer**
+   - Implement Moshi JSON models, Retrofit service interfaces (`HubSpotApiService`), `HubSpotRepository` (with search query filters & 5s timeouts), and token refresh interceptors.
+   - Implement `OAuthRedirectActivity` for `smsfilter://oauth` Intent callback and runtime credentials override storage.
+   - *Verification:* Execute `HubSpotRepositoryTest` with mock web server tests.
+
+5. **Phase 5 — Compose UI, Onboarding, Settings & Localization**
+   - Implement Jetpack Compose UI: Onboarding Wizard steps, Connection Health Summary, Settings Screen, Detection Log Screen.
+   - Externalize all strings into `res/values/strings.xml` (US English) and `res/values-es/strings.xml` (Spanish).
+   - Generate `TEST_CASES.md` and `INSTALL_GUIDE.md`.
+   - *Verification:* Run full test suite (`./gradlew test`) and compile debug and release APKs (`./gradlew assembleDebug assembleRelease`).
