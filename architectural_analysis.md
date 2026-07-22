@@ -123,3 +123,17 @@ Below are the identified architectural risks, platform constraints (for Target S
 * Since the application relies on event-driven execution (no persistent foreground service), the Android OS is free to terminate the application process when idle.
 * When the process is terminated, the in-memory cache is wiped. A subsequent incoming SMS will spawn a new process, leading to a cache miss and a HubSpot API request.
 * While this is acceptable and preserves privacy (since numbers are never written to disk), the developer should expect cache hit rates to be low during periods of low activity. No architectural changes are needed, but this process-death behavior should be accepted as a design trade-off.
+
+---
+
+## 10. Phased Code Generation & Modular Build Strategy ✅ RESOLVED
+> [!NOTE]
+> **Integrated into Prompt.md & AGENTS.md** — Development strategy structured into 7 sequential, incremental phases to prevent token truncation, stubbed code, and Hilt circular compilation failures.
+
+### Key Architectural Safeguards:
+1. **Co-located Hilt Modules**: Hilt modules (`DatabaseModule`, `RepositoryModule`, `NetworkModule`) are strictly generated in the exact phase where their referenced classes are created. `RepositoryModule` uses a temporary no-op placeholder for `HubSpotRepository` in Phase 4 to allow worker testing before Phase 5 network integration.
+2. **Pure, Decoupled Engine**: `OptOutDetector` and `StopListMatcher` are implemented as pure classes taking data models (`List<OptOutPatternEntity>`, `List<StopListEntity>`) as parameters rather than injecting Room DAOs. This allows JVM unit testing without database or Android framework mocks.
+3. **Explicit Worker Pre-Flight IO**: `SmsLookupWorker` executes a strict 8-step pipeline, beginning with an IO block on `Dispatchers.IO` to read runtime settings (`useHubSpot`, `beepOnOptOut`, `soundFileUri`) and fetch live pattern/stop lists from Room DAOs before evaluating any incoming message.
+4. **Pinned Dependency Catalog**: All library versions are pinned in `libs.versions.toml` to prevent version drift between Kotlin, KSP, Compose BOM, and Hilt.
+5. **Code Standards & Licensing**: All generated `.kt` files enforce BSD 3-Clause licensing (authored by Bill Roth <bill.roth@gmail.com>) and mandatory KDoc documentation across all public API surfaces as defined in `.agents/AGENTS.md`.
+
