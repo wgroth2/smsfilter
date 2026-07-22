@@ -455,9 +455,10 @@ To prevent token truncation, stubbed implementation code, and version drift duri
 
 3. **Phase 3 — Detection Engine & Utility Layer**
    - Implement `PhoneNumberNormalizer` (E.164 normalization with US default country fallback).
-   - Implement `StopListMatcher` (case-insensitive substring matching against `StopListEntity` keywords).
-   - Implement `OptOutDetector` (Tier 1 stop list check, Tier 2 `stop2stop`/`end2end`/last-line `stop`/`end` pattern checks, with correct `replyType` resolution for each matched pattern).
-   - *Verification:* Execute `PhoneNumberNormalizerTest`, `StopListMatcherTest`, and `OptOutDetectorTest`. The AI must generate all three test classes as part of this phase.
+   - Implement `StopListMatcher` (case-insensitive substring matching against a `List<StopListEntity>` passed in as a parameter — do not inject a DAO into this class).
+   - Implement `OptOutDetector` with a `detect(body: String, patterns: List<OptOutPatternEntity>): OptOutResult?` function signature. The patterns list must be passed in by the caller — **do not hardcode the four default patterns as constants and do not inject a DAO into `OptOutDetector` directly**. This keeps the class pure and easily unit-testable without a database. The caller (`SmsLookupWorker`, Phase 4) is responsible for fetching the live pattern list from `OptOutPatternDao` and passing it in.
+   - `OptOutResult` must be a data class (or sealed class) that captures the matched pattern string and its `replyType` (`"stop"` or `"end"`), so `SmsLookupWorker` knows which word to auto-reply with.
+   - *Verification:* Execute `PhoneNumberNormalizerTest`, `StopListMatcherTest`, and `OptOutDetectorTest`. Tests must pass the pattern list explicitly as constructor/function arguments — no mocking of a DAO is needed or permitted in this phase.
 
 4. **Phase 4 — Background SMS Pipeline**
    - Implement `ContactRepository` (Google Contacts `ContactsContract.PhoneLookup` via `ContentResolver` + 15-minute in-memory `LruCache`).
@@ -467,7 +468,7 @@ To prevent token truncation, stubbed implementation code, and version drift duri
      - `useHubSpot: Boolean` — if `false`, skip all `HubSpotRepository` calls entirely; treat sender as unknown if not found in Google Contacts.
      - `beepOnOptOut: Boolean` — if `true`, play audio after sending an opt-out reply; if `false`, produce no sound.
      - `soundFileUri: String?` — the URI of the configured beep sound; fall back to the system notification sound (`RingtoneManager.TYPE_NOTIFICATION`) if null or empty.
-   - The full worker processing pipeline must execute in this exact order: (1) read runtime settings from DAO → (2) stop list check → (3) Google Contacts lookup → (4) HubSpot lookup (only if `useHubSpot = true`) → (5) opt-out detection → (6) `SmsManager` auto-reply → (7) sound playback using `soundFileUri` (only if `beepOnOptOut = true`) → (8) `DetectionLogEntity` write.
+   - The full worker processing pipeline must execute in this exact order: (1) read runtime settings + **fetch `List<StopListEntity>` from `StopListDao` and `List<OptOutPatternEntity>` from `OptOutPatternDao`** on `Dispatchers.IO` → (2) stop list check (pass list to `StopListMatcher`) → (3) Google Contacts lookup → (4) HubSpot lookup (only if `useHubSpot = true`) → (5) opt-out detection (pass pattern list to `OptOutDetector`) → (6) `SmsManager` auto-reply using `replyType` from `OptOutResult` → (7) sound playback using `soundFileUri` (only if `beepOnOptOut = true`) → (8) `DetectionLogEntity` write.
    - Generate `di/RepositoryModule` — binds `ContactRepository` as its concrete type and binds the `HubSpotRepository` interface to a no-op placeholder implementation so Hilt can satisfy the dependency. This placeholder will be replaced in Phase 5. **Do not generate `NetworkModule` here** — Retrofit/OkHttp/Moshi do not exist until Phase 5.
    - *Verification:* Execute worker unit tests with the `HubSpotRepository` interface mocked via the placeholder. The AI must generate these tests as part of this phase.
 
