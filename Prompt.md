@@ -336,12 +336,110 @@ defaultConfig {
 
 ---
 
+### Dependency Version Catalog
+
+All dependency versions are pinned below. These versions are known to be mutually compatible as of July 2026. **Do not substitute different version numbers** — use these exact values when generating `gradle/libs.versions.toml`. If a newer stable release is available at generation time, flag it for human review before changing anything.
+
+> **Note:** The KSP version **must** match the Kotlin version exactly (format: `<kotlin-version>-<ksp-release>`). If the Kotlin version is updated, the KSP version must be updated together.
+
+```toml
+[versions]
+agp                 = "8.10.1"
+kotlin              = "2.1.21"
+ksp                 = "2.1.21-1.0.31"
+hilt                = "2.56.1"
+room                = "2.7.1"
+compose-bom         = "2025.06.01"
+lifecycle           = "2.9.1"
+workmanager         = "2.10.2"
+retrofit            = "2.11.0"
+okhttp              = "4.12.0"
+moshi               = "1.15.2"
+datastore           = "1.1.7"
+navigation-compose  = "2.9.0"
+security-crypto     = "1.1.0-alpha06"
+
+[libraries]
+# AndroidX Core
+androidx-core-ktx              = { module = "androidx.core:core-ktx", version = "1.16.0" }
+androidx-appcompat             = { module = "androidx.appcompat:appcompat", version = "1.7.1" }
+
+# Jetpack Compose (versions managed by BOM)
+compose-bom                    = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
+compose-ui                     = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-tooling-preview     = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+compose-ui-tooling             = { group = "androidx.compose.ui", name = "ui-tooling" }
+compose-material3              = { group = "androidx.compose.material3", name = "material3" }
+compose-activity               = { module = "androidx.activity:activity-compose", version = "1.10.1" }
+
+# Lifecycle & ViewModel
+lifecycle-viewmodel-ktx        = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+lifecycle-runtime-ktx          = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+lifecycle-runtime-compose      = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+
+# Navigation
+navigation-compose             = { module = "androidx.navigation:navigation-compose", version.ref = "navigation-compose" }
+
+# Hilt
+hilt-android                   = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler                  = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+hilt-navigation-compose        = { module = "androidx.hilt:hilt-navigation-compose", version = "1.2.0" }
+
+# Room
+room-runtime                   = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx                       = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler                  = { module = "androidx.room:room-compiler", version.ref = "room" }
+
+# WorkManager
+workmanager-ktx                = { module = "androidx.work:work-runtime-ktx", version.ref = "workmanager" }
+hilt-work                      = { module = "androidx.hilt:hilt-work", version = "1.2.0" }
+hilt-work-compiler             = { module = "androidx.hilt:hilt-compiler", version = "1.2.0" }
+
+# DataStore
+datastore-preferences          = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+# Security (EncryptedSharedPreferences)
+security-crypto                = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
+
+# Retrofit + OkHttp
+retrofit-core                  = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
+retrofit-moshi                 = { module = "com.squareup.retrofit2:converter-moshi", version.ref = "retrofit" }
+okhttp-core                    = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-logging                 = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
+
+# Moshi
+moshi-kotlin                   = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshi" }
+moshi-kotlin-codegen           = { module = "com.squareup.moshi:moshi-kotlin-codegen", version.ref = "moshi" }
+
+# Browser (CustomTabsIntent for HubSpot OAuth)
+browser                        = { module = "androidx.browser:browser", version = "1.8.0" }
+
+# Testing
+junit                          = { module = "junit:junit", version = "4.13.2" }
+androidx-test-ext-junit        = { module = "androidx.test.ext:junit", version = "1.2.1" }
+androidx-test-espresso-core    = { module = "androidx.test.espresso:espresso-core", version = "3.6.1" }
+room-testing                   = { module = "androidx.room:room-testing", version.ref = "room" }
+workmanager-testing            = { module = "androidx.work:work-testing", version.ref = "workmanager" }
+hilt-testing                   = { module = "com.google.dagger:hilt-android-testing", version.ref = "hilt" }
+mockwebserver                  = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+kotlinx-coroutines-test        = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version = "1.10.2" }
+
+[plugins]
+android-application  = { id = "com.android.application", version.ref = "agp" }
+kotlin-android       = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose       = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp                  = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt-plugin          = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+```
+
+---
+
 ### Phased Code Generation & Build Strategy
 
 To prevent token truncation, stubbed implementation code, and version drift during code generation, development must be executed sequentially across 5 incremental phases. After each phase, verify that the generated components compile cleanly:
 
 1. **Phase 1 — Project Scaffolding & Build Configuration**
-   - Configure `gradle/libs.versions.toml` (AGP 8.x+, Kotlin 2.x, KSP, Hilt, Room, Compose, Moshi, Retrofit).
+   - Generate `gradle/libs.versions.toml` using **exactly** the pinned versions from the Dependency Version Catalog section above.
    - Generate `build.gradle.kts` (root & app), `local.properties.example`, `proguard-rules.pro`, `AndroidManifest.xml`, and the custom `@HiltAndroidApp Application` class.
    - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the base application skeleton.
 
