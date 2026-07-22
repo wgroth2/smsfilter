@@ -442,15 +442,16 @@ To prevent token truncation, stubbed implementation code, and version drift duri
 
 1. **Phase 1 — Project Scaffolding & Build Configuration**
    - Generate `gradle/libs.versions.toml` using **exactly** the pinned versions from the Dependency Version Catalog section above.
-   - Generate `build.gradle.kts` (root & app module), `settings.gradle.kts`, `local.properties.example`, `proguard-rules.pro`, `.gitignore`, `AndroidManifest.xml` (permissions, receiver, service, and OAuth activity declarations), and the custom `@HiltAndroidApp Application` class with notification channel registration.
-   - Generate all Hilt modules in `di/` (`DatabaseModule`, `RepositoryModule`, `NetworkModule`).
-   - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the base application skeleton with no errors.
+   - Generate `build.gradle.kts` (root & app module), `settings.gradle.kts`, `local.properties.example`, `proguard-rules.pro`, `.gitignore`, and `AndroidManifest.xml` (permissions, receiver, service, and OAuth activity declarations — these are forward declarations for classes generated in later phases).
+   - Generate the `@HiltAndroidApp Application` class with notification channel registration. **Do not generate any Hilt `@Module` files in this phase** — each module is generated in the phase where its dependency classes are first defined.
+   - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the bare application skeleton with no errors.
 
 2. **Phase 2 — Room Database, DataStore & Secure Storage**
    - Implement all Room entities (`StopListEntity`, `OptOutPatternEntity`, `DetectionLogEntity`), their DAOs, and the Room database class configured with `fallbackToDestructiveMigration()`.
    - Implement `DataStore<Preferences>` for onboarding flags and connection health state persistence.
    - Implement `EncryptedSharedPreferences` wrapper for HubSpot OAuth tokens and credential overrides.
-   - *Verification:* Execute `RoomDatabaseTest` (CRUD for all entities). The AI must generate this test as part of this phase.
+   - Generate `di/DatabaseModule` — provides `AppDatabase` singleton and all DAO instances. This is the first Hilt module and must be generated here, after the Room classes it references exist.
+   - *Verification:* Execute `RoomDatabaseTest` (CRUD for all entities, plus the opt-out pattern seeding callback on a fresh database). The AI must generate this test as part of this phase.
 
 3. **Phase 3 — Detection Engine & Utility Layer**
    - Implement `PhoneNumberNormalizer` (E.164 normalization with US default country fallback).
@@ -460,15 +461,18 @@ To prevent token truncation, stubbed implementation code, and version drift duri
 
 4. **Phase 4 — Background SMS Pipeline**
    - Implement `ContactRepository` (Google Contacts `ContactsContract.PhoneLookup` via `ContentResolver` + 15-minute in-memory `LruCache`).
-   - Define `HubSpotRepository` as an **interface** only (full implementation comes in Phase 5). The interface must declare all methods needed by `SmsLookupWorker` so the worker compiles without the real implementation.
+   - Define `HubSpotRepository` as a **Kotlin interface** only (full implementation comes in Phase 5). The interface must declare all methods needed by `SmsLookupWorker` so the worker compiles without the real implementation.
    - Implement `SmsReceiver` (manifest-declared, multi-part PDU reconstruction via `getMessagesFromIntent()`, synchronous reconstruction in `onReceive()` before enqueuing the worker).
    - Implement `SmsLookupWorker` as an Expedited Work Request: `getForegroundInfo()` fallback notification, stop list check → contact lookups (Google + HubSpot interface) → opt-out detection → `SmsManager` auto-reply → beep/sound trigger → `DetectionLogEntity` write.
-   - *Verification:* Execute worker unit tests with the `HubSpotRepository` interface mocked. The AI must generate these tests as part of this phase.
+   - Generate `di/RepositoryModule` — binds `ContactRepository` as its concrete type and binds the `HubSpotRepository` interface to a no-op placeholder implementation so Hilt can satisfy the dependency. This placeholder will be replaced in Phase 5. **Do not generate `NetworkModule` here** — Retrofit/OkHttp/Moshi do not exist until Phase 5.
+   - *Verification:* Execute worker unit tests with the `HubSpotRepository` interface mocked via the placeholder. The AI must generate these tests as part of this phase.
 
 5. **Phase 5 — HubSpot API & OAuth Layer**
    - Implement all Moshi JSON request/response models for the HubSpot Contacts Search API.
-   - Implement `HubSpotApiService` (Retrofit interface) and `HubSpotRepository` (full implementation of the interface defined in Phase 4), including the 5-second HTTP timeout, exponential backoff retry (max 3), rate limit handling, and token refresh interceptor (automatic on 401 response).
+   - Implement `HubSpotApiService` (Retrofit interface) and `HubSpotRepositoryImpl` — the full, production implementation of the `HubSpotRepository` interface defined in Phase 4 — including the 5-second HTTP timeout, exponential backoff retry (max 3), rate limit handling, and token refresh interceptor (automatic on 401 response).
    - Implement `OAuthRedirectActivity` for the `smsfilter://oauth` custom scheme: intercepts the browser redirect, extracts `code`, exchanges it for tokens on `Dispatchers.IO`, stores tokens in `EncryptedSharedPreferences`, and finishes.
+   - Generate `di/NetworkModule` — provides `Moshi`, `OkHttpClient` (with timeout and logging interceptor), and `Retrofit` singleton instances.
+   - Update `di/RepositoryModule` — replace the Phase 4 no-op placeholder binding for `HubSpotRepository` with the real `HubSpotRepositoryImpl` binding.
    - *Verification:* Execute `HubSpotRepositoryTest` using `MockWebServer`. The AI must generate this test class as part of this phase.
 
 6. **Phase 6 — Onboarding UI & Permissions Screen**
