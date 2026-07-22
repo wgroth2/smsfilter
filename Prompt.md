@@ -38,10 +38,10 @@ On first launch (detected via a `firstRunComplete: Boolean` flag in `DataStore<P
 Brief explanation of what the app does. "Get Started" button advances to Step 2.
 
 **Step 2 — Permissions**
-Request all required permissions (see Permissions section). The user cannot advance until `RECEIVE_SMS`, `SEND_SMS`, and `POST_NOTIFICATIONS` (API 33+) are granted. Other permissions (such as `READ_CONTACTS` and `READ_SMS`) show a warning if denied but do not block advancement.
+Request all required permissions (see Permissions section). The user cannot advance until `RECEIVE_SMS`, `SEND_SMS`, and `POST_NOTIFICATIONS` (API 33+) are granted. `READ_CONTACTS` shows a warning if denied but does not block advancement.
 
 **Step 3 — HubSpot (optional)**
-- The "Use HubSpot" toggle defaults to **off** during onboarding to minimize setup friction for non-HubSpot users.
+- The "Use HubSpot" toggle defaults to **on** during onboarding, matching the default in Settings.
 - If the user turns the toggle **on**:
   - Show a descriptive card with a prominent **"Connect HubSpot Account"** button to start the connection. Do not launch the OAuth browser flow automatically on step arrival to avoid a jarring user transition.
   - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, tapping the connect button launches the OAuth flow via `CustomTabsIntent` using the redirect URI `smsfilter://oauth`.
@@ -57,8 +57,11 @@ If the app is force-stopped and restarted mid-wizard, resume at the last incompl
 ### Subsequent Startup Flow
 
 On any subsequent app startup (where `firstRunComplete` is `true` in `DataStore<Preferences>`):
-- **Default Action:** The app should run in the background. When the main Activity is launched (e.g., from the launcher icon), it must immediately move itself to the background by calling `moveTaskToBack(true)` to run silently, without showing any UI to the user.
-- **Exception for Notifications:** If the main Activity is launched with a specific intent flag or extra indicating it was opened via a notification click (such as clicking an opt-out detection notification), bypass the backgrounding action and display the Settings screen or the Activity & Detection Log screen as appropriate.
+- **Default Action (Launcher Launch):** Display the **Settings screen** directly. The app's SMS monitoring runs silently in the background at all times via the OS `BroadcastReceiver` + `WorkManager` pipeline — no persistent service or UI presence is required for that to function. Do **not** call `moveTaskToBack(true)` on a standard launcher launch; doing so would prevent the user from ever accessing the Settings, Stop List, or Detection Log unless they happened to have an unread notification.
+- **Notification Launch:** If the main Activity is launched via a notification click (detected by checking for a specific intent extra, e.g., `EXTRA_OPEN_SCREEN`), navigate directly to the appropriate screen:
+  - An **opt-out detection notification** → open the **Activity & Detection Log** screen.
+  - A **connection warning notification** → open the **Settings** screen.
+- **No Background Auto-Hide:** Remove any use of `moveTaskToBack(true)` from the post-onboarding startup path entirely.
 
 ---
 
@@ -68,7 +71,15 @@ On any subsequent app startup (where `firstRunComplete` is `true` in `DataStore<
 
 - Register a manifest-declared `BroadcastReceiver` (`SmsReceiver`) for `android.provider.Telephony.SMS_RECEIVED` (requires `RECEIVE_SMS` permission).
 - On receipt, delegate message details (sender, body, timestamp) immediately to a one-time `WorkManager` worker (`SmsLookupWorker`) for async processing.
-- **Expedited Work Requirement**: The lookup worker must be executed as an **Expedited Work Request** (`setExpedited(...)` with `OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST`) to guarantee immediate execution even if the device is in Doze mode or battery saver. This avoids running a persistent foreground service while still ensuring real-time notification delivery. To prevent crashes on older Android versions (API levels < 31) where expedited work runs as a foreground service, the `SmsLookupWorker` must override `getForegroundInfo()` to display a transient system notification when fallback execution is required.
+- **Multi-Part PDU Reconstruction**: Marketing/opt-out texts frequently exceed the 160-character single-segment limit and arrive as multiple concatenated PDUs in the same broadcast `Intent`. `SmsReceiver` must reconstruct the full message correctly before handing it off:
+  - Use `Telephony.Sms.Intents.getMessagesFromIntent(intent)` to extract the array of `SmsMessage` segments — do not manually parse the raw `pdus` extra `Object[]` bundle, since that skips the framework's handling of the `format` extra (`"3gpp"` vs `"3gpp2"`, which varies by carrier/OEM) and can throw or silently misparse on certain devices.
+  - Concatenate `getMessageBody()` from each segment **in array order** (the array returned by `getMessagesFromIntent` is already ordered by segment sequence number) to form the complete message body before passing it to `SmsLookupWorker`. Do not process each segment as a separate message — partial segments must never be run through opt-out detection independently, since Tier 2 detection depends on the **last line of the fully reconstructed body**, and a truncated or out-of-order reconstruction will cause false negatives on legitimate opt-out replies.
+  - Similarly, take the originating address (sender) from the first segment only; it is identical across all segments of the same message.
+  - This reconstruction must complete synchronously inside `onReceive()` before enqueuing `SmsLookupWorker` — pass the single fully-assembled body string as the worker's input `Data`, not the individual PDUs.
+- **Expedited Work Requirement**: The lookup worker must be executed as an **Expedited Work Request** (`setExpedited(...)` with `OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST`) to guarantee immediate execution even if the device is in Doze mode or battery saver. This avoids running a persistent foreground service while still ensuring real-time notification delivery. To prevent crashes on older Android versions (API levels < 31) where expedited work runs as a foreground service, and to comply with Android 14/15 (API 34/35) strict foreground service constraints:
+  - The `SmsLookupWorker` must override `getForegroundInfo()` to display a transient system notification when fallback execution is required.
+  - The manifest must declare both `android.permission.FOREGROUND_SERVICE` and the type-specific `android.permission.FOREGROUND_SERVICE_DATA_SYNC` permissions.
+  - The WorkManager's `SystemForegroundService` must be explicitly declared in the application's `AndroidManifest.xml` with `tools:node="merge"` to attach the `android:foregroundServiceType="dataSync"` attribute (matching the sync operations for local Contacts and remote HubSpot CRM lookups). This prevents runtime `SecurityException` crashes when WorkManager attempts to launch fallback foreground processes.
 - Processing pipeline inside the worker (in order):
   1. Check stop list words (case-insensitive) → if any match → **ignore** (checked first to avoid redundant API queries).
   2. If not ignored → query Google Contacts (via Android ContactsProvider ContentResolver) and HubSpot CRM (via real-time Contacts API search call) to check if the sender is a known contact.
@@ -176,18 +187,25 @@ Sections:
 
 ### Permissions
 
-Request all required permissions on first launch via the onboarding wizard. Required permissions:
+The application declares the following permissions in its manifest:
 
+**Runtime Permissions (requested on first launch via the onboarding wizard):**
 ```
 RECEIVE_SMS
 SEND_SMS
-READ_SMS
 READ_CONTACTS
-INTERNET
 POST_NOTIFICATIONS          (API 33+)
 ```
-
 Use `ActivityResultContracts.RequestMultiplePermissions`. Show rationale dialogs for `RECEIVE_SMS`, `SEND_SMS`, and `READ_CONTACTS` explaining why each is needed. If any critical permission is denied, show a persistent banner in the UI and disable the relevant feature gracefully.
+
+**Install-Time Permissions (declared in `AndroidManifest.xml` but not requested at runtime):**
+```
+INTERNET
+FOREGROUND_SERVICE
+FOREGROUND_SERVICE_DATA_SYNC (API 34+)
+```
+
+**Note:** `READ_SMS` is intentionally omitted. `SmsReceiver` reads the sender, body, and timestamp directly from the `SMS_RECEIVED` broadcast's PDU extras, so the app never queries the SMS content provider/inbox. Requesting `READ_SMS` would grant access to the full on-device SMS history without a corresponding feature, which is both an unnecessary privacy exposure and a needless Play Protect risk signal.
 
 ---
 
@@ -311,7 +329,7 @@ defaultConfig {
   - **Production/Release Mode**: Uses a production-grade release keystore (configured securely via environment variables), enables full R8/ProGuard code shrinking and optimization, and strips out debug log statements to maintain efficiency and security.
 - **Installation Documentation**: A comprehensive installation guide (`INSTALL_GUIDE.md`) must be generated for the web/users. This guide must explain step-by-step how to download the APK, enable the "Install unknown apps" permission for browsers/file managers, and bypass/resolve standard Google Play Protect warnings for sideloaded apps.
 - **APK Integrity & Safety Signals**: The APK must be digitally signed using a production-grade release Keystore (configured securely via Gradle from environment variables). Signing with a release key rather than a debug key is critical to signal to Android and Google Play Protect that the APK is safe and has not been tampered with.
-- **Play Protect Compliance**: Since we are side-loading the application, the APK must not request any unnecessary permissions like `FOREGROUND_SERVICE` or launch persistent services from the background, which might trigger warnings in Google Play Protect.
+- **Play Protect Compliance**: Google Play Protect scans installed APKs on-device regardless of install source, so avoid requesting permissions that aren't justified by an actual feature. `FOREGROUND_SERVICE` is acceptable and expected here since it backs the required `getForegroundInfo()` fallback notification for expedited work on API < 31 — it is not a persistent/long-running foreground service and should not be removed. Do not request permissions with no corresponding implementation, such as `READ_SMS` (see Permissions section) unless a concrete feature requires it.
 - **R8/ProGuard Rules**: Provide a `proguard-rules.pro` file configured to preserve Hilt modules, Room database entities/DAOs, and Moshi/serialization data classes used for HubSpot API communication to prevent runtime crashes in release builds.
 - **String Externalization**: All UI strings must be declared in `res/values/strings.xml` to support potential localization and clean resource management. Spanish strings should be included as well and a setting should be added to switch languages. But the default is to use us english strings.
 - **Git Version Control**: All generated source code, project files, assets, documentation (`TEST_CASES.md`, `INSTALL_GUIDE.md`), and build scripts must be fully tracked and committed to git.
