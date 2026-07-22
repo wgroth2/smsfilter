@@ -436,31 +436,50 @@ hilt-plugin          = { id = "com.google.dagger.hilt.android", version.ref = "h
 
 ### Phased Code Generation & Build Strategy
 
-To prevent token truncation, stubbed implementation code, and version drift during code generation, development must be executed sequentially across 5 incremental phases. After each phase, verify that the generated components compile cleanly:
+To prevent token truncation, stubbed implementation code, and version drift during code generation, development must be executed sequentially across 7 incremental phases. After each phase, verify that the generated components compile cleanly before proceeding.
+
+> **Important:** Each phase prompt should include the full spec from `Prompt.md` plus a list of all files already generated in previous phases, so the AI has complete context without regenerating existing code.
 
 1. **Phase 1 — Project Scaffolding & Build Configuration**
    - Generate `gradle/libs.versions.toml` using **exactly** the pinned versions from the Dependency Version Catalog section above.
-   - Generate `build.gradle.kts` (root & app), `local.properties.example`, `proguard-rules.pro`, `AndroidManifest.xml`, and the custom `@HiltAndroidApp Application` class.
-   - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the base application skeleton.
+   - Generate `build.gradle.kts` (root & app module), `settings.gradle.kts`, `local.properties.example`, `proguard-rules.pro`, `.gitignore`, `AndroidManifest.xml` (permissions, receiver, service, and OAuth activity declarations), and the custom `@HiltAndroidApp Application` class with notification channel registration.
+   - Generate all Hilt modules in `di/` (`DatabaseModule`, `RepositoryModule`, `NetworkModule`).
+   - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the base application skeleton with no errors.
 
-2. **Phase 2 — Core Data Layer & Database**
-   - Implement Room entities (`StopListEntity`, `OptOutPatternEntity`, `DetectionLogEntity`), DAOs, Room database (configured with `fallbackToDestructiveMigration()`), `DataStore<Preferences>`, and `EncryptedSharedPreferences`.
-   - Implement `ContactRepository` (Google Contacts ContentResolver query logic + in-memory LruCache) and `StopListMatcher`.
-   - *Verification:* Execute unit tests (`RoomDatabaseTest`, `StopListMatcherTest`, `PhoneNumberNormalizerTest`).
+2. **Phase 2 — Room Database, DataStore & Secure Storage**
+   - Implement all Room entities (`StopListEntity`, `OptOutPatternEntity`, `DetectionLogEntity`), their DAOs, and the Room database class configured with `fallbackToDestructiveMigration()`.
+   - Implement `DataStore<Preferences>` for onboarding flags and connection health state persistence.
+   - Implement `EncryptedSharedPreferences` wrapper for HubSpot OAuth tokens and credential overrides.
+   - *Verification:* Execute `RoomDatabaseTest` (CRUD for all entities). The AI must generate this test as part of this phase.
 
-3. **Phase 3 — Background SMS Processing Pipeline**
-   - Implement `SmsReceiver` (multi-part PDU reconstruction via `getMessagesFromIntent()`).
-   - Implement `SmsLookupWorker` (Expedited Work request setup, `getForegroundInfo()` system notification fallback, contact verification, opt-out detection, sound/beep trigger, and `SmsManager` auto-reply logic).
-   - Implement `OptOutDetector`.
-   - *Verification:* Execute `OptOutDetectorTest` and worker unit tests.
+3. **Phase 3 — Detection Engine & Utility Layer**
+   - Implement `PhoneNumberNormalizer` (E.164 normalization with US default country fallback).
+   - Implement `StopListMatcher` (case-insensitive substring matching against `StopListEntity` keywords).
+   - Implement `OptOutDetector` (Tier 1 stop list check, Tier 2 `stop2stop`/`end2end`/last-line `stop`/`end` pattern checks, with correct `replyType` resolution for each matched pattern).
+   - *Verification:* Execute `PhoneNumberNormalizerTest`, `StopListMatcherTest`, and `OptOutDetectorTest`. The AI must generate all three test classes as part of this phase.
 
-4. **Phase 4 — HubSpot API & OAuth Layer**
-   - Implement Moshi JSON models, Retrofit service interfaces (`HubSpotApiService`), `HubSpotRepository` (with search query filters & 5s timeouts), and token refresh interceptors.
-   - Implement `OAuthRedirectActivity` for `smsfilter://oauth` Intent callback and runtime credentials override storage.
-   - *Verification:* Execute `HubSpotRepositoryTest` with mock web server tests.
+4. **Phase 4 — Background SMS Pipeline**
+   - Implement `ContactRepository` (Google Contacts `ContactsContract.PhoneLookup` via `ContentResolver` + 15-minute in-memory `LruCache`).
+   - Define `HubSpotRepository` as an **interface** only (full implementation comes in Phase 5). The interface must declare all methods needed by `SmsLookupWorker` so the worker compiles without the real implementation.
+   - Implement `SmsReceiver` (manifest-declared, multi-part PDU reconstruction via `getMessagesFromIntent()`, synchronous reconstruction in `onReceive()` before enqueuing the worker).
+   - Implement `SmsLookupWorker` as an Expedited Work Request: `getForegroundInfo()` fallback notification, stop list check → contact lookups (Google + HubSpot interface) → opt-out detection → `SmsManager` auto-reply → beep/sound trigger → `DetectionLogEntity` write.
+   - *Verification:* Execute worker unit tests with the `HubSpotRepository` interface mocked. The AI must generate these tests as part of this phase.
 
-5. **Phase 5 — Compose UI, Onboarding, Settings & Localization**
-   - Implement Jetpack Compose UI: Onboarding Wizard steps, Connection Health Summary, Settings Screen, Detection Log Screen.
-   - Externalize all strings into `res/values/strings.xml` (US English) and `res/values-es/strings.xml` (Spanish).
+5. **Phase 5 — HubSpot API & OAuth Layer**
+   - Implement all Moshi JSON request/response models for the HubSpot Contacts Search API.
+   - Implement `HubSpotApiService` (Retrofit interface) and `HubSpotRepository` (full implementation of the interface defined in Phase 4), including the 5-second HTTP timeout, exponential backoff retry (max 3), rate limit handling, and token refresh interceptor (automatic on 401 response).
+   - Implement `OAuthRedirectActivity` for the `smsfilter://oauth` custom scheme: intercepts the browser redirect, extracts `code`, exchanges it for tokens on `Dispatchers.IO`, stores tokens in `EncryptedSharedPreferences`, and finishes.
+   - *Verification:* Execute `HubSpotRepositoryTest` using `MockWebServer`. The AI must generate this test class as part of this phase.
+
+6. **Phase 6 — Onboarding UI & Permissions Screen**
+   - Implement `OnboardingViewModel` (`@HiltViewModel`) and `OnboardingScreen.kt` (Jetpack Compose, 4-step `NavHost` wizard: Welcome → Permissions → HubSpot → Connection Test).
+   - Implement `PermissionsScreen.kt` with `ActivityResultContracts.RequestMultiplePermissions`, rationale dialogs, and permission denial banners.
+   - Implement `MainActivity.kt` with first-run detection, navigation to onboarding vs. settings, and notification click routing via `EXTRA_OPEN_SCREEN`.
+   - *Verification:* Compile with `./gradlew assembleDebug`. Manually verify the onboarding wizard steps render and advance correctly.
+
+7. **Phase 7 — Settings, Detection Log UI & Localization**
+   - Implement `SettingsViewModel` (`@HiltViewModel`) and `SettingsScreen.kt` (Connection Health Summary, Google Contacts section, HubSpot Account section with OAuth flow, Stop List, Opt-Out Patterns, Sound & Language settings, Connection Testing, and Activity & Detection Log link).
+   - Implement `DetectionLogViewModel` (`@HiltViewModel`) and `DetectionLogScreen.kt` (scrollable log with filter chips and Clear Log button).
+   - Externalize **all** UI strings into `res/values/strings.xml` (US English) and `res/values-es/strings.xml` (Spanish). No string literals may remain hardcoded in any Compose file.
    - Generate `TEST_CASES.md` and `INSTALL_GUIDE.md`.
-   - *Verification:* Run full test suite (`./gradlew test`) and compile debug and release APKs (`./gradlew assembleDebug assembleRelease`).
+   - *Verification:* Run full test suite (`./gradlew test connectedAndroidTest`). Compile both APK variants (`./gradlew assembleDebug assembleRelease`). Manually verify the Settings screen and Detection Log render correctly in both English and Spanish.
