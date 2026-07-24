@@ -35,13 +35,14 @@ graph TD
 
 ### 3. Core Permissions and Auto-Replies
 * **SEND_SMS Permission**: Added `android.permission.SEND_SMS` to the manifest and runtime onboarding permission list to enable the automatic replies.
-* **Custom Opt-Out Pattern Mapping**: Standardized custom opt-out patterns in the database (`OptOutPatternEntity`) to include a `replyType` field (`"stop"` or `"end"`), which is selected in the UI when users add custom rules.
+* **Custom Opt-Out Pattern Mapping**: Standardized custom opt-out patterns in the database (`OptOutPatternEntity`) to include both a `replyType` field (`"stop"` or `"end"`) and a `matchMode` field (`ANYWHERE` or `LAST_LINE_EXACT`), each selected in the UI when users add custom rules — the detector honors `matchMode` generically and never special-cases particular pattern strings.
+* **Auto-Reply Safety Controls**: Added a master Auto-Reply toggle (off = detection-only dry run), a fixed 24-hour per-sender cooldown stored as SHA-256 hashes (`AutoReplyCooldownEntity`) to prevent SMS reply loops with automated responders, short-code handling (reply to the raw address; normalization via the platform `PhoneNumberUtils.formatNumberToE164`, no external library), and alphanumeric-sender classification (detect and log, never reply). HubSpot lookups match on the normalized `hs_searchable_calculated_phone_number` property rather than exact-match phone filters.
 * **SmsManager Retrieval**: Standardized on retrieving `SmsManager` using `context.getSystemService(SmsManager::class.java)` on API 31+, falling back to `SmsManager.getDefault()` on older versions to avoid deprecation warnings.
 * **Beep On Opt-Out & Sound Customization**: Added the option to trigger a beep sound (defaulting to the system beep, or utilizing a selected sound file URI) whenever an auto-reply is dispatched.
 * **Localization Settings**: Added support for switching app language between English and Spanish via an in-app setting, utilizing externalized string resources.
 
 ### 4. Resilient Network & Data Persistence
-* **HubSpot Credentials Overrides**: Updated onboarding (Step 3) and Settings (HubSpot Account) to let users enter both Client ID and Client Secret overrides, which are written to `EncryptedSharedPreferences`.
+* **HubSpot Private App Token**: Replaced the browser OAuth flow with a runtime-entered HubSpot Private App access token (scope `crm.objects.contacts.read`), stored in `EncryptedSharedPreferences` under `hubspot_access_token`. This was forced by a platform constraint — HubSpot rejects custom-scheme redirect URLs like `smsfilter://oauth` — and it also eliminates the client ID/secret, token refresh, and the OAuth redirect Activity entirely. HubSpot is now **off by default**, removed from the onboarding wizard (now 3 steps: Welcome → Permissions → Connection Test), and offered exactly once via a cancelable "Connect HubSpot CRM?" dialog the first time Settings appears after onboarding (`hubSpotPromptShown` flag in DataStore). After that, it is managed only from Settings.
 * **State Persistence**: Shared connection health statuses (e.g. `CONNECTED`, `DISCONNECTED`, `AUTH_ERROR`) are saved in `DataStore<Preferences>`, allowing both the connection tests and the background `SmsLookupWorker` to update and sync status indicators reactively.
 * **HTTP Client Timeout**: Enforced a strict 5-second timeout on HubSpot API calls to prevent the background worker from exceeding its execution quota.
 * **Database Migrations**: Configured the Room DB builder with `fallbackToDestructiveMigration()` to simplify early-phase schema alterations.
@@ -59,7 +60,7 @@ graph TD
   2. *Phase 2 — Room Database, DataStore & Secure Storage (includes `di/DatabaseModule`)*
   3. *Phase 3 — Detection Engine & Utility Layer (Pure unit-testable components)*
   4. *Phase 4 — Background SMS Pipeline (includes `SmsLookupWorker` and `di/RepositoryModule` with placeholder interface binding)*
-  5. *Phase 5 — HubSpot API & OAuth Layer (includes `HubSpotRepositoryImpl` and `di/NetworkModule`)*
+  5. *Phase 5 — HubSpot API Layer (includes `HubSpotRepositoryImpl` and `di/NetworkModule`)*
   6. *Phase 6 — Onboarding UI & Permissions Screen (`OnboardingScreen`, `PermissionsScreen`, `MainActivity`)*
   7. *Phase 7 — Settings, Detection Log UI & Localization (`SettingsScreen`, `DetectionLogScreen`, English/Spanish `strings.xml`)*
 
@@ -69,11 +70,11 @@ graph TD
 
 When ready to generate the Kotlin codebase, execute the phases sequentially as defined in [Prompt.md](file:///Users/bill/code/smsfilter/Prompt.md):
 
-1. **Run Phase 1**: Scaffold `libs.versions.toml`, `build.gradle.kts`, `AndroidManifest.xml`, and `@HiltAndroidApp Application` class. Verify with `./gradlew assembleDebug`.
-2. **Run Phase 2**: Implement Room entities, DAOs, `AppDatabase`, `DataStore`, `EncryptedSharedPreferences`, and `di/DatabaseModule`. Verify with `RoomDatabaseTest`.
+1. **Run Phase 1**: Create the Gradle wrapper (Android Studio template or `gradle wrapper --gradle-version 8.11.1` — the wrapper JAR is binary and cannot be AI-generated), then scaffold `libs.versions.toml`, `build.gradle.kts`, `AndroidManifest.xml` (including removal of the default WorkManager initializer), and the `@HiltAndroidApp Application` class implementing `Configuration.Provider` with `HiltWorkerFactory`. Verify with `./gradlew assembleDebug`.
+2. **Run Phase 2**: Implement Room entities (stop list, opt-out patterns with `matchMode`, detection log, auto-reply cooldown — no settings table), DAOs, `AppDatabase`, the `SettingsDataStore` wrapper (single store for all scalar settings and flags), `EncryptedSharedPreferences`, and `di/DatabaseModule`. Verify with `RoomDatabaseTest`.
 3. **Run Phase 3**: Implement `PhoneNumberNormalizer`, `StopListMatcher`, `OptOutDetector`, and `OptOutResult`. Verify with unit tests.
 4. **Run Phase 4**: Implement `ContactRepository`, `HubSpotRepository` interface, `SmsReceiver`, `SmsLookupWorker`, and `di/RepositoryModule`. Verify with worker tests.
-5. **Run Phase 5**: Implement Moshi models, `HubSpotApiService`, `HubSpotRepositoryImpl`, `OAuthRedirectActivity`, and `di/NetworkModule`. Verify with `MockWebServer` tests.
+5. **Run Phase 5**: Implement Moshi models, `HubSpotApiService`, `HubSpotRepositoryImpl`, and `di/NetworkModule`. Verify with `MockWebServer` tests.
 6. **Run Phase 6**: Implement `OnboardingViewModel`, `OnboardingScreen.kt`, `PermissionsScreen.kt`, and `MainActivity.kt`. Verify with `./gradlew assembleDebug`.
 7. **Run Phase 7**: Implement `SettingsViewModel`, `SettingsScreen.kt`, `DetectionLogViewModel`, `DetectionLogScreen.kt`, English/Spanish `strings.xml`, `TEST_CASES.md`, and `INSTALL_GUIDE.md`. Verify with `./gradlew test assembleRelease`.
 

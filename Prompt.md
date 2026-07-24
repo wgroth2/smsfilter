@@ -22,7 +22,7 @@ Follow Google's official Guide to App Architecture, structuring the codebase wit
 - **Background Layer**:
   - Manifest-declared `BroadcastReceiver` and `WorkManager` for reactive background SMS monitoring and real-time lookups (no persistent background service or foreground service, except for the expedited worker's foreground fallback notification).
 - **Data Layer**:
-  - Local Data Sources: Room database for settings (storing application configuration like beep on opt-out, sound file URI, and app language), stop list, opt-out patterns, and detection logs (no phone number data is stored locally), and `DataStore<Preferences>` for onboarding flags.
+  - Local Data Sources: Room database for list-shaped data only — stop list, opt-out patterns, detection logs, and auto-reply cooldown entries (no phone number data is stored locally; cooldown rows hold only a one-way SHA-256 hash of the sender address) — and `DataStore<Preferences>` as the single store for all scalar settings and flags: application configuration (auto-reply toggle, beep on opt-out, sound file URI, app language, "Use HubSpot" toggle, opt-out notification toggle), onboarding flags, and connection health state. **There is no Room settings table.**
   - Remote Data Sources: Retrofit/OkHttp API services for HubSpot communication.
   - Repositories: Coordinate local and remote data sources, acting as the Single Source of Truth (SSOT) for the rest of the application.
 
@@ -40,19 +40,25 @@ Brief explanation of what the app does. "Get Started" button advances to Step 2.
 **Step 2 — Permissions**
 Request all required permissions (see Permissions section). The user cannot advance until `RECEIVE_SMS`, `SEND_SMS`, and `POST_NOTIFICATIONS` (API 33+) are granted. `READ_CONTACTS` shows a warning if denied but does not block advancement.
 
-**Step 3 — HubSpot (optional)**
-- The "Use HubSpot" toggle defaults to **on** during onboarding, matching the default in Settings.
-- If the user turns the toggle **on**:
-  - Show a descriptive card with a prominent **"Connect HubSpot Account"** button to start the connection. Do not launch the OAuth browser flow automatically on step arrival to avoid a jarring user transition.
-  - If `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty, tapping the connect button launches the OAuth flow via `CustomTabsIntent` using the redirect URI `smsfilter://oauth`.
-  - If `BuildConfig.HUBSPOT_CLIENT_ID` is empty, show inline text fields for both the Client ID and Client Secret, along with a help link (*"Where do I find my credentials?"*). The user must enter and save both fields before the "Connect HubSpot Account" button becomes active.
-  - The step is not completable until OAuth succeeds, or the user turns the toggle back off, or taps *"Skip HubSpot setup for now"*.
-- The OAuth screen offers both HubSpot login and Google login natively — no additional code required beyond launching the standard HubSpot OAuth URL.
+**Step 3 — Connection Test**
+Trigger a real-time connection test to verify access to Google Contacts (by checking if the system contacts database can be queried). Show the connection status result: *"Google Contacts: Accessible"*. "Done" button marks `firstRunComplete = true` and navigates to the main Settings screen.
 
-**Step 4 — Connection Test**
-Trigger a real-time connection test to verify access to Google Contacts (by checking if the system contacts database can be queried) and (if HubSpot is toggled on) HubSpot CRM. Show connection status results: *"Google Contacts: Accessible, HubSpot CRM: Connected"* (or just Google if HubSpot is off). "Done" button marks `firstRunComplete = true` and navigates to the main Settings screen.
+HubSpot setup is intentionally **not** part of the wizard — it is offered exactly once via the post-onboarding dialog below, and afterwards lives only in Settings. This keeps the wizard short and never blocks first-run completion on an external account.
 
 If the app is force-stopped and restarted mid-wizard, resume at the last incomplete step.
+
+### Post-Onboarding HubSpot Prompt (One-Time Dialog)
+
+The first time the Settings screen is shown after the wizard completes (tracked via a `hubSpotPromptShown: Boolean` flag in `DataStore<Preferences>`), display a standard cancelable Material `AlertDialog`:
+
+- **Title:** *"Connect HubSpot CRM?"*
+- **Body:** *"SMS Filter can also check unknown senders against your HubSpot contacts. You can connect now, or later from Settings."*
+- **Buttons:** **"Connect"** and **"Not now"**.
+
+Behavior:
+- Any outcome — "Connect", "Not now", or dismissing the dialog via back/outside tap (which counts as "Not now") — sets `hubSpotPromptShown = true`. The dialog is shown **at most once, ever**.
+- **"Connect"** → turns the "Use HubSpot" toggle on and scrolls to the HubSpot Account section of Settings with the access-token field focused (see Settings section).
+- **"Not now"** → HubSpot stays off. The app never re-prompts; the only path to connect afterwards is Settings → HubSpot Account.
 
 ### Subsequent Startup Flow
 
@@ -80,19 +86,24 @@ On any subsequent app startup (where `firstRunComplete` is `true` in `DataStore<
   - The `SmsLookupWorker` must override `getForegroundInfo()` to display a transient system notification when fallback execution is required.
   - The manifest must declare both `android.permission.FOREGROUND_SERVICE` and the type-specific `android.permission.FOREGROUND_SERVICE_DATA_SYNC` permissions.
   - The WorkManager's `SystemForegroundService` must be explicitly declared in the application's `AndroidManifest.xml` with `tools:node="merge"` to attach the `android:foregroundServiceType="dataSync"` attribute (matching the sync operations for local Contacts and remote HubSpot CRM lookups). This prevents runtime `SecurityException` crashes when WorkManager attempts to launch fallback foreground processes.
+- **Hilt + WorkManager Initialization**: Because `SmsLookupWorker` is a `@HiltWorker` with an `@AssistedInject` constructor, WorkManager's default self-initialization must be disabled and replaced with a Hilt-aware configuration — otherwise the worker is instantiated reflectively without its dependencies and crashes at runtime with no compile-time warning:
+  - The `Application` class must implement `Configuration.Provider`, returning a `Configuration` built with the injected `HiltWorkerFactory`.
+  - The manifest must remove the automatic initializer by declaring `androidx.startup.InitializationProvider` (authority `${applicationId}.androidx-startup`, `tools:node="merge"`) containing `<meta-data android:name="androidx.work.WorkManagerInitializer" tools:node="remove" />`.
 - Processing pipeline inside the worker (in order):
   1. Check stop list words (case-insensitive) → if any match → **ignore** (checked first to avoid redundant API queries).
   2. If not ignored → query Google Contacts (via Android ContactsProvider ContentResolver) and HubSpot CRM (via real-time Contacts API search call) to check if the sender is a known contact.
   3. If found in either → **ignore**.
   4. If not found (unknown sender) → check for opt-out signals (see Opt-Out Detection below).
-  5. If opt-out signal found → trigger alert (notification + log entry).
+  5. If opt-out signal found → trigger alert (notification + log entry), then run the auto-reply gate (see Auto-Reply Safety Controls below): reply only if auto-reply is enabled, the sender is repliable (not alphanumeric), and the sender is not inside the 24-hour cooldown window.
 
 #### 2. Real-Time Contact Verification
 
-To protect user privacy, the app must not store phone numbers locally in any persistent database. All contact lookups are performed in real-time:
+To protect user privacy, the app must not store phone numbers locally in any persistent database. (The auto-reply cooldown table stores only a one-way SHA-256 hash of the sender address — see Auto-Reply Safety Controls — which cannot be reversed into a phone number.) All contact lookups are performed in real-time:
 - **Google Contacts:** Query the system's `ContactsContract.PhoneLookup` using a `ContentResolver` to check if the incoming phone number belongs to a saved contact. Since this uses the Android local Contacts database, it requires `READ_CONTACTS` permission but does not require network calls.
-- **HubSpot Contacts:** If HubSpot is connected, query the HubSpot Search Contacts API (`/crm/v3/objects/contacts/search`) in real-time. Use a search filter to match the `phone` or `mobilephone` properties against the incoming phone number.
-- **Normalization:** Prior to lookup, normalize the incoming phone number to E.164 format. When querying HubSpot, search for both the E.164 normalized format and the raw incoming format to ensure a robust match.
+- **HubSpot Contacts:** If HubSpot is connected, query the HubSpot Search Contacts API (`/crm/v3/objects/contacts/search`) in real-time. Filter on HubSpot's normalized calculated property **`hs_searchable_calculated_phone_number`** — do **not** rely on exact-match (`EQ`) filters against the raw `phone` or `mobilephone` properties, because HubSpot stores those in whatever format they were entered (e.g., "(650) 555-1234"), so an exact match against E.164 misses them and real CRM contacts get misclassified as unknown senders. Query using the E.164 digits first, and fall back to a second search with the raw incoming digits if the first returns no match.
+- **Normalization:** Prior to lookup, normalize the incoming phone number to E.164 using the platform's built-in `PhoneNumberUtils.formatNumberToE164(number, "US")` — do **not** add an external phone-number library; nothing outside the pinned Dependency Version Catalog may be introduced. `PhoneNumberNormalizer` must return `null` when normalization fails, and callers must then use the raw sender address unchanged. Two sender classes can never normalize to E.164 and must be explicitly classified by `PhoneNumberNormalizer`:
+  - **Short codes** (5–6 digit senders — the most common source of marketing/opt-out SMS): skip E.164 conversion entirely; look up and reply using the raw digits exactly as received.
+  - **Alphanumeric sender IDs** (e.g., "VERIZON"): cannot receive SMS replies at all. Run detection on the message normally, but skip the auto-reply and record the log entry with the reason "cannot reply to alphanumeric sender".
 - **In-Memory Caching:** To minimize network latency for frequent senders, implement a small, time-limited in-memory cache (e.g., LruCache with a 15-minute expiration) that stores verified known contact numbers. When an SMS arrives from a cached number, skip the external HubSpot API lookup. Never persist this cache to disk.
 
 #### 3. Opt-Out Detection
@@ -105,19 +116,36 @@ Check the full message body (case-insensitive) for these two tiers:
 - Default stop list: *(empty — user fills this in)*.
 
 **Tier 2 — Opt-Out Signal Detection:**
-Applies only if Tier 1 produces no match. Check for:
-- The string `stop2stop` anywhere in the message (case-insensitive).
-- The string `end2end` anywhere in the message (case-insensitive).
-- The word `stop` or `end` appearing **alone on the last non-empty line** of the message (case-insensitive, strip whitespace).
+Applies only if Tier 1 produces no match. Every opt-out pattern carries a `matchMode` that controls how it is evaluated (all matching is case-insensitive):
+- `ANYWHERE` — the pattern matches as a substring anywhere in the message body.
+- `LAST_LINE_EXACT` — the pattern matches only if the **last non-empty line** of the message, after trimming whitespace, is exactly the pattern word.
 
-Store the configured opt-out strings in Room DB as a `OptOutPatternEntity` so they are editable. Seed with the four defaults above on first launch.
+Store the configured opt-out patterns in Room DB as `OptOutPatternEntity` rows (fields: pattern string, `replyType`, `matchMode`) so they are fully editable. Seed on first launch with:
+
+| Pattern | matchMode | replyType |
+|---|---|---|
+| `stop2stop` | `ANYWHERE` | `stop` |
+| `end2end` | `ANYWHERE` | `end` |
+| `stop` | `LAST_LINE_EXACT` | `stop` |
+| `end` | `LAST_LINE_EXACT` | `end` |
+
+The detector must read `matchMode` from each entity — **never hardcode which pattern strings are last-line-only**. User-added patterns must work correctly with either mode.
 
 When an opt-out signal is detected:
 - Show a high-priority notification: "Opt-out request detected". Include a setting for this to be disabled.
-- Automatically reply with a one word message of either "stop" or "end" to the incoming number:
-  - If `stop2stop` or `stop` (last line) is matched $\rightarrow$ reply "stop".
-  - If `end2end` or `end` (last line) is matched $\rightarrow$ reply "end".
-- If the "Beep On Opt-Out" setting is true, play a beep sound (using the configured sound file URI, or falling back to the system beep) when the opt-out response is sent. If false, do not play any sound.
+- If the auto-reply gate passes (see Auto-Reply Safety Controls below), automatically reply with a one-word message of either "stop" or "end" — taken from the matched pattern's `replyType` — to the **raw originating address** (never the E.164-normalized form; a short code must receive the reply at the exact address it sent from).
+- If the "Beep On Opt-Out" setting is true, play a beep sound (using the configured sound file URI, or falling back to the system beep) when the opt-out response is sent. If false, or if no reply was actually sent, do not play any sound.
+
+#### 4. Auto-Reply Safety Controls
+
+Because the app sends SMS autonomously, every auto-reply must pass all three gates below, evaluated in order. When a gate blocks the reply, the detection is still logged — with the skip reason — and the notification still fires.
+
+1. **Master switch:** An `autoReplyEnabled: Boolean` setting (default: `true`) stored in `DataStore<Preferences>`. When `false`, the app runs in **detection-only (dry run) mode**: it detects, notifies, and logs, but never sends an SMS. This is both the kill switch if a pattern ever misfires and a trust-building mode for new users.
+2. **Repliable sender:** Alphanumeric sender IDs are skipped (see Real-Time Contact Verification above).
+3. **Cooldown — at most one auto-reply per sender per 24 hours.** This prevents SMS ping-pong loops with automated responders (e.g., their system answers our "stop" with a confirmation text that itself trips a pattern, which would otherwise trigger replies back and forth forever, exhausting the user's SMS allowance and risking carrier spam flags):
+   - Implemented via a Room entity `AutoReplyCooldownEntity` with fields `senderHash: String` (primary key) and `lastReplyTimestamp: Long`.
+   - `senderHash` is the lowercase-hex **SHA-256 hash of the raw originating address** — never the address itself — preserving the rule that no phone number data is stored locally (the hash is one-way and cannot be reversed into a number).
+   - Before sending, the worker looks up the hash: if a row exists with `lastReplyTimestamp` within the last 24 hours, skip the reply and log "Detected — reply skipped (cooldown)". After a successful send, upsert the row with the current timestamp. On each worker run, delete rows older than 24 hours as housekeeping.
 
 ---
 
@@ -128,7 +156,7 @@ Single-screen Settings UI built in Jetpack Compose.
 #### Connection Health Summary
 - Rendered at the very top of the Settings screen, showing real-time connection status indicators (active/disconnected) with colored dots:
   - **Google Contacts**: Green dot ("Connected") or Red dot ("Permissions required / Disconnected").
-  - **HubSpot CRM**: Green dot ("Connected") or Red dot ("Token expired / Disconnected").
+  - **HubSpot CRM**: Gray dot ("Off") when the "Use HubSpot" toggle is off, Green dot ("Connected") when connected, or Red dot ("Token invalid / Unreachable") only when the toggle is on and the last check failed. A deliberately-disconnected HubSpot must never be styled as an error state.
 - **State Persistence**: To avoid redundant API requests on UI recompositions, the connection health status for Google and HubSpot must be persisted in `DataStore<Preferences>` under a shared connection status key (e.g., as string values representing `CONNECTED`, `DISCONNECTED`, `AUTH_ERROR`, etc.). Both the UI's connection tests and the background `SmsLookupWorker` must update this state on success/failure. The Settings screen will observe this state to update the status indicator colors.
 - **Privacy & Latency Info Card**: A dismissible card explaining: *"To protect your privacy, this app does not store your contacts locally. Lookups are done in real-time, which may cause a 1-2 second delay for unknown numbers."*
 
@@ -140,15 +168,17 @@ Sections:
 - Provide a **"Test Connection"** button that performs a local query via ContentResolver and displays the status along with the number of local contacts found: *"Google Contacts: Accessible (X contacts found)"*.
 
 #### HubSpot Account
-- **"Use HubSpot" toggle switch** at the top of this section (default: **on/true**).
-- When the toggle is **on**, immediately check whether `BuildConfig.HUBSPOT_CLIENT_ID` is non-empty:
-  - **If the client ID is missing:** Show an inline error directly beneath the toggle: *"No HubSpot Client ID and Secret are configured. Please enter them below before connecting."* Render editable text fields for both the Client ID and Client Secret inline, along with a *"Where do I find my credentials?"* help link. Do not launch OAuth until both fields are non-empty and the user taps "Save Credentials." Once saved, write the values to `EncryptedSharedPreferences` under the keys `hubspot_client_id_override` and `hubspot_client_secret_override`, and use them in place of `BuildConfig.HUBSPOT_CLIENT_ID` and `BuildConfig.HUBSPOT_CLIENT_SECRET` for all subsequent OAuth and API calls.
-  - **If the credentials are present** (either from `BuildConfig` or from the saved overrides): Immediately launch the HubSpot OAuth 2.0 flow via `CustomTabsIntent` targeting the redirect URI `smsfilter://oauth`. Offer both **HubSpot login** and **Google login** as identity options within the OAuth flow — HubSpot's standard OAuth screen surfaces both natively, so no extra code is needed beyond launching the standard auth URL. The user cannot dismiss this flow without either completing it or turning the toggle back off — enforce this by showing a non-cancelable dialog if they navigate away without completing auth.
-- **OAuth Redirect Handling:** Define a custom scheme (`smsfilter://oauth`) in the app's `AndroidManifest.xml` via an `<intent-filter>` on an OAuth redirect Activity. This Activity intercepts the browser redirect, extracts the authorization code (`code`), initiates the token exchange request on `Dispatchers.IO`, stores the resulting access and refresh tokens securely in `EncryptedSharedPreferences`, and finishes the Activity to return the user to the app settings or onboarding flow.
-- When the toggle is turned **off**, all HubSpot logic — OAuth, index sync, API calls — is completely bypassed. The rest of this section is grayed out and non-interactive.
-- Store access token and refresh token securely using `EncryptedSharedPreferences`.
-- Once authenticated, display the connected portal name, a "Disconnect" option, and a **"Test Connection"** button (verifies token validity by making a quick test call to HubSpot's endpoints).
-- Required HubSpot scope: `crm.objects.contacts.read`.
+
+HubSpot authentication uses a **HubSpot Private App access token** — there is no OAuth flow, no browser round-trip, and no client ID or client secret anywhere in the app or build. (HubSpot rejects custom-scheme OAuth redirect URLs, and for a single-user sideloaded app a Private App token is the simplest, most reliable mechanism.) The user creates a Private App in their HubSpot portal — with the `crm.objects.contacts.read` scope — and pastes its access token into the app.
+
+- **"Use HubSpot" toggle switch** at the top of this section (default: **off/false**).
+- When the toggle is turned **on** and no token is saved, reveal an inline connect card (never auto-launch anything):
+  - A masked **"Private App Access Token"** text field with a show/hide visibility icon.
+  - A help link — *"Where do I find my access token?"* — that opens HubSpot's Private Apps documentation (`https://developers.hubspot.com/docs/api/private-apps`) in the browser.
+  - A **"Connect & Test"** button, enabled once the field is non-empty. Tapping it validates the token on `Dispatchers.IO` with a lightweight test call (`GET /crm/v3/objects/contacts?limit=1`). On success, store the token in `EncryptedSharedPreferences` under the key `hubspot_access_token`, set the shared connection status to `CONNECTED`, and collapse the card into the connected state. On failure, show an inline error beneath the field (distinguishing invalid token, missing scope, and network error) without leaving the screen.
+- **Connected state:** green status indicator, the portal ID if available (via `GET /account-info/v3/details`; if that call fails due to scopes, just show "Connected"), a **"Test Connection"** button (re-runs the lightweight test call), and a **"Disconnect"** button (deletes the token from `EncryptedSharedPreferences`, sets the connection status to `DISCONNECTED`, and turns the toggle off).
+- When the toggle is turned **off**, all HubSpot logic — API calls, connection tests — is completely bypassed and the rest of this section is grayed out and non-interactive. A saved token is **retained** so re-enabling the toggle reconnects without re-entry; "Disconnect" is the explicit action that forgets the token.
+- All HubSpot API requests authenticate via an `Authorization: Bearer <token>` header read from `EncryptedSharedPreferences`. Private App tokens do not expire, so no token-refresh logic exists. If any API call returns 401 (token revoked or scope removed), set the shared connection status to `AUTH_ERROR` and surface the red "Token invalid" indicator in the Connection Health Summary — do not delete the stored token automatically.
 - During SMS processing or connection testing, check the "Use HubSpot" toggle before making the HubSpot API calls. If off, skip HubSpot lookups entirely.
 
 #### Stop List
@@ -157,14 +187,19 @@ Sections:
 - Keywords stored in Room DB (`StopListEntity`).
 
 #### Opt-Out Patterns
-- Same add/delete UI pattern as Stop List. However, when adding a new pattern, the user must select the reply type (either "stop" or "end") via a dropdown or radio buttons.
+- Same add/delete UI pattern as Stop List. However, when adding a new pattern, the user must select **both** the reply type ("stop" or "end") and the match mode ("Match anywhere" or "Exact match on last line") via dropdowns or radio buttons.
 - Pre-seeded with:
-  - `stop2stop` (reply type: "stop")
-  - `end2end` (reply type: "end")
-  - `stop` (reply type: "stop")
-  - `end` (reply type: "end")
-- Note in the UI: "All matching is case-insensitive. `stop` and `end` are matched only on the last line; others match anywhere."
-- The `OptOutPatternEntity` in Room DB must store the pattern string and its associated `replyType` (as a string or enum).
+  - `stop2stop` (match anywhere, reply type: "stop")
+  - `end2end` (match anywhere, reply type: "end")
+  - `stop` (exact match on last line, reply type: "stop")
+  - `end` (exact match on last line, reply type: "end")
+- Each list row displays the pattern together with its match mode and reply type.
+- Note in the UI: "All matching is case-insensitive."
+- The `OptOutPatternEntity` in Room DB must store the pattern string, its `replyType`, and its `matchMode` (as strings or enums).
+
+#### Auto-Reply
+- **"Auto-Reply" master toggle** (default: **on**). When off, the app runs in detection-only (dry run) mode: detections still notify and appear in the log, but **no SMS is ever sent**. The toggle's subtitle text must make this explicit, e.g., *"Off = detect and notify only — never send a reply."*
+- Static informational text: *"To prevent reply loops, at most one auto-reply is sent to any sender per 24 hours."* (The cooldown window is fixed, not configurable.)
 
 #### Sound & Language Settings
 - **"Beep On Opt-Out" toggle**: Enable or disable playing a beep sound when an opt-out response is sent (default: true).
@@ -179,7 +214,7 @@ Sections:
 - Link/button to open a scrollable log screen showing recent activities and detections (last 100 entries).
 - **UI Filter Chips**: "All", "Detections Only", "Ignored Only" at the top of the log screen.
 - Log entries:
-  - **Detections**: timestamp, matched pattern, message preview (no phone number).
+  - **Detections**: timestamp, matched pattern, reply status ("Reply sent: stop" / "Reply skipped: dry run" / "Reply skipped: cooldown" / "Reply skipped: alphanumeric sender"), message preview (no phone number).
   - **Ignored Events**: timestamp, ignore reason (e.g. "Ignored: Known Google Contact", "Ignored: Known HubSpot Contact", "Ignored: Matched Stop List word 'promo'"), message preview (no phone number).
 - "Clear Log" button.
 
@@ -214,8 +249,8 @@ FOREGROUND_SERVICE_DATA_SYNC (API 34+)
 Generate a comprehensive test suite:
 
 **Unit tests** (`/test`):
-- `OptOutDetectorTest` — test all pattern combinations: `stop2stop` mid-message, `end2end` in subject, `STOP` alone on last line, `End` alone on last line, `stop` embedded in a word (e.g., "Postop" — should NOT match for last-line check), multi-line messages, empty messages, Unicode whitespace.
-- `PhoneNumberNormalizerTest` — E.164 normalization for US numbers, international numbers, numbers with formatting characters.
+- `OptOutDetectorTest` — test all pattern combinations: `stop2stop` mid-message, `end2end` in subject, `STOP` alone on last line, `End` alone on last line, `stop` embedded in a word (e.g., "Postop" — should NOT match for last-line check), multi-line messages, empty messages, Unicode whitespace. Also verify `matchMode` is honored generically: a custom `ANYWHERE` pattern matching mid-message, and a custom `LAST_LINE_EXACT` pattern NOT matching mid-message.
+- `PhoneNumberNormalizerTest` — E.164 normalization for US numbers, international numbers, numbers with formatting characters; short codes (return `null` / classified as short code); alphanumeric sender IDs (classified as not repliable).
 - `StopListMatcherTest` — case-insensitive match, partial word match behavior (define: keywords match as substrings), empty list behavior.
 
 **Instrumented tests** (`/androidTest`):
@@ -239,6 +274,10 @@ Generate a comprehensive test suite:
 | 11 | Unknown | "Hello\nSTOP" with Beep On Opt-Out enabled | Alert, auto-reply "stop", and configured sound/beep plays |
 | 12 | Unknown | "Hello\nSTOP" with Beep On Opt-Out disabled | Alert and auto-reply "stop" without any sound playing |
 | 13 | N/A | Switching app language to Spanish in settings | All UI screens display in Spanish |
+| 14 | Unknown short code (e.g., 89887) | "Hello\nSTOP" | Alert — auto-reply "stop" sent to the raw short code address |
+| 15 | Same sender as #14, second message within 24 hours | "Hello\nSTOP" | Alert and log entry "Reply skipped: cooldown" — no second reply sent |
+| 16 | Unknown | "Hello\nSTOP" with Auto-Reply toggle off | Alert and log entry "Reply skipped: dry run" — no SMS sent |
+| 17 | Alphanumeric sender (e.g., "PROMO") | "Hello\nSTOP" | Alert and log entry "Reply skipped: alphanumeric sender" — no SMS sent |
 
 ---
 
@@ -267,46 +306,14 @@ app/
     androidTest/              # Instrumented tests
   TEST_CASES.md
   INSTALL_GUIDE.md
-  local.properties.example
 ```
 
 ---
 
 ### Additional Requirements
 
-- **No hardcoded secrets.** HubSpot client ID and client secret must be defined in `local.properties` and injected at build time as `BuildConfig` fields via `build.gradle.kts`. The Gradle script must safely handle the absence of `local.properties` to prevent sync crashes on fresh checkouts, and must explicitly enable the `BuildConfig` feature:
-
-```kotlin
-// local.properties (never commit this file — it is in .gitignore)
-hubspot.clientId=YOUR_CLIENT_ID_HERE
-hubspot.clientSecret=YOUR_CLIENT_SECRET_HERE
-
-// build.gradle.kts
-android {
-    ...
-    buildFeatures {
-        buildConfig = true // Required in AGP 8.0+ / Android Studio Quail to generate BuildConfig fields
-    }
-}
-
-val localProps = Properties().apply {
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use { load(it) }
-    }
-}
-val hubspotClientId = localProps.getProperty("hubspot.clientId", "")
-val hubspotClientSecret = localProps.getProperty("hubspot.clientSecret", "")
-
-defaultConfig {
-    buildConfigField("String", "HUBSPOT_CLIENT_ID", "\"$hubspotClientId\"")
-    buildConfigField("String", "HUBSPOT_CLIENT_SECRET", "\"$hubspotClientSecret\"")
-}
-```
-
+- **No hardcoded secrets.** The app has no build-time secrets: the HubSpot Private App access token is entered by the user at runtime and stored only in `EncryptedSharedPreferences` (key `hubspot_access_token`). No token, client ID, or secret may ever appear in source code, `BuildConfig` fields, `local.properties`, or version control. `local.properties` (auto-generated by Android Studio for `sdk.dir`) must remain listed in `.gitignore`. Enable `buildFeatures { buildConfig = true }` in `build.gradle.kts` only if `BuildConfig.DEBUG` is used to gate debug logging.
 - **Modern Annotation Processing**: Use **Kotlin Symbol Processing (KSP)** instead of the legacy `kapt` tool for room database compiler and Hilt compiler dependencies to ensure compatibility with modern Kotlin versions in Android Studio Quail.
-- Include a `local.properties.example` file in the repo with placeholder values and a comment explaining how to populate it. `local.properties` must be listed in `.gitignore`.
-- If `BuildConfig.HUBSPOT_CLIENT_ID` or `BuildConfig.HUBSPOT_CLIENT_SECRET` is empty at runtime and no overrides have been saved in `EncryptedSharedPreferences`, the "Use HubSpot" toggle must show the inline credentials entry fields as described in the Settings section above.
 - **Retry logic** for HubSpot API calls: exponential backoff, max 3 retries.
 - **Rate limit awareness**: HubSpot Contacts API search endpoint is rate-limited; handle failures gracefully by falling back to treating the sender as unknown or retrying.
 - **Error states**: if Google or HubSpot lookup fails due to network/API issues during real-time processing, default to processing the message for opt-outs (err on the side of safety) and surface connection warnings in Settings.
@@ -346,7 +353,7 @@ All dependency versions are pinned below. These versions are known to be mutuall
 [versions]
 agp                 = "8.10.1"
 kotlin              = "2.1.21"
-ksp                 = "2.1.21-1.0.31"
+ksp                 = "2.1.21-2.0.2"
 hilt                = "2.56.1"
 room                = "2.7.1"
 compose-bom         = "2025.06.01"
@@ -411,9 +418,6 @@ okhttp-logging                 = { module = "com.squareup.okhttp3:logging-interc
 moshi-kotlin                   = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshi" }
 moshi-kotlin-codegen           = { module = "com.squareup.moshi:moshi-kotlin-codegen", version.ref = "moshi" }
 
-# Browser (CustomTabsIntent for HubSpot OAuth)
-browser                        = { module = "androidx.browser:browser", version = "1.8.0" }
-
 # Testing
 junit                          = { module = "junit:junit", version = "4.13.2" }
 androidx-test-ext-junit        = { module = "androidx.test.ext:junit", version = "1.2.1" }
@@ -441,22 +445,23 @@ To prevent token truncation, stubbed implementation code, and version drift duri
 > **Important:** Each phase prompt should include the full spec from `Prompt.md` plus a list of all files already generated in previous phases, so the AI has complete context without regenerating existing code.
 
 1. **Phase 1 — Project Scaffolding & Build Configuration**
+   - **Create the Gradle wrapper first.** The wrapper JAR (`gradle/wrapper/gradle-wrapper.jar`) is a binary file that an AI cannot author — obtain it either by scaffolding the project from an Android Studio "Empty Activity" template or by running `gradle wrapper --gradle-version 8.11.1` with a locally installed Gradle (AGP 8.10 requires Gradle 8.11.1 or newer). Commit `gradlew`, `gradlew.bat`, and `gradle/wrapper/` to git; no phase verification can run without them.
    - Generate `gradle/libs.versions.toml` using **exactly** the pinned versions from the Dependency Version Catalog section above.
-   - Generate `build.gradle.kts` (root & app module), `settings.gradle.kts`, `local.properties.example`, `proguard-rules.pro`, `.gitignore`, and `AndroidManifest.xml` (permissions, receiver, service, and OAuth activity declarations — these are forward declarations for classes generated in later phases).
-   - Generate the `@HiltAndroidApp Application` class with notification channel registration. **Do not generate any Hilt `@Module` files in this phase** — each module is generated in the phase where its dependency classes are first defined.
+   - Generate `build.gradle.kts` (root & app module), `settings.gradle.kts`, `proguard-rules.pro`, `.gitignore`, and `AndroidManifest.xml` (permissions, receiver, and service declarations — these are forward declarations for classes generated in later phases).
+   - Generate the `@HiltAndroidApp Application` class with notification channel registration **and the Hilt + WorkManager initialization wiring from the Core Components section**: implement `Configuration.Provider` with the injected `HiltWorkerFactory`, and remove the default WorkManager initializer in the manifest. This must exist before Phase 4's `@HiltWorker` is generated, or the worker will crash at runtime. **Do not generate any Hilt `@Module` files in this phase** — each module is generated in the phase where its dependency classes are first defined.
    - *Verification:* Confirm Gradle syncs cleanly and `./gradlew assembleDebug` compiles the bare application skeleton with no errors.
 
 2. **Phase 2 — Room Database, DataStore & Secure Storage**
-   - Implement all Room entities (`StopListEntity`, `OptOutPatternEntity`, `DetectionLogEntity`), their DAOs, and the Room database class configured with `fallbackToDestructiveMigration()`.
-   - Implement `DataStore<Preferences>` for onboarding flags and connection health state persistence.
-   - Implement `EncryptedSharedPreferences` wrapper for HubSpot OAuth tokens and credential overrides.
+   - Implement all Room entities — `StopListEntity`, `OptOutPatternEntity` (pattern, `replyType`, `matchMode`), `DetectionLogEntity`, and `AutoReplyCooldownEntity` (`senderHash` SHA-256 primary key, `lastReplyTimestamp`) — their DAOs, and the Room database class configured with `fallbackToDestructiveMigration()`.
+   - Implement `DataStore<Preferences>` as the single store for all scalar settings and flags: app configuration (`autoReplyEnabled`, `useHubSpot`, `beepOnOptOut`, `soundFileUri`, app language, opt-out notification toggle), onboarding flags (`firstRunComplete`, `hubSpotPromptShown`), and connection health state. Expose it through one injectable wrapper class (e.g., `SettingsDataStore`) so later phases inject a single type. **There is no Room settings entity or settings DAO.**
+   - Implement `EncryptedSharedPreferences` wrapper for the HubSpot Private App access token (key `hubspot_access_token`).
    - Generate `di/DatabaseModule` — provides `AppDatabase` singleton and all DAO instances. This is the first Hilt module and must be generated here, after the Room classes it references exist.
    - *Verification:* Execute `RoomDatabaseTest` (CRUD for all entities, plus the opt-out pattern seeding callback on a fresh database). The AI must generate this test as part of this phase.
 
 3. **Phase 3 — Detection Engine & Utility Layer**
-   - Implement `PhoneNumberNormalizer` (E.164 normalization with US default country fallback).
+   - Implement `PhoneNumberNormalizer` using the platform's `PhoneNumberUtils.formatNumberToE164(number, "US")` — no external phone-number library may be added. It must return `null` on normalization failure and classify each sender as a standard number, a short code (5–6 digits — pass through raw), or an alphanumeric sender ID (not repliable).
    - Implement `StopListMatcher` (case-insensitive substring matching against a `List<StopListEntity>` passed in as a parameter — do not inject a DAO into this class).
-   - Implement `OptOutDetector` with a `detect(body: String, patterns: List<OptOutPatternEntity>): OptOutResult?` function signature. The patterns list must be passed in by the caller — **do not hardcode the four default patterns as constants and do not inject a DAO into `OptOutDetector` directly**. This keeps the class pure and easily unit-testable without a database. The caller (`SmsLookupWorker`, Phase 4) is responsible for fetching the live pattern list from `OptOutPatternDao` and passing it in.
+   - Implement `OptOutDetector` with a `detect(body: String, patterns: List<OptOutPatternEntity>): OptOutResult?` function signature. The patterns list must be passed in by the caller — **do not hardcode the four default patterns as constants and do not inject a DAO into `OptOutDetector` directly**. This keeps the class pure and easily unit-testable without a database. The caller (`SmsLookupWorker`, Phase 4) is responsible for fetching the live pattern list from `OptOutPatternDao` and passing it in. The detector must evaluate each pattern according to its `matchMode` (`ANYWHERE` substring vs. `LAST_LINE_EXACT`) — never by special-casing particular pattern strings.
    - `OptOutResult` must be a data class (or sealed class) that captures the matched pattern string and its `replyType` (`"stop"` or `"end"`), so `SmsLookupWorker` knows which word to auto-reply with.
    - *Verification:* Execute `PhoneNumberNormalizerTest`, `StopListMatcherTest`, and `OptOutDetectorTest`. Tests must pass the pattern list explicitly as constructor/function arguments — no mocking of a DAO is needed or permitted in this phase.
 
@@ -464,30 +469,32 @@ To prevent token truncation, stubbed implementation code, and version drift duri
    - Implement `ContactRepository` (Google Contacts `ContactsContract.PhoneLookup` via `ContentResolver` + 15-minute in-memory `LruCache`).
    - Define `HubSpotRepository` as a **Kotlin interface** only (full implementation comes in Phase 5). The interface must declare all methods needed by `SmsLookupWorker` so the worker compiles without the real implementation.
    - Implement `SmsReceiver` (manifest-declared, multi-part PDU reconstruction via `getMessagesFromIntent()`, synchronous reconstruction in `onReceive()` before enqueuing the worker).
-   - Implement `SmsLookupWorker` as an Expedited Work Request with `getForegroundInfo()` fallback notification. The worker must inject the **settings DAO** (generated in Phase 2) and read the following three values on `Dispatchers.IO` **before any processing logic runs**:
+   - Implement `SmsLookupWorker` as an Expedited Work Request with `getForegroundInfo()` fallback notification. The worker must inject the **`SettingsDataStore` wrapper** (generated in Phase 2) and read the following four values on `Dispatchers.IO` **before any processing logic runs**:
+     - `autoReplyEnabled: Boolean` — if `false`, run in detection-only (dry run) mode: never send an SMS, but still notify and write the log entry with the skip reason.
      - `useHubSpot: Boolean` — if `false`, skip all `HubSpotRepository` calls entirely; treat sender as unknown if not found in Google Contacts.
      - `beepOnOptOut: Boolean` — if `true`, play audio after sending an opt-out reply; if `false`, produce no sound.
      - `soundFileUri: String?` — the URI of the configured beep sound; fall back to the system notification sound (`RingtoneManager.TYPE_NOTIFICATION`) if null or empty.
-   - The full worker processing pipeline must execute in this exact order: (1) read runtime settings + **fetch `List<StopListEntity>` from `StopListDao` and `List<OptOutPatternEntity>` from `OptOutPatternDao`** on `Dispatchers.IO` → (2) stop list check (pass list to `StopListMatcher`) → (3) Google Contacts lookup → (4) HubSpot lookup (only if `useHubSpot = true`) → (5) opt-out detection (pass pattern list to `OptOutDetector`) → (6) `SmsManager` auto-reply using `replyType` from `OptOutResult` → (7) sound playback using `soundFileUri` (only if `beepOnOptOut = true`) → (8) `DetectionLogEntity` write.
+   - The full worker processing pipeline must execute in this exact order: (1) read runtime settings from `SettingsDataStore` + **fetch `List<StopListEntity>` from `StopListDao` and `List<OptOutPatternEntity>` from `OptOutPatternDao`** on `Dispatchers.IO` → (2) stop list check (pass list to `StopListMatcher`) → (3) Google Contacts lookup → (4) HubSpot lookup (only if `useHubSpot = true`) → (5) opt-out detection (pass pattern list to `OptOutDetector`) → (6) auto-reply gate: `autoReplyEnabled` is `true`, the sender is repliable (not alphanumeric), and `AutoReplyCooldownDao` has no row for the sender's SHA-256 hash within the last 24 hours → (7) `SmsManager` auto-reply to the **raw originating address** using `replyType` from `OptOutResult`, then upsert the cooldown row → (8) sound playback using `soundFileUri` (only if `beepOnOptOut = true` and a reply was sent) → (9) `DetectionLogEntity` write, recording whether the reply was sent or skipped and the skip reason (dry run / alphanumeric sender / cooldown).
    - Generate `di/RepositoryModule` — binds `ContactRepository` as its concrete type and binds the `HubSpotRepository` interface to a no-op placeholder implementation so Hilt can satisfy the dependency. This placeholder will be replaced in Phase 5. **Do not generate `NetworkModule` here** — Retrofit/OkHttp/Moshi do not exist until Phase 5.
    - *Verification:* Execute worker unit tests with the `HubSpotRepository` interface mocked via the placeholder. The AI must generate these tests as part of this phase.
 
-5. **Phase 5 — HubSpot API & OAuth Layer**
+5. **Phase 5 — HubSpot API Layer**
    - Implement all Moshi JSON request/response models for the HubSpot Contacts Search API.
-   - Implement `HubSpotApiService` (Retrofit interface) and `HubSpotRepositoryImpl` — the full, production implementation of the `HubSpotRepository` interface defined in Phase 4 — including the 5-second HTTP timeout, exponential backoff retry (max 3), rate limit handling, and token refresh interceptor (automatic on 401 response).
-   - Implement `OAuthRedirectActivity` for the `smsfilter://oauth` custom scheme: intercepts the browser redirect, extracts `code`, exchanges it for tokens on `Dispatchers.IO`, stores tokens in `EncryptedSharedPreferences`, and finishes.
-   - Generate `di/NetworkModule` — provides `Moshi`, `OkHttpClient` (with timeout and logging interceptor), and `Retrofit` singleton instances.
+   - Implement `HubSpotApiService` (Retrofit interface) and `HubSpotRepositoryImpl` — the full, production implementation of the `HubSpotRepository` interface defined in Phase 4 — including the 5-second HTTP timeout, exponential backoff retry (max 3), rate limit handling, and an auth interceptor that attaches the `Authorization: Bearer` header from the `EncryptedSharedPreferences` token. On a 401 response, set the shared connection status to `AUTH_ERROR` — there is no token-refresh logic, because Private App tokens do not expire.
+   - Generate `di/NetworkModule` — provides `Moshi`, `OkHttpClient` (with timeout, auth interceptor, and logging interceptor), and `Retrofit` singleton instances.
    - Update `di/RepositoryModule` — replace the Phase 4 no-op placeholder binding for `HubSpotRepository` with the real `HubSpotRepositoryImpl` binding.
    - *Verification:* Execute `HubSpotRepositoryTest` using `MockWebServer`. The AI must generate this test class as part of this phase.
 
 6. **Phase 6 — Onboarding UI & Permissions Screen**
-   - Implement `OnboardingViewModel` (`@HiltViewModel`) and `OnboardingScreen.kt` (Jetpack Compose, 4-step `NavHost` wizard: Welcome → Permissions → HubSpot → Connection Test).
+   - Implement `OnboardingViewModel` (`@HiltViewModel`) and `OnboardingScreen.kt` (Jetpack Compose, 3-step `NavHost` wizard: Welcome → Permissions → Connection Test).
    - Implement `PermissionsScreen.kt` with `ActivityResultContracts.RequestMultiplePermissions`, rationale dialogs, and permission denial banners.
    - Implement `MainActivity.kt` with first-run detection, navigation to onboarding vs. settings, and notification click routing via `EXTRA_OPEN_SCREEN`.
+   - Include a **placeholder Settings destination** (an empty Compose screen with a title) so `MainActivity`'s navigation graph compiles and the wizard's "Done" button has a landing screen. Phase 7 replaces this stub with the real `SettingsScreen`.
    - *Verification:* Compile with `./gradlew assembleDebug`. Manually verify the onboarding wizard steps render and advance correctly.
 
 7. **Phase 7 — Settings, Detection Log UI & Localization**
-   - Implement `SettingsViewModel` (`@HiltViewModel`) and `SettingsScreen.kt` (Connection Health Summary, Google Contacts section, HubSpot Account section with OAuth flow, Stop List, Opt-Out Patterns, Sound & Language settings, Connection Testing, and Activity & Detection Log link).
+   - Implement `SettingsViewModel` (`@HiltViewModel`) and `SettingsScreen.kt` (Connection Health Summary, Google Contacts section, HubSpot Account section with Private App token entry, Stop List, Opt-Out Patterns, Sound & Language settings, Connection Testing, and Activity & Detection Log link).
+   - Implement the one-time post-onboarding **"Connect HubSpot CRM?"** dialog on the Settings screen, gated by the `hubSpotPromptShown` flag in `DataStore<Preferences>` (see the Post-Onboarding HubSpot Prompt section).
    - Implement `DetectionLogViewModel` (`@HiltViewModel`) and `DetectionLogScreen.kt` (scrollable log with filter chips and Clear Log button).
    - Externalize **all** UI strings into `res/values/strings.xml` (US English) and `res/values-es/strings.xml` (Spanish). No string literals may remain hardcoded in any Compose file.
    - Generate `TEST_CASES.md` and `INSTALL_GUIDE.md`.

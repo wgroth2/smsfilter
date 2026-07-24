@@ -41,17 +41,14 @@ Below are the identified architectural risks, platform constraints (for Target S
 
 ---
 
-## 4. SMS Loop & Flooding Protection (Auto-Reply Cooldown)
-> [!WARNING]
-> **Carrier Quota / Cost Risk**
+## 4. ~~SMS Loop & Flooding Protection (Auto-Reply Cooldown)~~ ✅ RESOLVED
+> [!NOTE]
+> **Integrated into Prompt.md** — see the "Auto-Reply Safety Controls" component.
 
-### The Problem:
-* If an automated responder on the other side reacts to our auto-reply (e.g., we reply `stop`, their system auto-replies with *"You have unsubscribed. Reply stop2stop to re-subscribe"*), it could trigger an infinite loop of auto-replies.
-* This could exhaust the user's SMS allowance, generate carrier spam flags, or incur high costs.
-
-### Recommendation:
-* Add an **Auto-Reply Cooldown** mechanism (e.g., maximum of 1 auto-reply per sender phone number per 24 hours).
-* This can be stored in a simple Room table `AutoReplyCooldownEntity` containing `phoneNumber` and `timestamp`. The worker checks this table before sending an SMS.
+### Resolution:
+* A fixed **24-hour per-sender cooldown** is now mandatory: the worker checks `AutoReplyCooldownEntity` before sending and upserts it after a successful send.
+* The entity stores a **SHA-256 `senderHash`** rather than the raw phone number (an improvement over the original recommendation), preserving the no-phone-numbers-on-disk privacy rule while still preventing reply loops.
+* A master **Auto-Reply toggle** (off = detection-only dry run) was also added as a kill switch, and alphanumeric senders are never replied to.
 
 ---
 
@@ -88,7 +85,7 @@ Below are the identified architectural risks, platform constraints (for Target S
 > * "Configure the Room database builder with `fallbackToDestructiveMigration()` so that the database schema is safely recreated if changed..."
 
 ### The Problem:
-* Using `fallbackToDestructiveMigration()` in release builds means that if an update modifies the Room schema, the user's local settings, Stop List keywords, and detection logs are instantly wiped out.
+* Using `fallbackToDestructiveMigration()` in release builds means that if an update modifies the Room schema, the user's Stop List keywords, custom opt-out patterns, and detection logs are instantly wiped out. (Scalar settings now live in `DataStore<Preferences>` and are unaffected, but the Room-held lists are still user-entered data worth preserving.)
 
 ### Recommendation:
 * Limit destructive migration specifically to **Debug builds** using conditional configuration, and enforce the creation of explicit Room migration paths for Release builds to preserve user data.
