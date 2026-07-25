@@ -12,7 +12,9 @@ graph TD
     B --> C["Enqueue SmsLookupWorker"]
     C --> D{"Expedited Work Request"}
     D --> E["SmsLookupWorker Runs"]
-    E --> F{"Check Stop List"}
+    E --> E1{"firstRunComplete?"}
+    E1 -- No --> H
+    E1 -- Yes --> F{"Check Stop List"}
     F -- No Match --> G["Query Google Contacts (local)"]
     F -- Match --> H["Ignore SMS"]
     G -- Not Found --> I{"Query HubSpot API (real-time)"}
@@ -45,7 +47,7 @@ graph TD
 * **HubSpot Private App Token**: Replaced the browser OAuth flow with a runtime-entered HubSpot Private App access token (scope `crm.objects.contacts.read`), stored in `EncryptedSharedPreferences` under `hubspot_access_token`. This was forced by a platform constraint — HubSpot rejects custom-scheme redirect URLs like `smsfilter://oauth` — and it also eliminates the client ID/secret, token refresh, and the OAuth redirect Activity entirely. HubSpot is now **off by default**, removed from the onboarding wizard (now 3 steps: Welcome → Permissions → Connection Test), and offered exactly once via a cancelable "Connect HubSpot CRM?" dialog the first time Settings appears after onboarding (`hubSpotPromptShown` flag in DataStore). After that, it is managed only from Settings.
 * **State Persistence**: Shared connection health statuses (e.g. `CONNECTED`, `DISCONNECTED`, `AUTH_ERROR`) are saved in `DataStore<Preferences>`, allowing both the connection tests and the background `SmsLookupWorker` to update and sync status indicators reactively.
 * **HTTP Client Timeout**: Enforced a strict 5-second timeout on HubSpot API calls to prevent the background worker from exceeding its execution quota.
-* **Database Migrations**: Configured the Room DB builder with `fallbackToDestructiveMigration()` to simplify early-phase schema alterations.
+* **Database Migrations**: Configured the Room DB builder with `fallbackToDestructiveMigration(dropAllTables = true)` (the no-arg overload is deprecated in Room 2.7) to simplify early-phase schema alterations.
 * **JSON Serialization**: Standardized on **Moshi** (via KSP code generation) for all API requests and response model parsing.
 
 ### 5. Distribution, Code Standards & Build Strategy
@@ -63,6 +65,18 @@ graph TD
   5. *Phase 5 — HubSpot API Layer (includes `HubSpotRepositoryImpl` and `di/NetworkModule`)*
   6. *Phase 6 — Onboarding UI & Permissions Screen (`OnboardingScreen`, `PermissionsScreen`, `MainActivity`)*
   7. *Phase 7 — Settings, Detection Log UI & Localization (`SettingsScreen`, `DetectionLogScreen`, English/Spanish `strings.xml`)*
+
+### 6. Pre-Generation Hardening Review (July 2026)
+
+A final workability review of the spec closed these gaps before code generation:
+
+* **Onboarding gate**: `SmsLookupWorker` reads `firstRunComplete` as its very first action and exits silently when `false` — the manifest receiver is live as soon as `RECEIVE_SMS` is granted in wizard Step 2, so without this gate the app could auto-reply mid-wizard. Covered by new manual test case #18.
+* **Permanently-denied permission escape hatch**: wizard Step 2 detects permanent denial (`shouldShowRequestPermissionRationale` = `false` after a denial) and offers an "Open App Settings" button instead of a dead request button, re-checking on return.
+* **Step 3 failure state**: the Connection Test screen now defines the `READ_CONTACTS`-denied result (*"Google Contacts: Not accessible — permission denied"*) and keeps "Done" enabled, since contacts are non-blocking by design. Step 3 also discloses that auto-reply is ON by default, resolving the tension with dry-run's "trust-building" framing without changing the default.
+* **Contacts permission guard**: `ContactRepository` checks `checkSelfPermission(READ_CONTACTS)` before every query and returns "not found" when missing — previously a reachable `SecurityException` crash path, since onboarding permits finishing with contacts denied. Covered by new manual test case #19.
+* **HubSpot health-dot "Setup incomplete" state**: a fourth (amber) indicator state for "toggle on, no token saved" — previously undefined, and must never render as red/error.
+* **EncryptedSharedPreferences accepted as-is**: `androidx.security:security-crypto` is deprecated with `1.1.0-alpha06` as its final release; the spec now records this as a deliberate choice generators must not "upgrade."
+* **INSTALL_GUIDE platform notes**: the guide must explain that force-stopping the app suspends the SMS receiver until next open, and that OEM battery managers can delay processing (with the battery-optimization exception as the fix).
 
 ---
 
