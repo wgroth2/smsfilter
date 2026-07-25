@@ -33,8 +33,10 @@ ls ~/Library/Android/sdk
 The spec targets SDK 35. If `~/Library/Android/sdk/platforms/` does not contain `android-35`, the build will fail.
 
 1. Open **Android Studio** → **Settings** → **Languages & Frameworks** → **Android SDK**
-2. **SDK Platforms** tab → check **Android 15.0 (API 35)** → Apply
+2. **SDK Platforms** tab → check **Show Package Details** → under Android 15.0 (API 35), check **Android SDK Platform 35** → Apply
 3. **SDK Tools** tab → check **Show Package Details** → under Android SDK Build-Tools, check **35.0.0** → Apply
+
+> **Install the plain `35` platform, not `35-ext14` or `35-ext15`.** The `-ext` packages are SDK Extension builds, needed only if you set `compileSdkExtension` in `build.gradle.kts`. This project sets a bare `compileSdk = 35`, which AGP resolves to `platforms/android-35`. Build-Tools 35.0.0 is separately required because AGP 8.10.1 defaults to it and the newer 36.x/37.x you may already have won't substitute.
 
 Verify from the VS Code terminal:
 
