@@ -125,7 +125,7 @@ Below are the identified architectural risks, platform constraints (for Target S
 
 ## 10. Phased Code Generation & Modular Build Strategy ✅ RESOLVED
 > [!NOTE]
-> **Integrated into Prompt.md & AGENTS.md** — Development strategy structured into 7 sequential, incremental phases to prevent token truncation, stubbed code, and Hilt circular compilation failures.
+> **Integrated into Prompt.md & AGENTS.md** — Development strategy structured into 7 sequential, incremental code-generation phases to prevent token truncation, stubbed code, and Hilt circular compilation failures, plus **Phase 8, the handoff at which development passes completely to Android Studio** and the spec is frozen. Step-by-step editor and command-line instructions are in `build_instructions.md`.
 
 ### Key Architectural Safeguards:
 1. **Co-located Hilt Modules**: Hilt modules (`DatabaseModule`, `RepositoryModule`, `NetworkModule`) are strictly generated in the exact phase where their referenced classes are created. `RepositoryModule` uses a temporary no-op placeholder for `HubSpotRepository` in Phase 4 to allow worker testing before Phase 5 network integration.

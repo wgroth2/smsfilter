@@ -450,7 +450,9 @@ hilt-plugin          = { id = "com.google.dagger.hilt.android", version.ref = "h
 
 ### Phased Code Generation & Build Strategy
 
-To prevent token truncation, stubbed implementation code, and version drift during code generation, development must be executed sequentially across 7 incremental phases. After each phase, verify that the generated components compile cleanly before proceeding.
+To prevent token truncation, stubbed implementation code, and version drift during code generation, development must be executed sequentially across **7 incremental code-generation phases, followed by Phase 8 — a one-way handoff to Android Studio**. After each phase, verify that the generated components compile cleanly before proceeding.
+
+Phases 1–7 are AI-generated in the editor and verified from the command line (`./gradlew`); see `build_instructions.md` for the exact commands. **Phase 8 is the point at which development passes completely to Android Studio** — after it, the spec is frozen and Android Studio becomes the single environment for all further work.
 
 > **Important:** Each phase prompt should include the full spec from `Prompt.md` plus a list of all files already generated in previous phases, so the AI has complete context without regenerating existing code.
 
@@ -510,3 +512,23 @@ To prevent token truncation, stubbed implementation code, and version drift duri
    - Externalize **all** UI strings into `res/values/strings.xml` (US English) and `res/values-es/strings.xml` (Spanish). No string literals may remain hardcoded in any Compose file.
    - Generate `TEST_CASES.md` and `INSTALL_GUIDE.md`.
    - *Verification:* Run full test suite (`./gradlew test connectedAndroidTest`). Compile both APK variants (`./gradlew assembleDebug assembleRelease`). Manually verify the Settings screen and Detection Log render correctly in both English and Spanish.
+
+8. **Phase 8 — Handoff: Development Passes Completely to Android Studio**
+
+   **This is the phase where development passes completely to Android Studio.** Phases 1–7 are code generation against this spec; Phase 8 is the hard boundary after which `Prompt.md` is a historical design record rather than a live instruction set, and no further code is generated from it.
+
+   *Entry criteria (all must be true before declaring the handoff):*
+   - `./gradlew assembleDebug assembleRelease` both succeed.
+   - `./gradlew test` passes, and `./gradlew connectedAndroidTest` passes on a real device or emulator.
+   - The manual test cases in `TEST_CASES.md` have been executed on a physical Android phone — including the SMS-dependent cases (short code, cooldown, dry run, alphanumeric sender) that cannot be meaningfully verified on an emulator.
+   - Everything is committed to git and pushed to GitHub, so the repo can be cloned and built by someone else.
+
+   *Handoff actions:*
+   - Open the project in Android Studio once and confirm a clean Gradle sync with no unresolved references (Android Studio surfaces IDE-level problems the command-line build does not).
+   - Record the handoff explicitly: add a dated "Development handed off to Android Studio" note to `walkthrough.md` and tag the commit (e.g. `git tag v1.0-handoff`).
+
+   *After Phase 8 — the rules change:*
+   - **Android Studio is the only development environment.** Debugging, Logcat inspection, profiling, layout inspection, device testing, and all subsequent edits happen there.
+   - **All further changes are ordinary Android development, made directly in the Kotlin source.** Do not regenerate files from this spec, and do not re-run any earlier phase — regenerating would overwrite hand-tuned code.
+   - **`Prompt.md` becomes read-only.** If a design decision genuinely changes, edit the Kotlin source and note the change in `walkthrough.md`; the spec is no longer the source of truth for the codebase.
+   - The deferred items in `todo.md` are worked in Android Studio as normal development tasks, not as spec revisions.

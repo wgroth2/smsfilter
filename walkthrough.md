@@ -57,7 +57,7 @@ graph TD
   - **Production/Release Mode**: Uses a production release keystore (loaded securely via environment variables), enables full ProGuard/R8 code shrinking and optimization, and strips out debug logs.
 * **Pinned Dependency Version Catalog**: All library dependencies and Gradle plugins are strictly locked in `gradle/libs.versions.toml` to prevent version drift across Kotlin, KSP, Compose BOM, and Hilt.
 * **KDoc & Licensing Standards**: Enforced full BSD 3-Clause licensing headers (authored by Bill Roth <bill.roth@gmail.com>) and mandatory KDoc comments across all Kotlin classes, functions, interfaces, and constants via `.agents/AGENTS.md`.
-* **7-Phase Incremental Build Strategy**: Development is structured into 7 sequential phases with mandatory verification steps (`assembleDebug` and unit tests) after each phase to guarantee token safety and compile-correct builds:
+* **8-Phase Incremental Build Strategy**: Development is structured into 7 sequential code-generation phases with mandatory verification steps (`assembleDebug` and unit tests) after each phase to guarantee token safety and compile-correct builds, followed by a final handoff phase. Step-by-step editor and command-line instructions live in [build_instructions.md](file:///Users/bill/code/smsfilter/build_instructions.md):
   1. *Phase 1 — Project Scaffolding & Build Configuration*
   2. *Phase 2 — Room Database, DataStore & Secure Storage (includes `di/DatabaseModule`)*
   3. *Phase 3 — Detection Engine & Utility Layer (Pure unit-testable components)*
@@ -65,6 +65,7 @@ graph TD
   5. *Phase 5 — HubSpot API Layer (includes `HubSpotRepositoryImpl` and `di/NetworkModule`)*
   6. *Phase 6 — Onboarding UI & Permissions Screen (`OnboardingScreen`, `PermissionsScreen`, `MainActivity`)*
   7. *Phase 7 — Settings, Detection Log UI & Localization (`SettingsScreen`, `DetectionLogScreen`, English/Spanish `strings.xml`)*
+  8. ***Phase 8 — Handoff: development passes completely to Android Studio.*** After the full test suite passes, both APK variants build, and the manual SMS test cases have been verified on a physical phone, the spec is frozen and Android Studio becomes the only development environment. No further code is generated from `Prompt.md`; all subsequent changes are ordinary Android development made directly in the Kotlin source.
 
 ### 6. Pre-Generation Hardening Review (July 2026)
 
