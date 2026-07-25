@@ -47,20 +47,94 @@ ls ~/Library/Android/sdk/platforms      # must include android-35
 ls ~/Library/Android/sdk/build-tools    # must include 35.0.0
 ```
 
-### 0.3 Set up a test device (Android Studio, or a USB cable)
+### 0.3 Set up a test device
 
-Phases 2, 4, 7, and 8 need a real Android runtime. **A physical phone is strongly preferred** — this is an SMS app, and short codes, multi-part messages, and alphanumeric senders behave differently on an emulator.
+Phases 2, 4, 7, and 8 need a real Android runtime. **A physical phone is strongly preferred** — this is an SMS app, and short codes, multi-part messages, and alphanumeric senders behave differently on an emulator. The phone also needs an **active SIM with a working phone number**, since the manual test cases involve receiving real texts.
 
-- **Physical phone (preferred):** enable Developer Options → USB debugging, connect by USB, accept the debugging prompt on the phone.
-- **Emulator (fallback):** Android Studio → **Device Manager** → **Create Virtual Device** → Pixel + an **API 35** system image.
+> **You do not need Android Studio to connect a phone.** The thing that talks to the device is `adb`, which lives in the SDK's `platform-tools/` and runs independently — Android Studio merely calls it under the hood. Once `adb devices` lists your phone, `./gradlew installDebug` and `./gradlew connectedAndroidTest` work from the VS Code terminal with Android Studio closed. You only need Android Studio when you want its **Logcat** viewer, **step debugger**, or **Layout Inspector** attached to a running app (useful in Phases 6–7 and after the Phase 8 handoff).
 
-Confirm the device is visible from the VS Code terminal:
+#### Step 1 — Unlock Developer Options on the phone
+
+Settings → **About phone** → tap **Build number** seven times. Enter your PIN/pattern if asked; you'll get a "You are now a developer!" confirmation.
+
+On Samsung, Build number is one level deeper: Settings → About phone → **Software information** → Build number.
+
+#### Step 2 — Turn on USB debugging
+
+Settings → **System** → **Developer options** → toggle **USB debugging** on. (On some brands, Developer options sits at the top level of Settings rather than under System.)
+
+Xiaomi/Redmi/POCO only: also enable **USB debugging (Security settings)** in the same menu, or installs will silently fail.
+
+#### Step 3 — Plug in with a data cable
+
+Connect the phone to the Mac. **The cable must support data, not just charging** — a charge-only cable is the single most common reason a phone never appears, and it looks identical to a data cable. If the phone charges but never shows up, try a different cable before debugging anything else.
+
+macOS needs no driver (unlike Windows). If your phone offers a USB mode notification, set it to **File Transfer / MTP** rather than "Charging only."
+
+#### Step 4 — Accept the authorization prompt on the phone
+
+Start the adb server, which is what triggers the prompt:
 
 ```bash
 ~/Library/Android/sdk/platform-tools/adb devices -l
 ```
 
-You should see one entry that is not `unauthorized` or `offline`. An empty list means instrumented tests cannot run.
+**Now look at the phone's screen.** A dialog appears: *"Allow USB debugging?"* showing your Mac's RSA key fingerprint. Check **Always allow from this computer**, then tap **Allow**. Without this, the phone connects but refuses commands.
+
+If no dialog appears and the list stays empty, unplug and replug the cable with the phone unlocked and the screen on.
+
+#### Step 5 — Verify
+
+```bash
+~/Library/Android/sdk/platform-tools/adb devices -l
+```
+
+A ready device looks like this — the key word is **`device`**:
+
+```
+List of devices attached
+39061FDJH00TSX         device usb:337641472X product:cheetah model:Pixel_7_Pro device:cheetah transport_id:1
+```
+
+Any other state means it is not usable yet:
+
+| `adb devices` shows | Meaning and fix |
+|---|---|
+| *(empty list)* | Charge-only cable, USB debugging off, or wrong USB mode. Work back through Steps 2–3. |
+| `unauthorized` | The Step 4 prompt wasn't accepted. Replug and accept it. If it never reappears: Developer options → **Revoke USB debugging authorizations**, then replug. |
+| `offline` | Stale adb connection. `adb kill-server && adb start-server`, then replug. |
+| `no permissions` | Rare on macOS. Restart the adb server as above. |
+
+#### Optional — put `adb` on your PATH
+
+Typing the full path gets old fast. Add this to `~/.zshrc`, then open a new terminal:
+
+```bash
+export PATH="$HOME/Library/Android/sdk/platform-tools:$PATH"
+```
+
+After that, plain `adb devices` works, and the rest of this document's `adb` commands can be shortened.
+
+#### Optional — wireless debugging (Android 11+)
+
+Worth setting up for this project specifically: you can hold the phone normally and text it while it stays connected, instead of tethered to the Mac. Requires the phone and Mac on the same Wi-Fi network.
+
+1. Phone: Settings → Developer options → **Wireless debugging** → on → **Pair device with pairing code**. Note the IP:port and the six-digit code.
+2. Mac, using the *pairing* port from that screen:
+   ```bash
+   adb pair 192.168.1.50:37105     # enter the six-digit code when prompted
+   ```
+3. Then connect using the *main* Wireless-debugging IP:port (a different port from the pairing one):
+   ```bash
+   adb connect 192.168.1.50:39121
+   adb devices -l                   # should now list the phone
+   ```
+
+The pairing survives reboots; you generally only need `adb connect` again after the phone leaves the network.
+
+#### Emulator fallback
+
+If you don't have a spare phone: Android Studio → **Device Manager** → **Create Virtual Device** → a Pixel profile with an **API 35** system image. Everything except the SMS-dependent manual cases will run. You can inject a fake message with `adb emu sms send 12345 "Hello STOP"`, but this does **not** faithfully reproduce short-code addressing, multi-part PDU concatenation, or alphanumeric senders — which is why Phase 8 requires a physical phone before the handoff.
 
 ---
 
@@ -242,7 +316,7 @@ Then open the project in Android Studio once and confirm a clean Gradle sync wit
 |---|---|
 | `SDK location not found` | Open the project once in Android Studio to generate `local.properties`, or `echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties`. It is gitignored — never commit it. |
 | `Failed to find target with hash string 'android-35'` | API 35 platform not installed — see §0.2. |
-| `No connected devices` on `connectedAndroidTest` | `adb devices` is empty. Reconnect the phone and accept the USB debugging prompt, or start the emulator. |
+| `No connected devices` on `connectedAndroidTest` | `adb devices` is empty, or shows `unauthorized`/`offline`. See the state table in §0.3 Step 5. |
 | Build hangs, or lock/`.lock` errors | Android Studio and the terminal are building at once — they share the Gradle daemon and `build/` directory. Let one finish, or `./gradlew --stop` and retry. |
 | KSP or Hilt errors after a spec change | `./gradlew clean` then rebuild; generated sources can go stale. |
 | Wrong Gradle version errors | You ran bare `gradle` instead of `./gradlew`. |
