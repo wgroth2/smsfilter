@@ -71,6 +71,15 @@ android {
         buildConfig = true
     }
 
+    // Fakes for the SMS pipeline are needed by both the JVM unit tests and the instrumented
+    // worker test. AGP keeps `test` and `androidTest` source sets separate, so without this the
+    // ~200 lines of recording fakes would have to be duplicated and would inevitably drift apart.
+    // Additive only: no dependency, version, or existing setting is changed.
+    sourceSets {
+        getByName("test").java.srcDirs("src/sharedTest/java")
+        getByName("androidTest").java.srcDirs("src/sharedTest/java")
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

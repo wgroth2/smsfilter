@@ -28,8 +28,12 @@
 
 package com.digiroth.smsfilter.di
 
+import com.digiroth.smsfilter.data.repository.ContactSource
+import com.digiroth.smsfilter.data.repository.GoogleContactSource
 import com.digiroth.smsfilter.data.repository.HubSpotRepository
 import com.digiroth.smsfilter.data.repository.NoOpHubSpotRepository
+import com.digiroth.smsfilter.data.settings.DataStoreSettingsSnapshotProvider
+import com.digiroth.smsfilter.data.settings.SettingsSnapshotProvider
 import com.digiroth.smsfilter.platform.AlertSoundPlayer
 import com.digiroth.smsfilter.platform.AndroidAlertSoundPlayer
 import com.digiroth.smsfilter.platform.AndroidDetectionNotifier
@@ -72,6 +76,26 @@ abstract class RepositoryModule {
      * @param impl Platform SMS implementation.
      * @return The bound [SmsSender].
      */
+    /**
+     * @param impl Adapter over the DataStore-backed settings store.
+     * @return The bound [SettingsSnapshotProvider], which keeps the pipeline free of any
+     *   `Context`-requiring dependency and therefore JVM-testable.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindSettingsSnapshotProvider(
+        impl: DataStoreSettingsSnapshotProvider,
+    ): SettingsSnapshotProvider
+
+    /**
+     * @param impl Adapter over the Google Contacts repository.
+     * @return The bound [ContactSource]. `ContactRepository` remains available directly as its
+     *   concrete type for the Settings screen's permission and count queries.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindContactSource(impl: GoogleContactSource): ContactSource
+
     @Binds
     @Singleton
     abstract fun bindSmsSender(impl: AndroidSmsSender): SmsSender

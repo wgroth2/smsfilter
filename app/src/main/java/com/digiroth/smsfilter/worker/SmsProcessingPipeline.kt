@@ -37,9 +37,9 @@ import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
 import com.digiroth.smsfilter.data.db.entity.LogEventType
 import com.digiroth.smsfilter.data.repository.ContactLookupCache
 import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
-import com.digiroth.smsfilter.data.repository.ContactRepository
+import com.digiroth.smsfilter.data.repository.ContactSource
 import com.digiroth.smsfilter.data.repository.HubSpotRepository
-import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import com.digiroth.smsfilter.data.settings.SettingsSnapshotProvider
 import com.digiroth.smsfilter.detection.OptOutDetector
 import com.digiroth.smsfilter.detection.OptOutResult
 import com.digiroth.smsfilter.detection.StopListMatcher
@@ -142,12 +142,12 @@ sealed interface ProcessingOutcome {
  */
 @Singleton
 class SmsProcessingPipeline @Inject constructor(
-    private val settings: SettingsDataStore,
+    private val settings: SettingsSnapshotProvider,
     private val stopListDao: StopListDao,
     private val optOutPatternDao: OptOutPatternDao,
     private val detectionLogDao: DetectionLogDao,
     private val cooldownDao: AutoReplyCooldownDao,
-    private val contactRepository: ContactRepository,
+    private val contactSource: ContactSource,
     private val hubSpotRepository: HubSpotRepository,
     private val contactLookupCache: ContactLookupCache,
     private val stopListMatcher: StopListMatcher,
@@ -209,7 +209,7 @@ class SmsProcessingPipeline @Inject constructor(
             return ProcessingOutcome.Ignored(IgnoreReason.KNOWN_GOOGLE_CONTACT, detail = "cached")
         }
 
-        if (contactRepository.isKnownContact(sender.primaryLookupValue) == ContactLookupOutcome.Found) {
+        if (contactSource.isKnownContact(sender.primaryLookupValue) == ContactLookupOutcome.Found) {
             contactLookupCache.markKnownContact(sender.primaryLookupValue)
             logIgnored(receivedAtMillis, "Ignored: Known Google Contact", messageBody)
             return ProcessingOutcome.Ignored(IgnoreReason.KNOWN_GOOGLE_CONTACT)
