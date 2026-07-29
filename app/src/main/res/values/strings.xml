@@ -10,4 +10,9 @@
          expedited worker falls back to foreground execution on older Android versions. -->
     <string name="notification_channel_status_name">Background Status</string>
     <string name="notification_channel_status_description">Temporary notices shown while a message is being checked in the background.</string>
+
+    <!-- Notification content. Added in Phase 4; kept here rather than hardcoded so the
+         Phase 7 Spanish translation covers it like every other user-visible string. -->
+    <string name="notification_detection_title">Opt-out request detected</string>
+    <string name="notification_worker_status_title">Checking message</string>
 </resources>
