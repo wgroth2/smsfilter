@@ -31,7 +31,7 @@ package com.digiroth.smsfilter.di
 import com.digiroth.smsfilter.data.repository.ContactSource
 import com.digiroth.smsfilter.data.repository.GoogleContactSource
 import com.digiroth.smsfilter.data.repository.HubSpotRepository
-import com.digiroth.smsfilter.data.repository.NoOpHubSpotRepository
+import com.digiroth.smsfilter.data.repository.HubSpotRepositoryImpl
 import com.digiroth.smsfilter.data.settings.DataStoreSettingsSnapshotProvider
 import com.digiroth.smsfilter.data.settings.SettingsSnapshotProvider
 import com.digiroth.smsfilter.platform.AlertSoundPlayer
@@ -65,12 +65,13 @@ import javax.inject.Singleton
 abstract class RepositoryModule {
 
     /**
-     * @param impl Placeholder implementation, replaced in the HubSpot API phase.
+     * @param impl The production HubSpot implementation. NoOpHubSpotRepository remains in the
+     *   codebase but is no longer bound.
      * @return The bound [HubSpotRepository].
      */
     @Binds
     @Singleton
-    abstract fun bindHubSpotRepository(impl: NoOpHubSpotRepository): HubSpotRepository
+    abstract fun bindHubSpotRepository(impl: HubSpotRepositoryImpl): HubSpotRepository
 
     /**
      * @param impl Platform SMS implementation.

@@ -62,6 +62,19 @@
 -dontwarn retrofit2.**
 
 # ---------------------------------------------------------------------------
+# Tink (the crypto library behind EncryptedSharedPreferences)
+# ---------------------------------------------------------------------------
+# Tink is annotated with ErrorProne annotations that exist only at compile time and are
+# absent from the runtime classpath. R8 treats those as missing classes and fails the
+# release build outright. They affect no runtime behaviour, so warnings are suppressed
+# rather than the annotations being added as a dependency.
+#
+# This surfaces only in release builds: debug builds do not run R8, so the failure stayed
+# latent from the phase that introduced EncryptedSharedPreferences until the first
+# assembleRelease.
+-dontwarn com.google.errorprone.annotations.**
+
+# ---------------------------------------------------------------------------
 # Strip debug logging from release builds.
 # ---------------------------------------------------------------------------
 -assumenosideeffects class android.util.Log {
