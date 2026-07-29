@@ -226,8 +226,10 @@ Every remaining phase follows the same four steps. **Start a new Claude Code ses
 At the start of each session, run this and keep the output handy; the phase prompt needs it:
 
 ```bash
-find app/src -name "*.kt" | sort
+git ls-files
 ```
+
+**Use `git ls-files`, not a `find` over `app/src`.** The phase prompt's guard clause is "do not modify any file listed above," so anything omitted from the list is implicitly fair game. A Kotlin-only listing hides `app/build.gradle.kts`, `gradle.properties`, `AndroidManifest.xml`, `libs.versions.toml`, and `res/` — exactly the files that must not be touched after Phase 1. `git ls-files` lists everything tracked, so the guard covers all of it.
 
 ### Step 2 — Prompt the phase (VS Code, Claude Code)
 
