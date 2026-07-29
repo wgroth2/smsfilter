@@ -142,19 +142,35 @@ If you don't have a spare phone: Android Studio → **Device Manager** → **Cre
 
 ### 1.1 Create the Gradle wrapper yourself (VS Code terminal)
 
-The wrapper JAR is a binary file that an AI cannot author, so you create it before generating anything. Your system Gradle is used **once**, here, to produce a pinned 8.11.1 wrapper:
+The wrapper JAR is a binary file that an AI cannot author, so you create it before generating anything. Your system Gradle is used **once**, here, to produce a pinned 8.11.1 wrapper.
+
+**A one-line settings stub must exist first.** Gradle 9.x refuses to run any task in a directory that isn't already a Gradle build — `gradle wrapper` on its own fails with *"Directory … does not contain a Gradle build."* Earlier Gradle versions allowed it in an empty directory; 9.x does not. Create the stub, then generate the wrapper:
 
 ```bash
 cd /Users/bill/code/smsfilter
+echo 'rootProject.name = "smsfilter"' > settings.gradle.kts
 gradle wrapper --gradle-version 8.11.1 --distribution-type bin
 ```
 
-Confirm and commit:
+Phase 1 replaces that stub with the real `settings.gradle.kts` (plugin management, dependency resolution, `include(":app")`), so its contents don't matter — it exists purely to satisfy Gradle 9's precondition.
+
+Confirm the four wrapper files landed and are pinned to the right version:
 
 ```bash
-ls -l gradlew gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
+ls -l gradlew gradlew.bat gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
 grep distributionUrl gradle/wrapper/gradle-wrapper.properties   # must say 8.11.1
-git add gradlew gradlew.bat gradle/
+```
+
+Then verify the wrapper actually bootstraps. This downloads Gradle 8.11.1 (~130 MB) the first time, so expect a pause; it should report `Gradle 8.11.1`, not your system version:
+
+```bash
+./gradlew --version
+```
+
+Commit:
+
+```bash
+git add gradlew gradlew.bat gradle/ settings.gradle.kts
 git commit -m "build: add Gradle 8.11.1 wrapper"
 ```
 
