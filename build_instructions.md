@@ -171,11 +171,19 @@ Build Strategy section: project scaffolding and build configuration.
 The Gradle wrapper already exists (8.11.1) — do not recreate it.
 
 Generate gradle/libs.versions.toml using exactly the pinned versions from the
-Dependency Version Catalog, plus build.gradle.kts (root and app), settings.gradle.kts,
-proguard-rules.pro, .gitignore, AndroidManifest.xml, and the @HiltAndroidApp
-Application class with notification channels and the Hilt + WorkManager wiring.
+Dependency Version Catalog, plus build.gradle.kts (root and app),
+settings.gradle.kts, proguard-rules.pro, AndroidManifest.xml, the minimal res/
+resources the manifest references, and the @HiltAndroidApp Application class
+with notification channels and the Hilt + WorkManager wiring.
 
-Do not generate any Hilt @Module files in this phase.
+Follow Phase 1's bullets exactly, in particular:
+- Declare EVERY dependency from the catalog in app/build.gradle.kts now, not
+  incrementally in later phases.
+- .gitignore already exists — extend it, never overwrite it.
+- Generate res/values/strings.xml and res/values/themes.xml so AAPT2 can resolve
+  the manifest, and do not reference a launcher icon PNG that does not exist.
+- Do not generate any Hilt @Module files in this phase.
+
 When done, run ./gradlew assembleDebug and fix any errors until it passes.
 ```
 
