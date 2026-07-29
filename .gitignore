@@ -52,6 +52,12 @@ cmake-build-*/
 .DS_Store
 Thumbs.db
 
+# Kotlin build session data
+.kotlin/
+
+# Gradle wrapper distribution cache (the wrapper scripts/jar ARE tracked)
+gradle-app.setting
+
 # Chat session identifier
 chat.id
 

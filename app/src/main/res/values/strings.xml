@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SMS Filter</string>
+
+    <!-- Notification channel: opt-out detections (high importance, user-facing alerts). -->
+    <string name="notification_channel_detections_name">Opt-Out Alerts</string>
+    <string name="notification_channel_detections_description">Alerts when an opt-out request is detected in an incoming message.</string>
+
+    <!-- Notification channel: transient background-work status shown only when the
+         expedited worker falls back to foreground execution on older Android versions. -->
+    <string name="notification_channel_status_name">Background Status</string>
+    <string name="notification_channel_status_description">Temporary notices shown while a message is being checked in the background.</string>
+</resources>

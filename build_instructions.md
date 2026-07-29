@@ -188,9 +188,9 @@ The Gradle wrapper already exists (8.11.1) — do not recreate it.
 
 Generate gradle/libs.versions.toml using exactly the pinned versions from the
 Dependency Version Catalog, plus build.gradle.kts (root and app),
-settings.gradle.kts, proguard-rules.pro, AndroidManifest.xml, the minimal res/
-resources the manifest references, and the @HiltAndroidApp Application class
-with notification channels and the Hilt + WorkManager wiring.
+settings.gradle.kts, gradle.properties, proguard-rules.pro, AndroidManifest.xml,
+the minimal res/ resources the manifest references, and the @HiltAndroidApp
+Application class with notification channels and the Hilt + WorkManager wiring.
 
 Follow Phase 1's bullets exactly, in particular:
 - Declare EVERY dependency from the catalog in app/build.gradle.kts now, not

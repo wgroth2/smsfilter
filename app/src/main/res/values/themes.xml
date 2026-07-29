@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The UI is entirely Jetpack Compose, so this XML theme exists only to satisfy the
+         manifest's android:theme reference and to set the window background before the
+         first composition. AppCompat is used as the parent (rather than a Material
+         Components theme) because appcompat is in the pinned dependency catalog and
+         com.google.android.material is not; AppCompat is also the base required later for
+         per-app locale switching via AppCompatDelegate on API < 33. -->
+    <style name="Theme.SmsFilter" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

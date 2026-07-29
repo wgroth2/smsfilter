@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pure-XML adaptive icon foreground: a message bubble with a "blocked" bar across it.
+     Authored as a vector rather than a PNG so the launcher icon is fully reproducible
+     from source; minSdk is 26, so the adaptive icon in mipmap-anydpi-v26 covers every
+     supported device and no raster fallback is required. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Message bubble, kept inside the 72x72 adaptive-icon safe zone. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,32h44a7,7 0 0 1 7,7v25a7,7 0 0 1 -7,7h-24l-15,12v-12h-5a7,7 0 0 1 -7,-7v-25a7,7 0 0 1 7,-7z" />
+
+    <!-- Diagonal bar indicating a blocked / opted-out sender. -->
+    <path
+        android:fillColor="#0B6E4F"
+        android:pathData="M38,66l34,-34l7,7l-34,34z" />
+</vector>
