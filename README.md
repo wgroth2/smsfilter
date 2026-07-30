@@ -168,4 +168,4 @@ Compose UI tests are not present — `ui-test-junit4` is outside the pinned depe
 
 ## License
 
-BSD 3-Clause. Copyright (c) 2025 Bill Roth &lt;bill.roth@gmail.com&gt;. Every source file carries the full license header.
+BSD 3-Clause. Copyright (c) 2026 Bill Roth &lt;bill.roth@gmail.com&gt;. Every source file carries the full license header.
