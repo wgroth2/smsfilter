@@ -15,4 +15,58 @@
          Phase 7 Spanish translation covers it like every other user-visible string. -->
     <string name="notification_detection_title">Opt-out request detected</string>
     <string name="notification_worker_status_title">Checking message</string>
+
+    <!-- ===================================================================
+         Onboarding wizard (Phase 6). Appended, not rewritten.
+         =================================================================== -->
+    <string name="common_loading">Loading…</string>
+    <string name="common_next">Next</string>
+    <string name="common_back">Back</string>
+    <string name="common_done">Done</string>
+
+    <string name="onboarding_step_indicator">Step %1$d of %2$d</string>
+
+    <string name="onboarding_welcome_title">SMS Filter</string>
+    <string name="onboarding_welcome_body">SMS Filter watches incoming text messages for opt-out requests from senders who are not in your contacts, and replies automatically so you stop hearing from them.\n\nMessages from people you know are always ignored. Your contacts are never copied or uploaded — every check happens on this phone, in real time.</string>
+    <string name="onboarding_get_started">Get Started</string>
+
+    <string name="onboarding_permissions_title">Permissions</string>
+    <string name="onboarding_permissions_body">SMS Filter needs these permissions to work. You cannot continue until the required ones are granted.</string>
+    <string name="onboarding_permissions_required_header">Required</string>
+    <string name="onboarding_permissions_optional_header">Recommended</string>
+
+    <string name="permission_name_receive_sms">Receive SMS</string>
+    <string name="permission_reason_receive_sms">Lets the app see incoming messages so it can detect opt-out requests. Without this the app cannot function.</string>
+    <string name="permission_name_send_sms">Send SMS</string>
+    <string name="permission_reason_send_sms">Lets the app send the one-word \"stop\" or \"end\" reply on your behalf.</string>
+    <string name="permission_name_post_notifications">Notifications</string>
+    <string name="permission_reason_post_notifications">Lets the app tell you when it has detected an opt-out request.</string>
+    <string name="permission_name_read_contacts">Read Contacts</string>
+    <string name="permission_reason_read_contacts">Lets the app recognise people you know so it never replies to them. If you skip this, every sender is treated as unknown.</string>
+
+    <string name="permission_action_grant">Grant</string>
+    <string name="permission_action_retry">Try again</string>
+    <string name="permission_action_open_settings">Open App Settings</string>
+    <string name="permission_status_granted">Granted</string>
+    <string name="permission_status_denied">Denied</string>
+    <string name="permission_status_not_requested">Not requested</string>
+    <string name="permission_permanently_denied">Android will no longer show the permission prompt for this. Grant it in App Settings, then return here — the app will detect it automatically.</string>
+    <string name="permission_contacts_denied_warning">Contacts access is denied, so every sender will be treated as unknown. You can grant it later in Settings.</string>
+    <string name="permission_request_all">Grant permissions</string>
+
+    <string name="onboarding_connection_test_title">Connection Test</string>
+    <string name="onboarding_connection_test_body">Checking that the app can read your contacts to recognise people you know.</string>
+    <string name="onboarding_connection_test_run">Run test again</string>
+    <string name="connection_contacts_checking">Checking Google Contacts…</string>
+    <string name="connection_contacts_accessible">Google Contacts: Accessible (%1$d contacts found)</string>
+    <string name="connection_contacts_denied">Google Contacts: Not accessible — permission denied. You can grant it later from Settings.</string>
+    <string name="onboarding_auto_reply_disclosure">Auto-reply is ON by default — SMS Filter will automatically send a one-word \"stop\" or \"end\" reply when it detects an opt-out message from an unknown sender. You can switch to detection-only mode anytime in Settings.</string>
+
+    <string name="onboarding_hubspot_not_here">HubSpot CRM is optional and is not set up here. You will be offered it once after setup, and can always connect it later from Settings.</string>
+
+    <!-- Placeholder destinations, replaced with the real screens in Phase 7. -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_placeholder_body">Settings are implemented in the next phase.</string>
+    <string name="detection_log_title">Activity &amp; Detection Log</string>
+    <string name="detection_log_placeholder_body">The detection log is implemented in the next phase.</string>
 </resources>
