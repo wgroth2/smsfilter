@@ -69,4 +69,85 @@
     <string name="settings_placeholder_body">Settings are implemented in the next phase.</string>
     <string name="detection_log_title">Activity &amp; Detection Log</string>
     <string name="detection_log_placeholder_body">The detection log is implemented in the next phase.</string>
+
+    <!-- ===================================================================
+         Settings and detection log (Phase 7). Appended, not rewritten.
+         =================================================================== -->
+    <string name="common_add">Add</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="common_test_connection">Test Connection</string>
+
+    <string name="settings_health_title">Connection Health</string>
+    <string name="health_google_contacts">Google Contacts</string>
+    <string name="health_hubspot">HubSpot CRM</string>
+    <string name="health_connected">Connected</string>
+    <string name="health_permission_required">Permissions required</string>
+    <string name="health_off">Off</string>
+    <string name="health_setup_incomplete">Setup incomplete</string>
+    <string name="health_error">Token invalid / Unreachable</string>
+    <string name="settings_privacy_card">To protect your privacy, this app does not store your contacts locally. Lookups are done in real-time, which may cause a 1-2 second delay for unknown numbers.</string>
+
+    <string name="settings_google_title">Google Contacts</string>
+    <string name="settings_google_permission_granted">Permission Granted</string>
+    <string name="settings_google_permission_denied">Permission Denied</string>
+
+    <string name="settings_hubspot_title">HubSpot Account</string>
+    <string name="settings_hubspot_toggle">Use HubSpot</string>
+    <string name="settings_hubspot_token_label">Private App Access Token</string>
+    <string name="settings_hubspot_token_help">Where do I find my access token?</string>
+    <string name="settings_hubspot_connect">Connect &amp; Test</string>
+    <string name="settings_hubspot_disconnect">Disconnect</string>
+    <string name="settings_hubspot_show_token">Show token</string>
+    <string name="settings_hubspot_hide_token">Hide token</string>
+    <string name="settings_hubspot_error_invalid_token">That token was rejected. Check that you copied the whole Private App access token.</string>
+    <string name="settings_hubspot_error_missing_scope">The token is valid but is missing the crm.objects.contacts.read scope. Add it in your HubSpot Private App settings.</string>
+    <string name="settings_hubspot_error_network">Could not reach HubSpot. Check your connection and try again.</string>
+    <string name="settings_hubspot_prompt_title">Connect HubSpot CRM?</string>
+    <string name="settings_hubspot_prompt_body">SMS Filter can also check unknown senders against your HubSpot contacts. You can connect now, or later from Settings.</string>
+    <string name="settings_hubspot_prompt_connect">Connect</string>
+    <string name="settings_hubspot_prompt_decline">Not now</string>
+
+    <string name="settings_stop_list_title">Stop List</string>
+    <string name="settings_stop_list_hint">Keyword to ignore</string>
+    <string name="settings_stop_list_empty">No keywords yet. Messages containing a keyword you add here are ignored completely.</string>
+
+    <string name="settings_patterns_title">Opt-Out Patterns</string>
+    <string name="settings_patterns_hint">Pattern</string>
+    <string name="settings_patterns_case_note">All matching is case-insensitive.</string>
+    <string name="settings_patterns_reply_type">Reply with</string>
+    <string name="settings_patterns_match_mode">Match</string>
+    <string name="match_mode_anywhere">Match anywhere</string>
+    <string name="match_mode_last_line">Exact match on last line</string>
+    <string name="reply_type_stop">stop</string>
+    <string name="reply_type_end">end</string>
+
+    <string name="settings_auto_reply_title">Auto-Reply</string>
+    <string name="settings_auto_reply_toggle">Auto-Reply</string>
+    <string name="settings_auto_reply_subtitle">Off = detect and notify only — never send a reply.</string>
+    <string name="settings_auto_reply_cooldown_note">To prevent reply loops, at most one auto-reply is sent to any sender per 24 hours.</string>
+
+    <string name="settings_sound_language_title">Sound &amp; Language</string>
+    <string name="settings_beep_toggle">Beep On Opt-Out</string>
+    <string name="settings_sound_choose">Choose sound</string>
+    <string name="settings_sound_default">System notification sound</string>
+    <string name="settings_notification_toggle">Show detection notifications</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_spanish">Español</string>
+
+    <string name="settings_diagnostics_title">Connection Testing</string>
+    <string name="settings_test_all">Test All Connections</string>
+    <string name="settings_test_running">Testing…</string>
+    <string name="settings_hubspot_test_ok">HubSpot: Reachable</string>
+
+    <string name="settings_open_log">Activity &amp; Detection Log</string>
+
+    <string name="log_filter_all">All</string>
+    <string name="log_filter_detections">Detections Only</string>
+    <string name="log_filter_ignored">Ignored Only</string>
+    <string name="log_clear">Clear Log</string>
+    <string name="log_empty">No activity recorded yet.</string>
+    <string name="log_back">Back</string>
 </resources>

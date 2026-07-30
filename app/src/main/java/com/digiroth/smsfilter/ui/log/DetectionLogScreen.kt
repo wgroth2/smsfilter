@@ -28,40 +28,148 @@
 
 package com.digiroth.smsfilter.ui.log
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.digiroth.smsfilter.R
+import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
+import com.digiroth.smsfilter.data.db.entity.LogEventType
+import java.text.DateFormat
+import java.util.Date
 
 /**
- * Placeholder for the Activity & Detection Log screen, implemented in the next phase.
+ * The activity and detection log.
  *
- * Exists now so the notification-tap route declared by `NotificationRoute.SCREEN_DETECTION_LOG` has
- * a real destination. Without it, tapping a detection notification would navigate to a route that
- * does not exist, and the next phase would have to edit the navigation graph rather than just this
- * file.
+ * Every row is drawn from [DetectionLogEntity], which by design stores no sender address in any
+ * form — not even a hash. There is therefore nothing to redact here: the privacy guarantee is
+ * enforced by the schema rather than by this screen remembering to omit a field.
  *
- * @param modifier Layout modifier.
+ * @param onNavigateBack Returns to Settings.
+ * @param viewModel State holder, supplied by Hilt.
  */
 @Composable
-fun DetectionLogScreen(modifier: Modifier = Modifier) {
-    Scaffold(modifier = modifier.fillMaxSize()) { padding ->
-        Column(Modifier.padding(padding).padding(24.dp)) {
+fun DetectionLogScreen(
+    onNavigateBack: () -> Unit = {},
+    viewModel: DetectionLogViewModel = hiltViewModel(),
+) {
+    val entries by viewModel.entries.collectAsStateWithLifecycle()
+    val filter by viewModel.filter.collectAsStateWithLifecycle()
+
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text(
                 text = stringResource(R.string.detection_log_title),
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
             )
+            Spacer(Modifier.height(12.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LogFilter.entries.forEach { option ->
+                    FilterChip(
+                        selected = filter == option,
+                        onClick = { viewModel.setFilter(option) },
+                        label = { Text(stringResource(filterLabel(option))) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            if (entries.isEmpty()) {
+                Text(
+                    stringResource(R.string.log_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(entries, key = { it.id }) { entry -> LogRow(entry) }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                OutlinedButton(onClick = onNavigateBack) {
+                    Text(stringResource(R.string.log_back))
+                }
+                OutlinedButton(onClick = viewModel::clearLog, enabled = entries.isNotEmpty()) {
+                    Text(stringResource(R.string.log_clear))
+                }
+            }
+        }
+    }
+}
+
+private fun filterLabel(filter: LogFilter): Int = when (filter) {
+    LogFilter.ALL -> R.string.log_filter_all
+    LogFilter.DETECTIONS -> R.string.log_filter_detections
+    LogFilter.IGNORED -> R.string.log_filter_ignored
+}
+
+@Composable
+private fun LogRow(entry: DetectionLogEntity) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Column(Modifier.padding(12.dp)) {
             Text(
-                text = stringResource(R.string.detection_log_placeholder_body),
-                style = MaterialTheme.typography.bodyMedium,
+                text = formatTimestamp(entry.timestamp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(4.dp))
+
+            when (entry.eventType) {
+                LogEventType.DETECTION -> {
+                    entry.matchedPattern?.let { pattern ->
+                        Text(pattern, style = MaterialTheme.typography.titleSmall)
+                    }
+                    entry.replyStatus?.let { status ->
+                        Text(status, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                LogEventType.IGNORED -> {
+                    entry.ignoreReason?.let { reason ->
+                        Text(reason, style = MaterialTheme.typography.titleSmall)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = entry.messagePreview,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
 }
+
+/**
+ * Formats a log timestamp using the device's locale and time zone.
+ *
+ * @param epochMillis Event time.
+ * @return A localized date and time string.
+ */
+private fun formatTimestamp(epochMillis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(epochMillis))

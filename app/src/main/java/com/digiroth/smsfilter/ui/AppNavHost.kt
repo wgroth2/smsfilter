@@ -112,8 +112,23 @@ private fun NavGraph(navController: NavHostController, startRoute: String) {
                 },
             )
         }
-        composable(AppRoute.SETTINGS) { SettingsScreen() }
-        composable(AppRoute.DETECTION_LOG) { DetectionLogScreen() }
+        composable(AppRoute.SETTINGS) {
+            SettingsScreen(
+                onNavigateToLog = { navController.navigate(AppRoute.DETECTION_LOG) },
+            )
+        }
+        composable(AppRoute.DETECTION_LOG) {
+            DetectionLogScreen(
+                // popBackStack returns false when the log is the start destination, which happens
+                // when the screen was opened straight from a notification tap. Fall back to
+                // navigating to Settings so the button is never a dead control.
+                onNavigateBack = {
+                    if (!navController.popBackStack()) {
+                        navController.navigate(AppRoute.SETTINGS)
+                    }
+                },
+            )
+        }
     }
 }
 
