@@ -134,3 +134,50 @@ Below are the identified architectural risks, platform constraints (for Target S
 4. **Pinned Dependency Catalog**: All library versions are pinned in `libs.versions.toml` to prevent version drift between Kotlin, KSP, Compose BOM, and Hilt.
 5. **Code Standards & Licensing**: All generated `.kt` files enforce BSD 3-Clause licensing (authored by Bill Roth <bill.roth@gmail.com>) and mandatory KDoc documentation across all public API surfaces as defined in `AGENTS.md` at the repository root (kept there so Claude Code auto-loads it into every generation session).
 
+---
+
+## 11. RCS Messages Are Structurally Invisible ❌ ACCEPTED LIMITATION
+> [!WARNING]
+> **Not fixable in this app's architecture.** Messages delivered over RCS are never seen by SMS Filter, and no code change can alter that while the app remains a non-default messaging app.
+
+### Observed on a real device:
+A message arriving at 15:13 was visible in Google Messages but absent from both `content://sms` and `content://mms`. The same sender's older messages (July) were present as ordinary SMS, so that conversation had been silently upgraded to RCS in the interim. Device state confirmed the cause:
+
+| Signal | Value |
+|---|---|
+| `persist.vendor.rcs.singlereg.feature` | `1` (RCS single-registration active) |
+| `carrier_rcs_provisioning_required_bool` | `true` (AT&T provisions RCS) |
+| `bugle_phenotype__bug_372874643_enable_rcs_config_availability` | `true` |
+
+### Why it happens:
+RCS traffic travels over IP through the carrier/Jibe stack rather than the telephony SMS layer. It never broadcasts `android.provider.Telephony.SMS_RECEIVED`, so `SmsReceiver.onReceive` is never invoked. There is no log row because there was no broadcast — the app is not told that anything arrived.
+
+### Options evaluated and rejected:
+
+| Approach | Why rejected |
+|---|---|
+| `SMS_RECEIVED` broadcast | RCS does not fire it |
+| `content://sms` / `content://mms` polling | RCS is not written to either — verified empirically |
+| `content://rcs` provider | Added in Android Q as `@hide`, never promoted to public API |
+| `RcsUceAdapter` | Capability discovery only ("does this contact support RCS?"), carries no message content |
+| `CarrierMessagingService` | Requires carrier privileges via UICC-signed certificate; unavailable to a normal developer app |
+| Reading the Google Messages database | Root only |
+| Becoming the default SMS app | Out of scope by design — the app must not own the inbox, and `READ_SMS` is deliberately never requested |
+
+### The one viable workaround, deliberately not taken:
+
+`NotificationListenerService` can read notifications posted by Google Messages, which are posted for RCS as well as SMS. A device dump confirmed the notification carries the sender's phone number (`android.title` and the `MessagingStyle` `sender` field, not merely a contact display name) and exposes `actions=2`, one of which is a Direct Reply `RemoteInput` — so a reply could in principle be sent back *over RCS* without becoming the default messaging app.
+
+It was rejected for now on these grounds:
+
+* **Disproportionate privilege.** `BIND_NOTIFICATION_LISTENER_SERVICE` cannot be requested at runtime and grants visibility into *every* notification on the device, which is a large permission for a narrow feature.
+* **Silent gaps.** A silenced conversation, Do Not Disturb, or Messages being foregrounded can suppress the notification entirely, and the app would never know a message existed.
+* **Truncation breaks detection.** `MessagingStyle` usually carries the full body but may shorten long messages. `LAST_LINE_EXACT` and `LAST_LINE_CONTAINS` both depend on the true final line, so truncation corrupts precisely the input the matching relies on.
+* **Fragile coupling.** It means parsing another app's notification `Bundle` layout. A Google Messages update can break it with no compile error and no warning.
+* **Two parallel pipelines.** SMS via broadcast and RCS via notifications have different reliability, different reply mechanisms and different failure modes, roughly doubling the surface area of the most safety-critical part of the app.
+
+### Accepted position:
+The traffic this app exists to unsubscribe from is still overwhelmingly SMS; RCS predominantly carries person-to-person conversation, which must never be auto-replied to in any case. The limitation is therefore accepted and documented rather than worked around.
+
+**Revisit if RCS Business Messaging appears in the inbox.** Marketing senders migrating to RBM would become permanently invisible, which is the scenario that would justify the notification-listener complexity.
+

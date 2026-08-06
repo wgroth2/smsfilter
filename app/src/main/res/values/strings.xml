@@ -120,6 +120,7 @@
     <string name="settings_patterns_match_mode">Match</string>
     <string name="match_mode_anywhere">Match anywhere</string>
     <string name="match_mode_last_line">Exact match on last line</string>
+    <string name="match_mode_last_line_contains">Whole word on last line</string>
     <string name="reply_type_stop">stop</string>
     <string name="reply_type_end">end</string>
 

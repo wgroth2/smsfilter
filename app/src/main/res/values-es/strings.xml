@@ -106,6 +106,7 @@
     <string name="settings_patterns_match_mode">Coincidencia</string>
     <string name="match_mode_anywhere">Coincidir en cualquier lugar</string>
     <string name="match_mode_last_line">Coincidencia exacta en la última línea</string>
+    <string name="match_mode_last_line_contains">Palabra completa en la última línea</string>
     <string name="reply_type_stop">stop</string>
     <string name="reply_type_end">end</string>
 

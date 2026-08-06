@@ -102,6 +102,108 @@ class OptOutDetectorTest {
     }
 
     // ---------------------------------------------------------------------
+    // LAST_LINE_CONTAINS matching
+    //
+    // Bodies here are taken verbatim from real messages captured on a test device, because the
+    // point of this mode is to handle wording that actually occurs rather than wording that is
+    // convenient to match.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `matches the reply stop to unsubscribe footer that last-line-exact misses`() {
+        val body = "San Jose Clin Trials: Join a research study. Text \"YES\" to learn more " +
+            "or contact us at 408-443-3542 Reply YES to learn more, STOP to unsubscribe"
+        val contains = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull("the seeded exact rule cannot see this", detector.detect(body, defaultPatterns))
+        assertEquals("stop", detector.detect(body, contains)?.pattern)
+    }
+
+    @Test
+    fun `matches a keyword followed immediately by punctuation`() {
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertEquals("stop", detector.detect("Deal\nReply HELP for help, STOP to cancel.", patterns)?.pattern)
+    }
+
+    @Test
+    fun `does not match end inside weekend`() {
+        // The single most important negative case. A plain substring test would reply "end" to a
+        // cheerful sign-off, which is exactly the failure this mode has to avoid being.
+        val patterns = listOf(pattern("end", ReplyType.END, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull(detector.detect("Your order shipped\nHave a great weekend!", patterns))
+    }
+
+    @Test
+    fun `does not match stop inside a domain name`() {
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull(detector.detect("Sale today\nVisit stopandshop.com", patterns))
+    }
+
+    @Test
+    fun `does not match a keyword run together with surrounding words`() {
+        // Real AARP footer. Documented as out of scope for this mode: no boundary either side.
+        val body = "AARP Advocates: Keep strengthening Medicare price negotiations. " +
+            "Take a look: aarp.info/RxReport ReplySTOPtoCancel"
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull(detector.detect(body, patterns))
+    }
+
+    @Test
+    fun `finds a later whole-word occurrence when an earlier one is embedded`() {
+        // Scanning must not give up on the first hit: "stopandshop" comes first and is not a word.
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertEquals(
+            "stop",
+            detector.detect("Offer\nstopandshop.com deals - reply STOP to end", patterns)?.pattern,
+        )
+    }
+
+    @Test
+    fun `only searches the last line`() {
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull(detector.detect("Reply STOP to unsubscribe\nThanks for shopping", patterns))
+    }
+
+    @Test
+    fun `does not match a digit-adjacent keyword`() {
+        // stop2stop is a separate ANYWHERE pattern and must not be claimed by this mode.
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull(detector.detect("Deal\nreply stop2stop now", patterns))
+    }
+
+    @Test
+    fun `still matches when the keyword is the entire last line`() {
+        // The mode must be a strict superset of LAST_LINE_EXACT, or switching a pattern over to it
+        // would lose detections that used to work.
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertEquals("stop", detector.detect("Hello\nSTOP", patterns)?.pattern)
+    }
+
+    @Test
+    fun `reports the contains mode on the result`() {
+        val patterns = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+        val result = detector.detect("Hi\nreply STOP to quit", patterns)
+
+        assertEquals(MatchMode.LAST_LINE_CONTAINS, result?.matchMode)
+        assertEquals(ReplyType.STOP, result?.replyType)
+    }
+
+    @Test
+    fun `blank contains pattern never matches`() {
+        val patterns = listOf(pattern("   ", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
+
+        assertNull(detector.detect("Hello\nreply STOP to unsubscribe", patterns))
+    }
+
+    // ---------------------------------------------------------------------
     // LAST_LINE_EXACT matching
     // ---------------------------------------------------------------------
 

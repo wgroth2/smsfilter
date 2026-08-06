@@ -72,6 +72,8 @@ class OptOutDetector @Inject constructor() {
                 MatchMode.ANYWHERE -> body.contains(pattern.pattern, ignoreCase = true)
                 MatchMode.LAST_LINE_EXACT -> lastLine != null &&
                     lastLine.equals(pattern.pattern.trim { it.isBlankChar() }, ignoreCase = true)
+                MatchMode.LAST_LINE_CONTAINS -> lastLine != null &&
+                    containsAsWord(lastLine, pattern.pattern.trim { it.isBlankChar() })
             }
         } ?: return null
 
@@ -80,6 +82,40 @@ class OptOutDetector @Inject constructor() {
             replyType = match.replyType,
             matchMode = match.matchMode,
         )
+    }
+
+    /**
+     * Whether [needle] occurs in [haystack] as a whole word, case-insensitively.
+     *
+     * "Whole word" means the occurrence has a non-alphanumeric character, or nothing at all, on
+     * both sides. This is what separates [MatchMode.LAST_LINE_CONTAINS] from a plain substring
+     * test, and the separation is load-bearing: `end` as a substring matches "weekend",
+     * "recommend" and "send", so a substring test would auto-reply to a cheerful sign-off.
+     *
+     * Every occurrence is examined, not just the first. A last line of "stopandshop.com — reply
+     * STOP" contains `stop` twice, and only the second is a word; returning on the first would
+     * miss a genuine opt-out.
+     *
+     * Digits count as word characters, so `stop` does not match inside "stop2stop". That pattern
+     * is seeded separately under [MatchMode.ANYWHERE] and is meant to be matched as its own token.
+     *
+     * @param haystack The text to search, already trimmed.
+     * @param needle The pattern to look for, already trimmed. An empty needle never matches.
+     * @return `true` if at least one whole-word occurrence exists.
+     */
+    private fun containsAsWord(haystack: String, needle: String): Boolean {
+        if (needle.isEmpty()) return false
+
+        var index = haystack.indexOf(needle, startIndex = 0, ignoreCase = true)
+        while (index >= 0) {
+            val before = index - 1
+            val after = index + needle.length
+            val boundedLeft = before < 0 || !haystack[before].isWordChar()
+            val boundedRight = after >= haystack.length || !haystack[after].isWordChar()
+            if (boundedLeft && boundedRight) return true
+            index = haystack.indexOf(needle, startIndex = index + 1, ignoreCase = true)
+        }
+        return false
     }
 
     /**
@@ -108,5 +144,15 @@ class OptOutDetector @Inject constructor() {
          * Combining both predicates covers the space-separator category as well.
          */
         fun Char.isBlankChar(): Boolean = isWhitespace() || Character.isSpaceChar(this)
+
+        /**
+         * Whether a character is part of a word for [MatchMode.LAST_LINE_CONTAINS] boundary
+         * purposes.
+         *
+         * Letters and digits are word characters; everything else — spaces, punctuation, the
+         * start and end of the line — is a boundary. Punctuation counting as a boundary is what
+         * lets "STOP to cancel." and "...help, STOP" both match.
+         */
+        fun Char.isWordChar(): Boolean = isLetterOrDigit()
     }
 }

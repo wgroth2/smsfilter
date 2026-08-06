@@ -67,6 +67,13 @@ enum class ReplyType(val keyword: String) {
  * All matching is case-insensitive regardless of mode. The detector must read this value
  * from each stored pattern and must never special-case particular pattern strings, so that
  * user-added patterns behave identically to the seeded defaults.
+ *
+ * The three modes form a deliberate breadth ladder, from widest to narrowest:
+ * [ANYWHERE] > [LAST_LINE_CONTAINS] > [LAST_LINE_EXACT]. Choosing one is a trade between
+ * catching more real opt-out wording and risking a reply to a message that never asked for it.
+ *
+ * Persisted by name through `RoomConverters`; see that class before renaming or removing any
+ * constant here.
  */
 enum class MatchMode {
     /** The pattern matches as a substring anywhere in the message body. */
@@ -78,6 +85,25 @@ enum class MatchMode {
      * unsubscribe" from being treated as an opt-out request.
      */
     LAST_LINE_EXACT,
+
+    /**
+     * The pattern matches if it appears as a whole word anywhere within the last non-empty line.
+     *
+     * The middle ground between the other two modes, and the one that fits how most marketing SMS
+     * are actually written: real messages close with "Reply STOP to unsubscribe" far more often
+     * than with a bare "STOP" on its own line, so [LAST_LINE_EXACT] misses them.
+     *
+     * Whole-word, not substring, and that distinction is what makes the mode safe to offer. A
+     * plain substring test on the last line would make the pattern `end` match "Have a great
+     * weekend!", and `stop` match "Visit stopandshop.com" — both of which would auto-reply to a
+     * message that never asked to be unsubscribed. Requiring a non-alphanumeric boundary on each
+     * side removes that whole class of false positive.
+     *
+     * The cost is that run-together wording such as "ReplySTOPtoCancel" does not match, because
+     * the pattern has letters immediately either side of it. Add an [ANYWHERE] pattern for a
+     * specific sender that writes that way.
+     */
+    LAST_LINE_CONTAINS,
 }
 
 /**

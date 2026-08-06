@@ -603,6 +603,7 @@ private fun PatternsSection(
 private fun matchModeLabel(mode: MatchMode): Int = when (mode) {
     MatchMode.ANYWHERE -> R.string.match_mode_anywhere
     MatchMode.LAST_LINE_EXACT -> R.string.match_mode_last_line
+    MatchMode.LAST_LINE_CONTAINS -> R.string.match_mode_last_line_contains
 }
 
 @Composable
