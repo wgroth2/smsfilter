@@ -93,6 +93,10 @@ class SmsProcessingPipelineTest {
         const val SHORT_CODE = "89887"
         const val ALPHANUMERIC = "PROMO"
         const val OPT_OUT_BODY = "Hello\nSTOP"
+
+        /** A body short enough to survive [DetectionLogEntity.PREVIEW_MAX_LENGTH] untruncated and
+         * containing no seeded opt-out pattern, so it always reaches the no-match path. */
+        const val NO_MATCH_BODY = "Your appointment is confirmed"
     }
 
     // ---------------------------------------------------------------------
@@ -206,7 +210,11 @@ class SmsProcessingPipelineTest {
         assertEquals(ProcessingOutcome.NoOptOutDetected, outcome)
         assertTrue(fakes.smsSender.sent.isEmpty())
         assertTrue("no notification for a non-detection", fakes.notifier.previews.isEmpty())
-        assertTrue("a non-detection writes no log row", fakes.logDao.inserted.isEmpty())
+        assertEquals(
+            "a non-detection is still recorded, for observability",
+            LogEventType.NO_MATCH,
+            fakes.logDao.inserted.single().eventType,
+        )
     }
 
     @Test
@@ -223,6 +231,101 @@ class SmsProcessingPipelineTest {
 
         assertEquals(ProcessingOutcome.NoOptOutDetected, outcome)
         assertTrue(fakes.smsSender.sent.isEmpty())
+    }
+
+    // ---------------------------------------------------------------------
+    // No-match logging
+    //
+    // A message that reaches detection and matches nothing used to leave no trace at all, which
+    // made a healthy app indistinguishable from one that never received the broadcast. These tests
+    // pin down that the row is written, that it is written only on that path, and that it never
+    // escapes the onboarding gate.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `unknown sender with no opt-out pattern logs exactly one no-match row`() = runTest {
+        val outcome = pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
+
+        assertEquals(ProcessingOutcome.NoOptOutDetected, outcome)
+        assertEquals("exactly one row", 1, fakes.logDao.inserted.size)
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.NO_MATCH, row.eventType)
+        assertEquals(now, row.timestamp)
+        assertEquals(NO_MATCH_BODY, row.messagePreview)
+    }
+
+    @Test
+    fun `no-match row leaves the detection and ignore columns null`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
+
+        val row = fakes.logDao.inserted.single()
+        assertNull("no pattern matched", row.matchedPattern)
+        assertNull("no reply was considered", row.replyStatus)
+        assertNull("the message was not ignored", row.ignoreReason)
+    }
+
+    @Test
+    fun `no-match preview is truncated to the documented maximum`() = runTest {
+        val longBody = "y".repeat(500)
+
+        pipeline().process(UNKNOWN_NUMBER, longBody, now)
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.NO_MATCH, row.eventType)
+        assertEquals(
+            DetectionLogEntity.PREVIEW_MAX_LENGTH,
+            row.messagePreview.length,
+        )
+        assertEquals("y".repeat(DetectionLogEntity.PREVIEW_MAX_LENGTH), row.messagePreview)
+    }
+
+    @Test
+    fun `stop list ignore logs ignored and never no-match`() = runTest {
+        fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
+
+        pipeline().process(UNKNOWN_NUMBER, "Big promo inside!", now)
+
+        assertEquals(LogEventType.IGNORED, fakes.logDao.inserted.single().eventType)
+        assertTrue(
+            "an ignored message must not also be logged as unmatched",
+            fakes.logDao.inserted.none { it.eventType == LogEventType.NO_MATCH },
+        )
+    }
+
+    @Test
+    fun `known contact ignore logs ignored and never no-match`() = runTest {
+        // Deliberately a body with no opt-out pattern: the ignore must short-circuit before
+        // detection, so even here no NO_MATCH row may appear.
+        fakes.contactSource.outcome = ContactLookupOutcome.Found
+
+        pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
+
+        assertEquals(LogEventType.IGNORED, fakes.logDao.inserted.single().eventType)
+        assertTrue(
+            fakes.logDao.inserted.none { it.eventType == LogEventType.NO_MATCH },
+        )
+    }
+
+    @Test
+    fun `successful detection logs detection and never no-match`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
+
+        assertEquals(LogEventType.DETECTION, fakes.logDao.inserted.single().eventType)
+        assertTrue(
+            fakes.logDao.inserted.none { it.eventType == LogEventType.NO_MATCH },
+        )
+    }
+
+    @Test
+    fun `no-match logging stays behind the onboarding gate`() = runTest {
+        // The gate returns before any logging at all. A non-matching message arriving mid-wizard
+        // must therefore still write nothing — adding NO_MATCH must not have punched a hole in it.
+        fakes.settings.snapshot = snapshot(firstRunComplete = false)
+
+        val outcome = pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
+
+        assertEquals(ProcessingOutcome.SkippedBeforeOnboarding, outcome)
+        assertTrue("no log row of any kind", fakes.logDao.inserted.isEmpty())
     }
 
     // ---------------------------------------------------------------------

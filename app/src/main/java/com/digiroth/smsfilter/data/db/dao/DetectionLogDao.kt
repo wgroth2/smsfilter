@@ -58,8 +58,31 @@ interface DetectionLogDao {
     fun observeRecent(limit: Int = DetectionLogEntity.MAX_DISPLAYED_ENTRIES): Flow<List<DetectionLogEntity>>
 
     /**
+     * Observes the most recent entries the app actually acted on, newest first: detections and
+     * ignored messages, but not [LogEventType.NO_MATCH].
+     *
+     * Backs the default "All" chip. Unmatched messages are excluded because there is one of them
+     * for every non-matching text the device receives, which would swamp the capped display window
+     * and bury the rows the user came to the log to find. They remain available under their own
+     * chip via [observeRecentByType].
+     *
+     * @param limit Maximum rows to emit.
+     * @param excludedType The event type to leave out. Bound as a parameter rather than written as
+     *   a SQL literal so the query cannot drift from the enum constant's name.
+     * @return A [Flow] that re-emits whenever the table changes.
+     */
+    @Query(
+        "SELECT * FROM ${DetectionLogEntity.TABLE_NAME} WHERE event_type != :excludedType " +
+            "ORDER BY timestamp DESC, id DESC LIMIT :limit",
+    )
+    fun observeRecentActionable(
+        limit: Int = DetectionLogEntity.MAX_DISPLAYED_ENTRIES,
+        excludedType: LogEventType = LogEventType.NO_MATCH,
+    ): Flow<List<DetectionLogEntity>>
+
+    /**
      * Observes the most recent log entries of a single kind, newest first. Backs the
-     * "Detections Only" and "Ignored Only" filter chips.
+     * "Detections Only", "Ignored Only" and "Not Matched" filter chips.
      *
      * @param eventType Which kind of entry to include.
      * @param limit Maximum rows to emit.

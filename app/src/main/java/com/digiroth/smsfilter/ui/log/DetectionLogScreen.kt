@@ -125,6 +125,7 @@ private fun filterLabel(filter: LogFilter): Int = when (filter) {
     LogFilter.ALL -> R.string.log_filter_all
     LogFilter.DETECTIONS -> R.string.log_filter_detections
     LogFilter.IGNORED -> R.string.log_filter_ignored
+    LogFilter.NO_MATCH -> R.string.log_filter_no_match
 }
 
 @Composable
@@ -152,6 +153,16 @@ private fun LogRow(entry: DetectionLogEntity) {
                     entry.ignoreReason?.let { reason ->
                         Text(reason, style = MaterialTheme.typography.titleSmall)
                     }
+                }
+
+                // An unmatched row carries no pattern, reply status or ignore reason, so its
+                // heading has to come from a string resource rather than from the row itself —
+                // otherwise the card would render with a blank status area above the preview.
+                LogEventType.NO_MATCH -> {
+                    Text(
+                        text = stringResource(R.string.log_no_match_label),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
                 }
             }
 

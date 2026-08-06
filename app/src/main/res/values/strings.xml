@@ -147,6 +147,8 @@
     <string name="log_filter_all">All</string>
     <string name="log_filter_detections">Detections Only</string>
     <string name="log_filter_ignored">Ignored Only</string>
+    <string name="log_filter_no_match">Not Matched</string>
+    <string name="log_no_match_label">No opt-out detected</string>
     <string name="log_clear">Clear Log</string>
     <string name="log_empty">No activity recorded yet.</string>
     <string name="log_back">Back</string>

@@ -226,6 +226,11 @@ class PipelineFakes {
 
         override fun observeRecent(limit: Int): Flow<List<DetectionLogEntity>> = flowOf(inserted)
 
+        override fun observeRecentActionable(
+            limit: Int,
+            excludedType: LogEventType,
+        ): Flow<List<DetectionLogEntity>> = flowOf(inserted.filter { it.eventType != excludedType })
+
         override fun observeRecentByType(
             eventType: LogEventType,
             limit: Int,

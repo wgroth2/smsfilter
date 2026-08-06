@@ -228,7 +228,14 @@ class SmsProcessingPipeline @Inject constructor(
 
         // Step 5 — opt-out detection against the live pattern list.
         val detection = optOutDetector.detect(messageBody, patterns)
-            ?: return ProcessingOutcome.NoOptOutDetected
+            ?: run {
+                // This row exists purely so the user can see that the message was received and
+                // examined. Returning silently here used to leave no evidence whatsoever, which
+                // made a correctly-processed message indistinguishable from a broadcast the app
+                // never got — the app looked broken precisely when it was working.
+                logNoMatch(timestamp = receivedAtMillis, body = messageBody)
+                return ProcessingOutcome.NoOptOutDetected
+            }
 
         // The notification fires on every detection, before the gates, because the user must learn
         // about a detected opt-out even when no reply was permitted.
@@ -309,6 +316,25 @@ class SmsProcessingPipeline @Inject constructor(
                 timestamp = timestamp,
                 eventType = LogEventType.IGNORED,
                 ignoreReason = reason,
+                messagePreview = preview(body),
+            ),
+        )
+    }
+
+    /**
+     * Records that a message reached detection and matched nothing.
+     *
+     * There is no pattern, no reply and no ignore reason to describe, so those columns stay `null`;
+     * the timestamp and the preview are the whole point of the row.
+     *
+     * @param timestamp When the message arrived, in epoch milliseconds.
+     * @param body The message body, truncated by [preview] before it is stored.
+     */
+    private suspend fun logNoMatch(timestamp: Long, body: String) {
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = timestamp,
+                eventType = LogEventType.NO_MATCH,
                 messagePreview = preview(body),
             ),
         )

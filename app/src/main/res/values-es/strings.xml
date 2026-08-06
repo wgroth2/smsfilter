@@ -133,6 +133,8 @@
     <string name="log_filter_all">Todo</string>
     <string name="log_filter_detections">Solo detecciones</string>
     <string name="log_filter_ignored">Solo ignorados</string>
+    <string name="log_filter_no_match">Sin coincidencia</string>
+    <string name="log_no_match_label">No se detectó ninguna solicitud de baja</string>
     <string name="log_clear">Borrar registro</string>
     <string name="log_empty">Aún no se ha registrado ninguna actividad.</string>
     <string name="log_back">Atrás</string>

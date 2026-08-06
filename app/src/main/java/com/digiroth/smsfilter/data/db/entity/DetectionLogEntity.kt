@@ -34,9 +34,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Whether a log row records an opt-out detection or a message that was ignored.
+ * What a log row records: an opt-out detection, a message that was ignored, or a message that was
+ * examined in full and simply did not match anything.
  *
- * Drives the "All" / "Detections Only" / "Ignored Only" filter chips on the log screen.
+ * Drives the "All" / "Detections Only" / "Ignored Only" / "Not Matched" filter chips on the log
+ * screen. Persisted by name through `RoomConverters`, so adding a constant here changes no column
+ * type and needs no schema migration — but removing or renaming one would orphan existing rows.
  */
 enum class LogEventType {
     /** An opt-out signal was detected; [DetectionLogEntity.replyStatus] records the outcome. */
@@ -44,6 +47,17 @@ enum class LogEventType {
 
     /** The message was ignored; [DetectionLogEntity.ignoreReason] records why. */
     IGNORED,
+
+    /**
+     * The message came from an unknown sender, passed the stop list, and contained no opt-out
+     * pattern, so no action was taken.
+     *
+     * Recorded purely for observability. Without a row for this path a correctly-processed message
+     * leaves no evidence at all, making a working app indistinguishable from one that never
+     * received the broadcast. Only [DetectionLogEntity.timestamp] and
+     * [DetectionLogEntity.messagePreview] are populated.
+     */
+    NO_MATCH,
 }
 
 /**
@@ -58,14 +72,15 @@ enum class LogEventType {
  *
  * @property id Auto-generated row identifier.
  * @property timestamp When the event occurred, in epoch milliseconds.
- * @property eventType Whether this is a detection or an ignored message.
+ * @property eventType Whether this is a detection, an ignored message, or a message that matched
+ *   nothing.
  * @property matchedPattern For detections, the opt-out pattern that matched; `null` for
- *   ignored events.
+ *   ignored and unmatched events.
  * @property replyStatus For detections, the human-readable auto-reply outcome — for
  *   example `"Reply sent: stop"`, `"Reply skipped: dry run"`, `"Reply skipped: cooldown"`,
- *   or `"Reply skipped: alphanumeric sender"`. `null` for ignored events.
+ *   or `"Reply skipped: alphanumeric sender"`. `null` for ignored and unmatched events.
  * @property ignoreReason For ignored events, why the message was ignored — for example
- *   `"Ignored: Known Google Contact"`. `null` for detections.
+ *   `"Ignored: Known Google Contact"`. `null` for detections and unmatched events.
  * @property messagePreview A truncated excerpt of the message body, never containing a
  *   phone number.
  */
