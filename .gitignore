@@ -14,6 +14,7 @@
 bin/
 gen/
 out/
+release/
 
 # Gradle files
 .gradle/
@@ -32,18 +33,29 @@ captures/
 .cxx/
 cmake-build-*/
 
-# IntelliJ IDEA project files
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-.idea/caches
+# IDE project files. The whole .idea directory is ignored: this is a solo repository,
+# and most of its contents (deployment target, open tabs, window layout) change on every
+# debug session without carrying any information worth versioning.
+.idea/
+*.iml
+.vscode/
 
-# Keystore files
+# Keystore and certificate files. Release signing is supplied through environment
+# variables, so no credential material should ever reach the repository.
 *.jks
 *.keystore
+*.p12
+*.p8
+*.pem
+
+# Secret-bearing configuration. The HubSpot token is stored in EncryptedSharedPreferences
+# on-device, but these are the conventional file names a future change might introduce.
+.env
+.env.*
+secrets.properties
+keystore.properties
+key.properties
+signing.properties
 
 # Device crash reports
 *.hprof
@@ -52,11 +64,17 @@ cmake-build-*/
 .DS_Store
 Thumbs.db
 
+# Editor swap and backup files
+*.swp
+*~
+.*.sw?
+
 # Kotlin build session data
 .kotlin/
 
 # Gradle wrapper distribution cache (the wrapper scripts/jar ARE tracked)
 gradle-app.setting
+.gradletasknamecache
 
 # Chat session identifier
 chat.id
