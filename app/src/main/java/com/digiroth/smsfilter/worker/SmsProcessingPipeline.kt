@@ -167,12 +167,17 @@ class SmsProcessingPipeline @Inject constructor(
      *   one address, taken from the first segment.
      * @param messageBody The complete message body, with all segments already concatenated.
      * @param receivedAtMillis When the message arrived, in epoch milliseconds.
+     * @param subscriptionId The SIM subscription the message was received on, passed through
+     *   untouched so any reply leaves from the same number. Defaults to
+     *   [SmsSender.UNKNOWN_SUBSCRIPTION_ID], which lets the sender pick the default SMS
+     *   subscription — the behaviour of every single-SIM device.
      * @return The decision reached, including the fate of any auto-reply.
      */
     suspend fun process(
         senderAddress: String,
         messageBody: String,
         receivedAtMillis: Long,
+        subscriptionId: Int = SmsSender.UNKNOWN_SUBSCRIPTION_ID,
     ): ProcessingOutcome {
         // Step 0 — onboarding gate. Must precede everything: the receiver starts firing as soon as
         // RECEIVE_SMS is granted in wizard step 2, before the user has seen a settings screen or
@@ -248,6 +253,7 @@ class SmsProcessingPipeline @Inject constructor(
             snapshot = snapshot,
             sender = sender,
             detection = detection,
+            subscriptionId = subscriptionId,
         )
 
         // Step 8 — sound, only for a reply that actually went out.
@@ -275,12 +281,14 @@ class SmsProcessingPipeline @Inject constructor(
      * @param snapshot The settings this message is being judged against.
      * @param sender The classified sender.
      * @param detection The pattern that matched.
+     * @param subscriptionId The receiving SIM subscription, forwarded to the sender unchanged.
      * @return What happened to the reply.
      */
     private suspend fun resolveReply(
         snapshot: com.digiroth.smsfilter.data.settings.SettingsSnapshot,
         sender: com.digiroth.smsfilter.util.NormalizedSender,
         detection: OptOutResult,
+        subscriptionId: Int,
     ): ReplyDisposition {
         // Gate 1 — master switch. Detection-only mode, and the kill switch if a pattern misfires.
         if (!snapshot.autoReplyEnabled) return ReplyDisposition.SKIPPED_DRY_RUN
@@ -297,7 +305,17 @@ class SmsProcessingPipeline @Inject constructor(
 
         // Step 7 — reply to the RAW address. A short code must receive its reply at the exact
         // address it sent from, never at a normalized form.
-        val sent = smsSender.sendTextMessage(sender.rawAddress, detection.replyKeyword)
+        //
+        // The reply must also leave from the SIM that received the message. A carrier or
+        // aggregator matches an opt-out against the MSISDN it came from, so a reply sent on the
+        // other subscription unsubscribes nothing at all — and because the platform still reports
+        // that send as successful, the cooldown below would be recorded and suppress every retry
+        // for the next twenty-four hours.
+        val sent = smsSender.sendTextMessage(
+            destinationAddress = sender.rawAddress,
+            body = detection.replyKeyword,
+            subscriptionId = subscriptionId,
+        )
         if (!sent) return ReplyDisposition.SEND_FAILED
 
         // Recorded only after a successful send, so a failed attempt does not lock out the retry.

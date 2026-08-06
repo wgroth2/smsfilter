@@ -40,6 +40,7 @@ import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.digiroth.smsfilter.R
 import com.digiroth.smsfilter.SmsFilterApplication
+import com.digiroth.smsfilter.platform.SmsSender
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -66,6 +67,13 @@ class SmsLookupWorker @AssistedInject constructor(
         val sender = inputData.getString(KEY_SENDER_ADDRESS)
         val body = inputData.getString(KEY_MESSAGE_BODY)
         val receivedAt = inputData.getLong(KEY_RECEIVED_AT, 0L)
+        // Deliberately not validated: a device or OEM that supplies no subscription id is the
+        // normal single-SIM case, and it must fall through to the default-subscription behaviour
+        // rather than be rejected as malformed input.
+        val subscriptionId = inputData.getInt(
+            KEY_SUBSCRIPTION_ID,
+            SmsSender.UNKNOWN_SUBSCRIPTION_ID,
+        )
 
         if (sender.isNullOrBlank() || body == null) {
             // Malformed input can never succeed on retry, so fail permanently rather than
@@ -79,8 +87,9 @@ class SmsLookupWorker @AssistedInject constructor(
                 senderAddress = sender,
                 messageBody = body,
                 receivedAtMillis = if (receivedAt > 0L) receivedAt else System.currentTimeMillis(),
+                subscriptionId = subscriptionId,
             )
-            Log.d(TAG, "Processing outcome: ${outcome::class.simpleName}")
+            Log.d(TAG, "Processing outcome: ${outcome::class.simpleName} (sub id $subscriptionId)")
             Result.success()
         }.getOrElse { error ->
             // A transient database or network fault is worth one retry; WorkManager applies its own
@@ -132,6 +141,13 @@ class SmsLookupWorker @AssistedInject constructor(
 
         /** Input key: message arrival time in epoch milliseconds. */
         const val KEY_RECEIVED_AT: String = "received_at"
+
+        /**
+         * Input key: the SIM subscription the message was received on, so the reply leaves from
+         * the same number. Absent or negative means unknown, which selects the default SMS
+         * subscription.
+         */
+        const val KEY_SUBSCRIPTION_ID: String = "subscription_id"
 
         /** Unique work name prefix, used to keep concurrent messages independent. */
         const val WORK_NAME_PREFIX: String = "sms_lookup"

@@ -32,11 +32,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
+import android.telephony.SubscriptionManager
 import android.util.Log
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
+import com.digiroth.smsfilter.platform.SmsSender
 import com.digiroth.smsfilter.worker.SmsLookupWorker
 
 /**
@@ -79,7 +81,35 @@ class SmsReceiver : BroadcastReceiver() {
         val body = messages.joinToString(separator = "") { segment -> segment.messageBody ?: "" }
         val receivedAt = messages.first().timestampMillis
 
-        enqueueLookup(context, sender, body, receivedAt)
+        // Captured here and carried all the way to the sender: on a dual-SIM device the opt-out
+        // reply has to leave from the SIM that received the message, because the aggregator matches
+        // a STOP request against the originating MSISDN.
+        val subscriptionId = resolveSubscriptionId(intent)
+        Log.d(TAG, "SMS received on subscription id $subscriptionId")
+
+        enqueueLookup(context, sender, body, receivedAt, subscriptionId)
+    }
+
+    /**
+     * Extracts the SIM subscription the broadcast arrived on.
+     *
+     * Both keys are consulted because OEMs disagree about which one they populate: AOSP puts the
+     * value under [SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX], while a number of vendor builds
+     * still only write the older [LEGACY_SUBSCRIPTION_EXTRA]. Reading just one of them silently
+     * yields the unknown sentinel on the other half of the device population.
+     *
+     * @param intent The received SMS broadcast.
+     * @return The receiving subscription id, or [SmsSender.UNKNOWN_SUBSCRIPTION_ID] when neither
+     *   extra is present.
+     */
+    private fun resolveSubscriptionId(intent: Intent): Int {
+        val modern = intent.getIntExtra(
+            SubscriptionManager.EXTRA_SUBSCRIPTION_INDEX,
+            SmsSender.UNKNOWN_SUBSCRIPTION_ID,
+        )
+        if (modern >= 0) return modern
+
+        return intent.getIntExtra(LEGACY_SUBSCRIPTION_EXTRA, SmsSender.UNKNOWN_SUBSCRIPTION_ID)
     }
 
     /**
@@ -89,12 +119,20 @@ class SmsReceiver : BroadcastReceiver() {
      * @param sender The raw originating address.
      * @param body The fully reconstructed message body.
      * @param receivedAt Arrival time in epoch milliseconds.
+     * @param subscriptionId The receiving SIM subscription, or [SmsSender.UNKNOWN_SUBSCRIPTION_ID].
      */
-    private fun enqueueLookup(context: Context, sender: String, body: String, receivedAt: Long) {
+    private fun enqueueLookup(
+        context: Context,
+        sender: String,
+        body: String,
+        receivedAt: Long,
+        subscriptionId: Int,
+    ) {
         val input = Data.Builder()
             .putString(SmsLookupWorker.KEY_SENDER_ADDRESS, sender)
             .putString(SmsLookupWorker.KEY_MESSAGE_BODY, body)
             .putLong(SmsLookupWorker.KEY_RECEIVED_AT, receivedAt)
+            .putInt(SmsLookupWorker.KEY_SUBSCRIPTION_ID, subscriptionId)
             .build()
 
         val request = OneTimeWorkRequestBuilder<SmsLookupWorker>()
@@ -115,6 +153,14 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     private companion object {
+        /** Logcat tag for this class. */
         const val TAG = "SmsReceiver"
+
+        /**
+         * The pre-`SubscriptionManager` extra key some OEM telephony stacks still use for the
+         * receiving subscription id. Values are the same non-negative subscription ids as the
+         * modern key; absent means unknown.
+         */
+        const val LEGACY_SUBSCRIPTION_EXTRA = "subscription"
     }
 }

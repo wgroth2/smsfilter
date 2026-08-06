@@ -125,12 +125,31 @@ class PipelineFakes {
         /** Every attempted send, as (destination, body) pairs, in order. */
         val sent: MutableList<Pair<String, String>> = mutableListOf()
 
+        /**
+         * The subscription id of every successful send, in the same order as [sent] and index-
+         * aligned with it.
+         *
+         * Kept as a parallel list rather than a third component of [sent] so the fifteen-odd
+         * existing assertions on (destination, body) pairs keep reading as they do today; SIM
+         * routing is an orthogonal concern and is asserted separately.
+         */
+        val sentSubscriptionIds: MutableList<Int> = mutableListOf()
+
+        /** The subscription id of the most recent successful send, or `null` if nothing was sent. */
+        val lastSubscriptionId: Int?
+            get() = sentSubscriptionIds.lastOrNull()
+
         /** Set to `false` to simulate the platform refusing the send. */
         var succeed: Boolean = true
 
-        override fun sendTextMessage(destinationAddress: String, body: String): Boolean {
+        override fun sendTextMessage(
+            destinationAddress: String,
+            body: String,
+            subscriptionId: Int,
+        ): Boolean {
             if (!succeed) return false
             sent += destinationAddress to body
+            sentSubscriptionIds += subscriptionId
             return true
         }
     }

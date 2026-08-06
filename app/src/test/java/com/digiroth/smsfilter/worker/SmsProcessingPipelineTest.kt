@@ -40,6 +40,7 @@ import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
 import com.digiroth.smsfilter.data.settings.SettingsSnapshot
 import com.digiroth.smsfilter.detection.OptOutDetector
 import com.digiroth.smsfilter.detection.StopListMatcher
+import com.digiroth.smsfilter.platform.SmsSender
 import com.digiroth.smsfilter.util.PhoneNumberNormalizer
 import com.digiroth.smsfilter.util.SenderHasher
 import kotlinx.coroutines.test.runTest
@@ -97,6 +98,19 @@ class SmsProcessingPipelineTest {
         /** A body short enough to survive [DetectionLogEntity.PREVIEW_MAX_LENGTH] untruncated and
          * containing no seeded opt-out pattern, so it always reaches the no-match path. */
         const val NO_MATCH_BODY = "Your appointment is confirmed"
+
+        /**
+         * A plausible receiving subscription id. Matches the physical AT&T SIM on the development
+         * device, where slot 0 carries subscription id 2.
+         */
+        const val RECEIVING_SUB_ID = 2
+
+        /**
+         * A second, different subscription id, standing in for the other SIM of a dual-SIM pair.
+         * Deliberately neither zero nor [SmsSender.UNKNOWN_SUBSCRIPTION_ID] so a value that was
+         * silently defaulted away cannot pass.
+         */
+        const val SECOND_SIM_SUB_ID = 5
     }
 
     // ---------------------------------------------------------------------
@@ -370,6 +384,69 @@ class SmsProcessingPipelineTest {
 
         assertEquals(listOf(SHORT_CODE to "stop"), fakes.smsSender.sent)
     }
+
+    // ---------------------------------------------------------------------
+    // Dual-SIM routing
+    //
+    // An aggregator matches a STOP request against the originating MSISDN, so a reply that leaves
+    // from the wrong SIM unsubscribes nothing while still recording a cooldown that suppresses the
+    // retry for 24 hours. The subscription id must therefore survive the pipeline untouched.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `reply leaves on the subscription the message arrived on`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now, subscriptionId = RECEIVING_SUB_ID)
+
+        assertEquals(RECEIVING_SUB_ID, fakes.smsSender.lastSubscriptionId)
+    }
+
+    @Test
+    fun `short code reply also leaves on the receiving subscription`() = runTest {
+        // Short codes are carrier- and country-specific, so this is the case that fails hardest
+        // in the real world when the reply goes out the wrong SIM.
+        pipeline().process(SHORT_CODE, OPT_OUT_BODY, now, subscriptionId = RECEIVING_SUB_ID)
+
+        assertEquals(listOf(SHORT_CODE to "stop"), fakes.smsSender.sent)
+        assertEquals(RECEIVING_SUB_ID, fakes.smsSender.lastSubscriptionId)
+    }
+
+    @Test
+    fun `unknown subscription is passed through rather than substituted`() = runTest {
+        // The pipeline must not invent a subscription id: only AndroidSmsSender knows what the
+        // platform's default SMS subscription is, and that fallback is its job alone.
+        pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
+
+        assertEquals(
+            SmsSender.UNKNOWN_SUBSCRIPTION_ID,
+            fakes.smsSender.lastSubscriptionId,
+        )
+    }
+
+    @Test
+    fun `a non-default subscription id is not defaulted away`() = runTest {
+        // Guards against a future refactor quietly dropping the parameter: the value asserted here
+        // is deliberately neither zero nor the unknown sentinel.
+        pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now, subscriptionId = SECOND_SIM_SUB_ID)
+
+        assertEquals(SECOND_SIM_SUB_ID, fakes.smsSender.lastSubscriptionId)
+        assertEquals(listOf(SECOND_SIM_SUB_ID), fakes.smsSender.sentSubscriptionIds)
+    }
+
+    @Test
+    fun `the three auto-reply gates still suppress the send with a subscription id present`() =
+        runTest {
+            fakes.settings.snapshot = snapshot(autoReplyEnabled = false)
+            pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now, subscriptionId = RECEIVING_SUB_ID)
+            assertTrue("dry run", fakes.smsSender.sentSubscriptionIds.isEmpty())
+
+            fakes.settings.snapshot = snapshot()
+            pipeline().process(ALPHANUMERIC, OPT_OUT_BODY, now, subscriptionId = RECEIVING_SUB_ID)
+            assertTrue("alphanumeric", fakes.smsSender.sentSubscriptionIds.isEmpty())
+
+            fakes.cooldownDao.rows[SenderHasher().hash(SHORT_CODE)] = now
+            pipeline().process(SHORT_CODE, OPT_OUT_BODY, now, subscriptionId = RECEIVING_SUB_ID)
+            assertTrue("cooldown", fakes.smsSender.sentSubscriptionIds.isEmpty())
+        }
 
     // ---------------------------------------------------------------------
     // Gate 1 — dry run (case 16)
