@@ -68,6 +68,40 @@ object DatabaseModule {
      * only through the builder; without it a fresh install would start with no opt-out
      * patterns and would never detect anything.
      *
+     * ## Data loss warning
+     *
+     * This fallback is active in **release builds as well as debug**, and it is unconditional.
+     * The moment `AppDatabase`'s `version` is incremented, the next launch on an existing
+     * install drops every table and recreates it empty. The user permanently loses:
+     *
+     *  - every stop-list keyword they added,
+     *  - every custom opt-out pattern, reverting to the four seeded defaults,
+     *  - the entire detection log,
+     *  - all auto-reply cooldown records, so a sender replied to minutes earlier can be
+     *    replied to again immediately.
+     *
+     * There is no warning, no backup, and no way to recover: `exportSchema = false` means there
+     * is not even a schema history to write a migration against retrospectively.
+     *
+     * `architectural_analysis.md` records this as a known accepted risk and recommends limiting
+     * destructive migration to debug builds. That change has deliberately not been made yet.
+     *
+     * ## What not to do
+     *
+     * **Do not bump `AppDatabase`'s `version` casually.** Treat it as a destructive operation on
+     * this configuration, not as routine bookkeeping. Adding a Room *entity* enum constant, or
+     * changing anything that is not the persisted schema, does not require a bump — see
+     * `RoomConverters` for which enum changes are safe without one.
+     *
+     * **Do not add a real column or table and "let the fallback handle it".** It will handle it,
+     * by deleting the user's data. Write a `Migration` and register it with
+     * `addMigrations(...)`, and enable `exportSchema` so the migration can be tested against a
+     * real schema history.
+     *
+     * **Do not remove this fallback without adding migrations first.** With no fallback and no
+     * migration path, a version bump throws `IllegalStateException` on startup instead, which
+     * turns silent data loss into an app that cannot launch at all.
+     *
      * @param context Application context owning the database file.
      * @return The process-wide [AppDatabase] instance.
      */

@@ -38,8 +38,13 @@ import androidx.room.PrimaryKey
  * examined in full and simply did not match anything.
  *
  * Drives the "All" / "Detections Only" / "Ignored Only" / "Not Matched" filter chips on the log
- * screen. Persisted by name through `RoomConverters`, so adding a constant here changes no column
- * type and needs no schema migration — but removing or renaming one would orphan existing rows.
+ * screen.
+ *
+ * Persisted by name through `RoomConverters`, so adding a constant here changes no column type and
+ * needs no schema migration. Removing or renaming one is a different matter: every row already
+ * holding the old name becomes unreadable and the log screen crashes on the next read. Read the
+ * class documentation on `RoomConverters` before changing any constant below — it sets out which
+ * edits are safe and what must accompany the unsafe ones.
  */
 enum class LogEventType {
     /** An opt-out signal was detected; [DetectionLogEntity.replyStatus] records the outcome. */

@@ -44,6 +44,41 @@ import com.digiroth.smsfilter.data.db.entity.ReplyType
  * Conversion of an unrecognized string throws rather than substituting a default: a value
  * the app does not understand indicates real data corruption, and failing loudly is safer
  * than silently treating an unknown match mode as `ANYWHERE`.
+ *
+ * ## Safe and unsafe ways to change these enums
+ *
+ * Because the stored value is the constant's `name`, the enum declaration and the rows already
+ * on disk are two halves of one contract. `valueOf` throws [IllegalArgumentException] on any
+ * string it does not recognize, and that exception surfaces wherever the row is read — for
+ * [LogEventType] that is inside the log screen's Flow, which crashes the screen rather than
+ * showing an empty list.
+ *
+ * **Safe: adding a new constant.** Existing rows keep names the code still knows, and the new
+ * name only ever appears in rows written by the build that understands it. No migration and no
+ * version bump is required, because the column type does not change. `LogEventType.NO_MATCH`
+ * was added exactly this way.
+ *
+ * **Safe: reordering constants.** Nothing depends on ordinal position; that is the whole reason
+ * `name` is stored instead of `ordinal`.
+ *
+ * **Unsafe — do not do this: renaming or deleting a constant without bumping
+ * `AppDatabase`'s `version`.** Every row already holding the old name becomes unreadable, and
+ * the next read throws. Room only rebuilds the tables when the version changes, so leaving the
+ * version alone guarantees the stale rows survive to crash the app. If a constant must be
+ * renamed or removed, bump the version in the same change; the destructive-migration fallback
+ * configured in `DatabaseModule.provideAppDatabase` then drops the tables and the stale strings
+ * go with them. Note that this discards all user data — see that function's documentation.
+ *
+ * **Unsafe — do not do this: renaming a constant while leaving `AppDatabase.SEED_CALLBACK`
+ * untouched.** The seeding SQL writes these strings as literals, so the two drift apart
+ * silently and a fresh install seeds rows the converters cannot read back.
+ *
+ * **Do not "fix" a crash here by falling back to a default.** Compare
+ * `ConnectionStatus.fromStoredValue`, which deliberately does tolerate unknown input: it backs a
+ * status indicator that the next live check overwrites, so guessing costs nothing. These enums
+ * are different in kind. A misread [MatchMode] silently changes which messages are detected, and
+ * a misread [ReplyType] sends the wrong keyword to a real person. Throwing is the correct
+ * behaviour for those two, and [LogEventType] follows the same rule for consistency.
  */
 class RoomConverters {
 
