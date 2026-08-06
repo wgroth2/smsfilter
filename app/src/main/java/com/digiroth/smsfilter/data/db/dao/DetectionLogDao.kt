@@ -46,18 +46,6 @@ import kotlinx.coroutines.flow.Flow
 interface DetectionLogDao {
 
     /**
-     * Observes the most recent log entries of every kind, newest first.
-     *
-     * @param limit Maximum rows to emit.
-     * @return A [Flow] that re-emits whenever the table changes.
-     */
-    @Query(
-        "SELECT * FROM ${DetectionLogEntity.TABLE_NAME} " +
-            "ORDER BY timestamp DESC, id DESC LIMIT :limit",
-    )
-    fun observeRecent(limit: Int = DetectionLogEntity.MAX_DISPLAYED_ENTRIES): Flow<List<DetectionLogEntity>>
-
-    /**
      * Observes the most recent entries the app actually acted on, newest first: detections and
      * ignored messages, but not [LogEventType.NO_MATCH].
      *
