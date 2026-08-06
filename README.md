@@ -150,6 +150,7 @@ Compose UI tests are not present — `ui-test-junit4` is outside the pinned depe
 
 | Document | Contents |
 |---|---|
+| [USER_GUIDE.md](USER_GUIDE.md) | How the app behaves for the person using it: setup wizard, detection rules, and settings |
 | [Prompt.md](Prompt.md) | The full functional specification the app was built from |
 | [architectural_analysis.md](architectural_analysis.md) | Architectural risks, platform constraints, and their resolutions |
 | [build_instructions.md](build_instructions.md) | Environment setup and the phased build process |
