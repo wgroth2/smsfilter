@@ -1,8 +1,5 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.plugin)
@@ -76,8 +73,8 @@ android {
     // ~200 lines of recording fakes would have to be duplicated and would inevitably drift apart.
     // Additive only: no dependency, version, or existing setting is changed.
     sourceSets {
-        getByName("test").java.srcDirs("src/sharedTest/java")
-        getByName("androidTest").java.srcDirs("src/sharedTest/java")
+        getByName("test").kotlin.directories.add("src/sharedTest/java")
+        getByName("androidTest").kotlin.directories.add("src/sharedTest/java")
     }
 
     packaging {
@@ -87,11 +84,9 @@ android {
     }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
-}
+// Kotlin is compiled by AGP's built-in Kotlin support (AGP 9+). The Kotlin JVM target
+// defaults to `compileOptions.targetCompatibility` (17 above), so no explicit
+// `kotlin { compilerOptions { ... } }` block is required.
 
 // Every dependency in the pinned version catalog is declared here in Phase 1 rather than
 // incrementally, so this file is written once and never edited by a later phase.
