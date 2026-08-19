@@ -143,6 +143,13 @@
     <string name="settings_test_running">Testing…</string>
     <string name="settings_hubspot_test_ok">HubSpot: Reachable</string>
 
+    <string name="rcs_service_name">RCS Notification Listener</string>
+    <string name="settings_rcs_title">RCS Chat Messages</string>
+    <string name="settings_rcs_subtitle">Enables opt-out detection for Google Messages RCS chats via Notification Access.</string>
+    <string name="settings_rcs_action_enable">Grant Notification Access</string>
+    <string name="settings_rcs_status_enabled">Notification Access: Active</string>
+    <string name="settings_rcs_status_disabled">Notification Access: Disabled</string>
+
     <string name="settings_open_log">Activity &amp; Detection Log</string>
 
     <string name="log_filter_all">All</string>

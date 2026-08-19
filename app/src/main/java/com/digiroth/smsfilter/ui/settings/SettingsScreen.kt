@@ -148,6 +148,12 @@ fun SettingsScreen(
             )
             SectionDivider()
 
+            RcsChatMessagesSection(
+                isNotificationAccessGranted = state.isNotificationAccessGranted,
+                onOpenNotificationListenerSettings = { openNotificationListenerSettings(context) },
+            )
+            SectionDivider()
+
             HubSpotSection(
                 state = state,
                 onToggle = viewModel::setUseHubSpot,
@@ -779,6 +785,45 @@ private val LANGUAGES = listOf(
     "en" to R.string.settings_language_english,
     "es" to R.string.settings_language_spanish,
 )
+
+@Composable
+private fun RcsChatMessagesSection(
+    isNotificationAccessGranted: Boolean,
+    onOpenNotificationListenerSettings: () -> Unit,
+) {
+    SectionTitle(stringResource(R.string.settings_rcs_title))
+    Text(
+        text = stringResource(R.string.settings_rcs_subtitle),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = stringResource(
+            if (isNotificationAccessGranted) {
+                R.string.settings_rcs_status_enabled
+            } else {
+                R.string.settings_rcs_status_disabled
+            },
+        ),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    if (!isNotificationAccessGranted) {
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onOpenNotificationListenerSettings) {
+            Text(stringResource(R.string.settings_rcs_action_enable))
+        }
+    }
+}
+
+private fun openNotificationListenerSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}
 
 private fun openAppSettings(context: Context) {
     runCatching {

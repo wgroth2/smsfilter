@@ -37,8 +37,10 @@ import com.digiroth.smsfilter.data.settings.SettingsSnapshotProvider
 import com.digiroth.smsfilter.platform.AlertSoundPlayer
 import com.digiroth.smsfilter.platform.AndroidAlertSoundPlayer
 import com.digiroth.smsfilter.platform.AndroidDetectionNotifier
+import com.digiroth.smsfilter.platform.AndroidDirectReplySender
 import com.digiroth.smsfilter.platform.AndroidSmsSender
 import com.digiroth.smsfilter.platform.DetectionNotifier
+import com.digiroth.smsfilter.platform.DirectReplySender
 import com.digiroth.smsfilter.platform.SmsSender
 import com.digiroth.smsfilter.util.SystemTimeProvider
 import com.digiroth.smsfilter.util.TimeProvider
@@ -100,6 +102,14 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindSmsSender(impl: AndroidSmsSender): SmsSender
+
+    /**
+     * @param impl Platform direct reply implementation for RCS.
+     * @return The bound [DirectReplySender].
+     */
+    @Binds
+    @Singleton
+    abstract fun bindDirectReplySender(impl: AndroidDirectReplySender): DirectReplySender
 
     /**
      * @param impl Platform notification implementation.

@@ -46,6 +46,7 @@ import com.digiroth.smsfilter.data.settings.SettingsSnapshot
 import com.digiroth.smsfilter.data.settings.SettingsSnapshotProvider
 import com.digiroth.smsfilter.platform.AlertSoundPlayer
 import com.digiroth.smsfilter.platform.DetectionNotifier
+import com.digiroth.smsfilter.platform.DirectReplySender
 import com.digiroth.smsfilter.platform.SmsSender
 import com.digiroth.smsfilter.util.E164Formatter
 import com.digiroth.smsfilter.util.TimeProvider
@@ -87,6 +88,9 @@ class PipelineFakes {
 
     /** Records every SMS the pipeline attempts to send. */
     val smsSender = FakeSmsSender()
+
+    /** Records every direct reply the pipeline attempts to send. */
+    val directReplySender = FakeDirectReplySender()
 
     /** Records every notification the pipeline posts. */
     val notifier = FakeDetectionNotifier()
@@ -150,6 +154,20 @@ class PipelineFakes {
             if (!succeed) return false
             sent += destinationAddress to body
             sentSubscriptionIds += subscriptionId
+            return true
+        }
+    }
+
+    class FakeDirectReplySender : DirectReplySender {
+        /** Every attempted direct reply send, as (replyKey, body) pairs. */
+        val sent: MutableList<Pair<String, String>> = mutableListOf()
+
+        /** Set to `false` to simulate direct reply dispatch failure. */
+        var succeed: Boolean = true
+
+        override fun sendDirectReply(replyKey: String, body: String): Boolean {
+            if (!succeed) return false
+            sent += replyKey to body
             return true
         }
     }

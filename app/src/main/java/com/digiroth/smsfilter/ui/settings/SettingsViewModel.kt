@@ -28,6 +28,9 @@
 
 package com.digiroth.smsfilter.ui.settings
 
+import android.content.Context
+import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.digiroth.smsfilter.data.db.dao.OptOutPatternDao
@@ -44,6 +47,7 @@ import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.ConnectionStatus
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -113,6 +117,7 @@ sealed interface HubSpotCheck {
  * @property appLanguage Recorded language preference, an ISO 639-1 code.
  * @property useHubSpot Whether HubSpot lookups are enabled.
  * @property hasHubSpotToken Whether a token is stored.
+ * @property isNotificationAccessGranted Whether Notification Access is enabled for RCS messages.
  * @property hubSpotHealth Derived HubSpot indicator.
  * @property googleContactsHealth Derived Google Contacts indicator.
  * @property contactsCheck Result of the Google Contacts diagnostic.
@@ -129,6 +134,7 @@ data class SettingsUiState(
     val appLanguage: String = "en",
     val useHubSpot: Boolean = false,
     val hasHubSpotToken: Boolean = false,
+    val isNotificationAccessGranted: Boolean = false,
     val hubSpotHealth: HubSpotHealth = HubSpotHealth.OFF,
     val googleContactsHealth: GoogleContactsHealth = GoogleContactsHealth.PERMISSION_REQUIRED,
     val contactsCheck: ContactsCheck = ContactsCheck.NotRun,
@@ -151,6 +157,7 @@ data class SettingsUiState(
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val settingsDataStore: SettingsDataStore,
     private val secureTokenStore: SecureTokenStore,
     private val contactRepository: ContactRepository,
@@ -202,7 +209,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Recomputes both health indicators.
+     * Recomputes both health indicators and notification access state.
      *
      * Called on resume as well as on settings changes, because contacts access can be revoked from
      * system settings while the app is backgrounded and the indicator must reflect that immediately.
@@ -210,9 +217,11 @@ class SettingsViewModel @Inject constructor(
     fun refreshHealth() {
         val hasToken = secureTokenStore.hasAccessToken()
         val hasContacts = contactRepository.hasReadContactsPermission()
+        val isNotificationAccessGranted = isNotificationListenerEnabled(context)
         _uiState.update { state ->
             state.copy(
                 hasHubSpotToken = hasToken,
+                isNotificationAccessGranted = isNotificationAccessGranted,
                 googleContactsHealth = healthEvaluator.evaluateGoogleContacts(hasContacts),
                 hubSpotHealth = healthEvaluator.evaluateHubSpot(
                     isEnabled = state.useHubSpot,
@@ -221,6 +230,19 @@ class SettingsViewModel @Inject constructor(
                 ),
             )
         }
+    }
+
+    /**
+     * Checks whether Notification Access is granted to this app.
+     *
+     * @param context Context used to query enabled notification listeners.
+     * @return `true` if Notification Access is active, `false` otherwise.
+     */
+    fun isNotificationListenerEnabled(context: Context): Boolean {
+        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(context)
+        if (enabledPackages.contains(context.packageName)) return true
+        val raw = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false
+        return raw.contains(context.packageName)
     }
 
     /** @param enabled New auto-reply master switch value. */

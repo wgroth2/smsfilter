@@ -45,7 +45,9 @@ import com.digiroth.smsfilter.detection.OptOutResult
 import com.digiroth.smsfilter.detection.StopListMatcher
 import com.digiroth.smsfilter.platform.AlertSoundPlayer
 import com.digiroth.smsfilter.platform.DetectionNotifier
+import com.digiroth.smsfilter.platform.DirectReplySender
 import com.digiroth.smsfilter.platform.SmsSender
+import com.digiroth.smsfilter.util.MessageDeduplicator
 import com.digiroth.smsfilter.util.PhoneNumberNormalizer
 import com.digiroth.smsfilter.util.SenderHasher
 import com.digiroth.smsfilter.util.TimeProvider
@@ -155,6 +157,8 @@ class SmsProcessingPipeline @Inject constructor(
     private val phoneNumberNormalizer: PhoneNumberNormalizer,
     private val senderHasher: SenderHasher,
     private val smsSender: SmsSender,
+    private val directReplySender: DirectReplySender,
+    private val messageDeduplicator: MessageDeduplicator,
     private val detectionNotifier: DetectionNotifier,
     private val alertSoundPlayer: AlertSoundPlayer,
     private val timeProvider: TimeProvider,
@@ -171,6 +175,8 @@ class SmsProcessingPipeline @Inject constructor(
      *   untouched so any reply leaves from the same number. Defaults to
      *   [SmsSender.UNKNOWN_SUBSCRIPTION_ID], which lets the sender pick the default SMS
      *   subscription — the behaviour of every single-SIM device.
+     * @param directReplyKey Ephemeral direct reply identifier if the message arrived via RCS
+     *   notification, or `null` for normal SMS.
      * @return The decision reached, including the fate of any auto-reply.
      */
     suspend fun process(
@@ -178,6 +184,7 @@ class SmsProcessingPipeline @Inject constructor(
         messageBody: String,
         receivedAtMillis: Long,
         subscriptionId: Int = SmsSender.UNKNOWN_SUBSCRIPTION_ID,
+        directReplyKey: String? = null,
     ): ProcessingOutcome {
         // Step 0 — onboarding gate. Must precede everything: the receiver starts firing as soon as
         // RECEIVE_SMS is granted in wizard step 2, before the user has seen a settings screen or
@@ -190,6 +197,11 @@ class SmsProcessingPipeline @Inject constructor(
         // Housekeeping. Done on every run so the cooldown table cannot grow without bound, and
         // before the cooldown check so an expired record can never block a legitimate reply.
         pruneExpiredCooldowns()
+
+        if (messageDeduplicator.isDuplicate(senderAddress, messageBody)) {
+            return ProcessingOutcome.Ignored(IgnoreReason.STOP_LIST, detail = "duplicate")
+        }
+        messageDeduplicator.record(senderAddress, messageBody)
 
         // Step 1 — read the lists once, so one message is judged against one consistent snapshot.
         val stopListKeywords = stopListDao.getAll()
@@ -254,6 +266,7 @@ class SmsProcessingPipeline @Inject constructor(
             sender = sender,
             detection = detection,
             subscriptionId = subscriptionId,
+            directReplyKey = directReplyKey,
         )
 
         // Step 8 — sound, only for a reply that actually went out.
@@ -282,6 +295,7 @@ class SmsProcessingPipeline @Inject constructor(
      * @param sender The classified sender.
      * @param detection The pattern that matched.
      * @param subscriptionId The receiving SIM subscription, forwarded to the sender unchanged.
+     * @param directReplyKey Ephemeral direct reply identifier if replying via RCS notification.
      * @return What happened to the reply.
      */
     private suspend fun resolveReply(
@@ -289,6 +303,7 @@ class SmsProcessingPipeline @Inject constructor(
         sender: com.digiroth.smsfilter.util.NormalizedSender,
         detection: OptOutResult,
         subscriptionId: Int,
+        directReplyKey: String?,
     ): ReplyDisposition {
         // Gate 1 — master switch. Detection-only mode, and the kill switch if a pattern misfires.
         if (!snapshot.autoReplyEnabled) return ReplyDisposition.SKIPPED_DRY_RUN
@@ -303,19 +318,16 @@ class SmsProcessingPipeline @Inject constructor(
         val cutoff = now - AutoReplyCooldownEntity.COOLDOWN_WINDOW_MS
         if (cooldownDao.isInCooldown(senderHash, cutoff)) return ReplyDisposition.SKIPPED_COOLDOWN
 
-        // Step 7 — reply to the RAW address. A short code must receive its reply at the exact
-        // address it sent from, never at a normalized form.
-        //
-        // The reply must also leave from the SIM that received the message. A carrier or
-        // aggregator matches an opt-out against the MSISDN it came from, so a reply sent on the
-        // other subscription unsubscribes nothing at all — and because the platform still reports
-        // that send as successful, the cooldown below would be recorded and suppress every retry
-        // for the next twenty-four hours.
-        val sent = smsSender.sendTextMessage(
-            destinationAddress = sender.rawAddress,
-            body = detection.replyKeyword,
-            subscriptionId = subscriptionId,
-        )
+        // Step 7 — reply to the RAW address or via direct reply handle.
+        val sent = if (directReplyKey != null) {
+            directReplySender.sendDirectReply(directReplyKey, detection.replyKeyword)
+        } else {
+            smsSender.sendTextMessage(
+                destinationAddress = sender.rawAddress,
+                body = detection.replyKeyword,
+                subscriptionId = subscriptionId,
+            )
+        }
         if (!sent) return ReplyDisposition.SEND_FAILED
 
         // Recorded only after a successful send, so a failed attempt does not lock out the retry.

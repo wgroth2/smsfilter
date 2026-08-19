@@ -40,6 +40,7 @@ import com.digiroth.smsfilter.data.repository.ContactLookupCache
 import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
 import com.digiroth.smsfilter.detection.OptOutDetector
 import com.digiroth.smsfilter.detection.StopListMatcher
+import com.digiroth.smsfilter.util.MessageDeduplicator
 import com.digiroth.smsfilter.util.PhoneNumberNormalizer
 import com.digiroth.smsfilter.util.SenderHasher
 import kotlinx.coroutines.runBlocking
@@ -97,6 +98,8 @@ class SmsLookupWorkerTest {
             phoneNumberNormalizer = PhoneNumberNormalizer(fakes.e164),
             senderHasher = SenderHasher(),
             smsSender = fakes.smsSender,
+            directReplySender = fakes.directReplySender,
+            messageDeduplicator = MessageDeduplicator(fakes.time),
             detectionNotifier = fakes.notifier,
             alertSoundPlayer = fakes.soundPlayer,
             timeProvider = fakes.time,

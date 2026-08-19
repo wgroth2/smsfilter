@@ -41,6 +41,7 @@ import com.digiroth.smsfilter.data.settings.SettingsSnapshot
 import com.digiroth.smsfilter.detection.OptOutDetector
 import com.digiroth.smsfilter.detection.StopListMatcher
 import com.digiroth.smsfilter.platform.SmsSender
+import com.digiroth.smsfilter.util.MessageDeduplicator
 import com.digiroth.smsfilter.util.PhoneNumberNormalizer
 import com.digiroth.smsfilter.util.SenderHasher
 import kotlinx.coroutines.test.runTest
@@ -67,7 +68,7 @@ class SmsProcessingPipelineTest {
     /** Time chosen well clear of zero so cooldown cutoffs stay positive. */
     private val now: Long = 1_700_000_000_000L
 
-    private fun pipeline(): SmsProcessingPipeline {
+    private fun pipeline(deduplicator: MessageDeduplicator = MessageDeduplicator(fakes.time)): SmsProcessingPipeline {
         fakes.time.now = now
         return SmsProcessingPipeline(
             settings = fakes.settings,
@@ -83,6 +84,8 @@ class SmsProcessingPipelineTest {
             phoneNumberNormalizer = PhoneNumberNormalizer(fakes.e164),
             senderHasher = SenderHasher(),
             smsSender = fakes.smsSender,
+            directReplySender = fakes.directReplySender,
+            messageDeduplicator = deduplicator,
             detectionNotifier = fakes.notifier,
             alertSoundPlayer = fakes.soundPlayer,
             timeProvider = fakes.time,
@@ -678,6 +681,69 @@ class SmsProcessingPipelineTest {
         pipeline().process(UNKNOWN_NUMBER, "Click here to unsubscribe", now)
 
         assertEquals(listOf(UNKNOWN_NUMBER to "end"), fakes.smsSender.sent)
+    }
+
+    // ---------------------------------------------------------------------
+    // RCS Direct Reply & Ingress Deduplication
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `direct reply key routes through DirectReplySender when provided`() = runTest {
+        val outcome = pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "reply-handle-123",
+        )
+
+        assertEquals(ReplyDisposition.SENT, (outcome as ProcessingOutcome.Detected).disposition)
+        assertEquals(listOf("reply-handle-123" to "stop"), fakes.directReplySender.sent)
+        assertTrue("cellular SMS sender should not be used for direct reply", fakes.smsSender.sent.isEmpty())
+        assertEquals("Reply sent: stop", fakes.logDao.inserted.single().replyStatus)
+    }
+
+    @Test
+    fun `cellular reply routes through SmsSender when direct reply key is null`() = runTest {
+        val outcome = pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = null,
+        )
+
+        assertEquals(ReplyDisposition.SENT, (outcome as ProcessingOutcome.Detected).disposition)
+        assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
+        assertTrue("direct reply sender should not be used for cellular SMS", fakes.directReplySender.sent.isEmpty())
+    }
+
+    @Test
+    fun `deduplication suppresses duplicate message within window`() = runTest {
+        val pipeline = pipeline()
+
+        val outcome1 = pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
+        assertEquals(ReplyDisposition.SENT, (outcome1 as ProcessingOutcome.Detected).disposition)
+        assertEquals(1, fakes.smsSender.sent.size)
+
+        // Same sender and body 5 seconds later
+        val outcome2 = pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, now + 5_000L)
+        assertEquals(ProcessingOutcome.Ignored(IgnoreReason.STOP_LIST, "duplicate"), outcome2)
+        assertEquals("no second SMS sent", 1, fakes.smsSender.sent.size)
+    }
+
+    @Test
+    fun `message after deduplication TTL window is not suppressed by deduplicator`() = runTest {
+        val pipeline = pipeline()
+
+        val outcome1 = pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
+        assertEquals(ReplyDisposition.SENT, (outcome1 as ProcessingOutcome.Detected).disposition)
+
+        // Advance time past both deduplication TTL and cooldown window to allow subsequent message
+        val newTime = now + AutoReplyCooldownEntity.COOLDOWN_WINDOW_MS + 10_000L
+        fakes.time.now = newTime
+
+        val outcome2 = pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, newTime)
+        assertEquals(ReplyDisposition.SENT, (outcome2 as ProcessingOutcome.Detected).disposition)
+        assertEquals(2, fakes.smsSender.sent.size)
     }
 
     private fun snapshot(

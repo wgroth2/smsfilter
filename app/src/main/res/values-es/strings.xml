@@ -129,6 +129,13 @@
     <string name="settings_test_running">Probando…</string>
     <string name="settings_hubspot_test_ok">HubSpot: Accesible</string>
 
+    <string name="rcs_service_name">Detector de notificaciones RCS</string>
+    <string name="settings_rcs_title">Mensajes de chat RCS</string>
+    <string name="settings_rcs_subtitle">Habilita la detección de bajas para chats RCS mediante el acceso a notificaciones.</string>
+    <string name="settings_rcs_action_enable">Permitir acceso a notificaciones</string>
+    <string name="settings_rcs_status_enabled">Acceso a notificaciones: Activo</string>
+    <string name="settings_rcs_status_disabled">Acceso a notificaciones: Desactivado</string>
+
     <string name="settings_open_log">Registro de actividad y detecciones</string>
 
     <string name="log_filter_all">Todo</string>

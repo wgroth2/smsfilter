@@ -91,6 +91,8 @@ class AndroidDetectionNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : DetectionNotifier {
 
+    // Guarded by hasPostPermission() check above, but lint cannot infer the runtime permission check.
+    @android.annotation.SuppressLint("MissingPermission")
     override fun notifyOptOutDetected(messagePreview: String) {
         if (!hasPostPermission()) {
             // POST_NOTIFICATIONS is a runtime permission from API 33. Onboarding requires it, but

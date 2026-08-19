@@ -16,6 +16,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Telephony hardware is not required, allowing installation on tablets and ChromeOS. -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
     <application
         android:name=".SmsFilterApplication"
         android:allowBackup="false"
@@ -29,7 +34,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.SmsFilter">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -46,6 +50,17 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!-- Notification listener for RCS opt-out detection from supported messaging apps. -->
+        <service
+            android:name=".receiver.RcsNotificationListenerService"
+            android:exported="true"
+            android:label="@string/rcs_service_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <!-- Attach the dataSync foreground service type to WorkManager's own service so
              expedited-work fallback on API < 31 cannot raise a SecurityException under

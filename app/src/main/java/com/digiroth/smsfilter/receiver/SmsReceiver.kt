@@ -78,7 +78,15 @@ class SmsReceiver : BroadcastReceiver() {
             return
         }
 
-        val body = messages.joinToString(separator = "") { segment -> segment.messageBody ?: "" }
+        val body = messages.joinToString(separator = "") { segment ->
+            val segmentBody = segment.messageBody
+            if (segmentBody == null) {
+                Log.w(TAG, "SMS segment contained null message body")
+                ""
+            } else {
+                segmentBody
+            }
+        }
         val receivedAt = messages.first().timestampMillis
 
         // Captured here and carried all the way to the sender: on a dual-SIM device the opt-out

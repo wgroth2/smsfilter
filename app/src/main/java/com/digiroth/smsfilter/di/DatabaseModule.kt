@@ -30,6 +30,7 @@ package com.digiroth.smsfilter.di
 
 import android.content.Context
 import androidx.room.Room
+import com.digiroth.smsfilter.BuildConfig
 import com.digiroth.smsfilter.data.db.AppDatabase
 import com.digiroth.smsfilter.data.db.dao.AutoReplyCooldownDao
 import com.digiroth.smsfilter.data.db.dao.DetectionLogDao
@@ -107,11 +108,14 @@ object DatabaseModule {
      */
     @Provides
     @Singleton
-    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        val builder = Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
             .addCallback(AppDatabase.SEED_CALLBACK)
-            .fallbackToDestructiveMigration(dropAllTables = true)
-            .build()
+        if (BuildConfig.DEBUG) {
+            builder.fallbackToDestructiveMigration(dropAllTables = true)
+        }
+        return builder.build()
+    }
 
     /**
      * @param database The application database.
