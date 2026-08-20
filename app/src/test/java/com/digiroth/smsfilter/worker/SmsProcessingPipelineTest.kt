@@ -617,29 +617,54 @@ class SmsProcessingPipelineTest {
     }
 
     @Test
-    fun `no log row contains the sender address in any form`() = runTest {
-        fakes.settings.snapshot = snapshot(useHubSpot = true)
+    fun `detection log records sender address on successful detection`() = runTest {
         val pipeline = pipeline()
 
         pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
-        fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
-        pipeline.process(SHORT_CODE, "a promo message", now)
+        assertEquals(UNKNOWN_NUMBER, fakes.logDao.inserted.last().senderAddress)
 
-        val digits = UNKNOWN_NUMBER.filter(Char::isDigit)
-        fakes.logDao.inserted.forEach { row ->
-            val serialized = listOfNotNull(
-                row.messagePreview,
-                row.matchedPattern,
-                row.replyStatus,
-                row.ignoreReason,
-            ).joinToString(" ")
-            assertTrue(
-                "log row leaked a sender address: $serialized",
-                !serialized.contains(UNKNOWN_NUMBER) &&
-                    !serialized.contains(digits) &&
-                    !serialized.contains(SHORT_CODE),
-            )
-        }
+        pipeline.process(SHORT_CODE, OPT_OUT_BODY, now + 10_000L)
+        assertEquals(SHORT_CODE, fakes.logDao.inserted.last().senderAddress)
+    }
+
+    @Test
+    fun `detection log records sender address on stop list ignore`() = runTest {
+        fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
+
+        pipeline().process(UNKNOWN_NUMBER, "Big promo inside!\nSTOP", now)
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.IGNORED, row.eventType)
+        assertEquals(UNKNOWN_NUMBER, row.senderAddress)
+    }
+
+    @Test
+    fun `detection log records sender address on known contact ignore`() = runTest {
+        fakes.contactSource.outcome = ContactLookupOutcome.Found
+
+        pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.IGNORED, row.eventType)
+        assertEquals(UNKNOWN_NUMBER, row.senderAddress)
+    }
+
+    @Test
+    fun `detection log records sender address on no-match event`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.NO_MATCH, row.eventType)
+        assertEquals(UNKNOWN_NUMBER, row.senderAddress)
+    }
+
+    @Test
+    fun `detection log records alphanumeric sender on skipped reply`() = runTest {
+        pipeline().process(ALPHANUMERIC, OPT_OUT_BODY, now)
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.DETECTION, row.eventType)
+        assertEquals(ALPHANUMERIC, row.senderAddress)
     }
 
     @Test

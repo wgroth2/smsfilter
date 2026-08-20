@@ -28,6 +28,10 @@
 
 package com.digiroth.smsfilter.ui.log
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,10 +47,13 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,12 +64,15 @@ import com.digiroth.smsfilter.data.db.entity.LogEventType
 import java.text.DateFormat
 import java.util.Date
 
+/** Logging tag for detection log UI actions. */
+private const val TAG: String = "DetectionLogScreen"
+
 /**
  * The activity and detection log.
  *
- * Every row is drawn from [DetectionLogEntity], which by design stores no sender address in any
- * form — not even a hash. There is therefore nothing to redact here: the privacy guarantee is
- * enforced by the schema rather than by this screen remembering to omit a field.
+ * Displays chronologically ordered log entries from [DetectionLogEntity]. Each entry shows
+ * the timestamp, optional sender address chip (which can be tapped to open the messaging app),
+ * event-specific outcome/reason, and the message preview.
  *
  * @param onNavigateBack Returns to Settings.
  * @param viewModel State holder, supplied by Hilt.
@@ -128,15 +138,53 @@ private fun filterLabel(filter: LogFilter): Int = when (filter) {
     LogFilter.NO_MATCH -> R.string.log_filter_no_match
 }
 
+/**
+ * Opens the device's default messaging app targeted at the specified sender address.
+ *
+ * @param context Android context used to launch the intent activity.
+ * @param senderAddress The recipient phone number or short code.
+ */
+fun openConversation(context: Context, senderAddress: String): Unit {
+    runCatching {
+        val intent = Intent(
+            Intent.ACTION_SENDTO,
+            Uri.parse("smsto:${Uri.encode(senderAddress)}"),
+        ).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }.onFailure { error ->
+        Log.e(TAG, "Failed to launch messaging app: ${error.message}", error)
+    }
+}
+
 @Composable
 private fun LogRow(entry: DetectionLogEntity) {
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Text(
-                text = formatTimestamp(entry.timestamp),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = formatTimestamp(entry.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                entry.senderAddress?.takeIf(String::isNotBlank)?.let { sender ->
+                    SuggestionChip(
+                        onClick = { openConversation(context, sender) },
+                        label = {
+                            Text(
+                                text = sender,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
 
             when (entry.eventType) {

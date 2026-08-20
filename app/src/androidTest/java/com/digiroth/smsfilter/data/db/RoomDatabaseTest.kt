@@ -340,6 +340,42 @@ class RoomDatabaseTest {
         assertEquals(0, detectionLogDao.count())
     }
 
+    @Test
+    fun detectionLog_persistsAndRetrievesSenderAddress() = runBlocking {
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 1_000L,
+                eventType = LogEventType.DETECTION,
+                matchedPattern = "stop2stop",
+                replyStatus = "Reply sent: stop",
+                messagePreview = "stop2stop this deal",
+                senderAddress = "+16505551234",
+            ),
+        )
+
+        val retrieved = detectionLogDao.getRecent().single()
+
+        assertEquals("+16505551234", retrieved.senderAddress)
+    }
+
+    @Test
+    fun detectionLog_handlesNullSenderAddressGracefully() = runBlocking {
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 1_000L,
+                eventType = LogEventType.DETECTION,
+                matchedPattern = "stop2stop",
+                replyStatus = "Reply sent: stop",
+                messagePreview = "stop2stop this deal",
+                senderAddress = null,
+            ),
+        )
+
+        val retrieved = detectionLogDao.getRecent().single()
+
+        assertNull(retrieved.senderAddress)
+    }
+
     // ---------------------------------------------------------------------
     // Auto-reply cooldown
     // ---------------------------------------------------------------------

@@ -68,12 +68,9 @@ enum class LogEventType {
 /**
  * One entry in the activity and detection log.
  *
- * A single table backs both detections and ignored events, discriminated by [eventType],
- * so the log screen can render a single chronological list and filter it client-side.
- *
- * **Privacy:** this row must never contain a phone number. [messagePreview] is a truncated
- * excerpt of the message body only, and no sender address — hashed or otherwise — is
- * recorded here.
+ * A single table backs detections, ignored events, and unmatched messages, discriminated by
+ * [eventType], so the log screen can render a single chronological list and filter it
+ * client-side.
  *
  * @property id Auto-generated row identifier.
  * @property timestamp When the event occurred, in epoch milliseconds.
@@ -86,8 +83,9 @@ enum class LogEventType {
  *   or `"Reply skipped: alphanumeric sender"`. `null` for ignored and unmatched events.
  * @property ignoreReason For ignored events, why the message was ignored — for example
  *   `"Ignored: Known Google Contact"`. `null` for detections and unmatched events.
- * @property messagePreview A truncated excerpt of the message body, never containing a
- *   phone number.
+ * @property messagePreview A truncated excerpt of the message body.
+ * @property senderAddress The originating phone number, short code, or alphanumeric sender address;
+ *   `null` for legacy rows or when omitted.
  */
 @Entity(
     tableName = DetectionLogEntity.TABLE_NAME,
@@ -115,6 +113,9 @@ data class DetectionLogEntity(
 
     @ColumnInfo(name = "message_preview")
     val messagePreview: String,
+
+    @ColumnInfo(name = "sender_address")
+    val senderAddress: String? = null,
 ) {
     companion object {
         /** Room table name for log entries. */

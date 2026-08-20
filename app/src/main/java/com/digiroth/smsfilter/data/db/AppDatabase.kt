@@ -32,6 +32,7 @@ import android.util.Log
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.digiroth.smsfilter.data.db.dao.AutoReplyCooldownDao
 import com.digiroth.smsfilter.data.db.dao.DetectionLogDao
@@ -51,10 +52,10 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
  * auto-reply cooldown records. **All scalar settings and flags live in
  * `DataStore<Preferences>` instead — there is deliberately no settings table here.**
  *
- * No phone number is ever stored. The cooldown table holds only one-way SHA-256 hashes of
- * sender addresses, which cannot be reversed into a number.
+ * The cooldown table holds one-way SHA-256 hashes of sender addresses, which cannot be
+ * reversed into a number.
  *
- * `exportSchema` is `false` because the project uses destructive migration and ships no
+ * `exportSchema` is `false` because the project uses selective migrations and ships no
  * migration scripts, so an exported schema would have nothing to validate against. This also
  * suppresses Room's "schema export directory was not provided" warning without needing a KSP
  * argument in the build file.
@@ -66,7 +67,7 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
         DetectionLogEntity::class,
         AutoReplyCooldownEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -105,6 +106,16 @@ abstract class AppDatabase : RoomDatabase() {
             OptOutPatternEntity(pattern = "stop", replyType = ReplyType.STOP, matchMode = MatchMode.LAST_LINE_EXACT),
             OptOutPatternEntity(pattern = "end", replyType = ReplyType.END, matchMode = MatchMode.LAST_LINE_EXACT),
         )
+
+        /**
+         * Migrates the database from version 1 to version 2 by adding the nullable `sender_address`
+         * column to the detection log table.
+         */
+        val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE detection_log ADD COLUMN sender_address TEXT")
+            }
+        }
 
         /**
          * Seeds [DEFAULT_PATTERNS] when the database file is first created.

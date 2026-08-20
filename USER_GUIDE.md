@@ -152,7 +152,8 @@ Launching the app after setup lands on Settings.
 
 ## The detection log
 
-A chronological record of every decision, with two event types.
+A chronological record of every decision, with three event types (detections, ignored
+messages, and non-matching messages).
 
 **Ignored** entries name the reason, for example `Ignored: Known Google Contact` or
 `Ignored: Matched Stop List word 'promo'`.
@@ -161,9 +162,14 @@ A chronological record of every decision, with two event types.
 `Reply sent: stop`, `Reply skipped: cooldown`, `Reply skipped: dry run`,
 `Reply skipped: alphanumeric sender`, or `Reply skipped: send failed`.
 
-Log rows store only a truncated preview of the message body. The sender's phone number is
-never written to the log or to a notification in any form, and cooldown records store a
-one-way hash of the sender rather than the number itself.
+**Not Matched** entries indicate messages received from unknown senders that did not match
+any opt-out pattern.
+
+Each log entry displays the timestamp, the sender's phone number or short code (when available),
+and a truncated preview of the message body. Tapping the sender chip in any log row immediately
+opens that conversation thread in your default messaging app.
+
+Cooldown records continue to store a one-way hash of the sender rather than the number itself.
 
 ## Recommended way to start
 
