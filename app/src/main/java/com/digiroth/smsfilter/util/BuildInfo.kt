@@ -41,15 +41,17 @@ object BuildInfo {
 
     /**
      * Formats an epoch millisecond timestamp into a human-readable build timestamp string,
-     * including day, month, year, time down to the second, and timezone name.
+     * including day, month, year, time down to the second, timezone name, and build number.
      *
      * @param epochMillis The build timestamp in epoch milliseconds. Defaults to [BuildConfig.BUILD_TIME_EPOCH_MILLIS].
+     * @param buildNumber The build sequence number. Defaults to [BuildConfig.BUILD_NUMBER].
      * @param zoneId The timezone to format the timestamp in. Defaults to [ZoneId.systemDefault].
      * @param locale The locale to format with. Defaults to [Locale.getDefault].
-     * @return A formatted string in the form `"Build: <date month year time timezone>"`.
+     * @return A formatted string in the form `"Build: <date month year time timezone> (#<buildNumber>)"`.
      */
     fun formatBuildTime(
         epochMillis: Long = BuildConfig.BUILD_TIME_EPOCH_MILLIS,
+        buildNumber: Int = BuildConfig.BUILD_NUMBER,
         zoneId: ZoneId = ZoneId.systemDefault(),
         locale: Locale = Locale.getDefault(),
     ): String {
@@ -57,6 +59,6 @@ object BuildInfo {
         val formatter = DateTimeFormatter
             .ofPattern("d MMM yyyy, HH:mm:ss z", locale)
             .withZone(zoneId)
-        return "Build: ${formatter.format(instant)}"
+        return "Build: ${formatter.format(instant)} (#$buildNumber)"
     }
 }

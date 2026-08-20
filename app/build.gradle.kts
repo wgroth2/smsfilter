@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -12,6 +14,15 @@ plugins {
 val releaseKeystorePath: String? = System.getenv("SMSFILTER_KEYSTORE_PATH")
 val hasReleaseSigning: Boolean = !releaseKeystorePath.isNullOrBlank()
 
+val buildNumberFile: File = rootProject.file("build_number.properties")
+val currentBuildNumber: Int = if (buildNumberFile.exists()) {
+    val props = Properties()
+    buildNumberFile.bufferedReader().use { props.load(it) }
+    props.getProperty("build_number", "40").toIntOrNull() ?: 40
+} else {
+    40
+}
+
 android {
     namespace = "com.digiroth.smsfilter"
     compileSdk = 35
@@ -24,6 +35,7 @@ android {
         versionName = "1.0"
 
         buildConfigField("long", "BUILD_TIME_EPOCH_MILLIS", "${System.currentTimeMillis()}L")
+        buildConfigField("int", "BUILD_NUMBER", "$currentBuildNumber")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -159,3 +171,16 @@ dependencies {
     androidTestImplementation(libs.hilt.testing)
     kspAndroidTest(libs.hilt.compiler)
 }
+
+// Automatically increments build_number.properties monotonically after each build
+tasks.configureEach {
+    if (name == "generateDebugBuildConfig" || name == "generateReleaseBuildConfig") {
+        doLast {
+            val props = Properties()
+            val nextNumber = currentBuildNumber + 1
+            props.setProperty("build_number", nextNumber.toString())
+            buildNumberFile.bufferedWriter().use { props.store(it, "Monotonically incrementing build number") }
+        }
+    }
+}
+

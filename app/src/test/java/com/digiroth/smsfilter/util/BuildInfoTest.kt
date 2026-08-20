@@ -48,11 +48,12 @@ class BuildInfoTest {
 
         val formatted = BuildInfo.formatBuildTime(
             epochMillis = epochMillis,
+            buildNumber = 40,
             zoneId = utcZone,
             locale = usLocale,
         )
 
-        assertEquals("Build: 19 Aug 2026, 17:00:17 UTC", formatted)
+        assertEquals("Build: 19 Aug 2026, 17:00:17 UTC (#40)", formatted)
     }
 
     @Test
@@ -63,16 +64,18 @@ class BuildInfoTest {
 
         val formatted = BuildInfo.formatBuildTime(
             epochMillis = epochMillis,
+            buildNumber = 42,
             zoneId = pacificZone,
             locale = usLocale,
         )
 
-        assertEquals("Build: 19 Aug 2026, 10:00:17 PDT", formatted)
+        assertEquals("Build: 19 Aug 2026, 10:00:17 PDT (#42)", formatted)
     }
 
     @Test
     fun defaultBuildTimeContainsPrefixAndYear() {
         val formatted = BuildInfo.formatBuildTime()
         assertTrue("Must start with 'Build: '", formatted.startsWith("Build: "))
+        assertTrue("Must contain build number", formatted.contains("(#"))
     }
 }
