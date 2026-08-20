@@ -39,6 +39,7 @@ import com.digiroth.smsfilter.data.db.entity.AutoReplyCooldownEntity
 import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
 import com.digiroth.smsfilter.data.db.entity.LogEventType
 import com.digiroth.smsfilter.data.db.entity.MatchMode
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
 import com.digiroth.smsfilter.data.db.entity.ReplyType
 import com.digiroth.smsfilter.data.db.entity.StopListEntity
@@ -374,6 +375,62 @@ class RoomDatabaseTest {
         val retrieved = detectionLogDao.getRecent().single()
 
         assertNull(retrieved.senderAddress)
+    }
+
+    @Test
+    fun detectionLog_persistsAndRetrievesMessageSource() = runBlocking {
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 1_000L,
+                eventType = LogEventType.DETECTION,
+                matchedPattern = "stop2stop",
+                replyStatus = "Reply sent: stop",
+                messagePreview = "SMS message",
+                messageSource = MessageSource.SMS,
+            ),
+        )
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 2_000L,
+                eventType = LogEventType.DETECTION,
+                matchedPattern = "end2end",
+                replyStatus = "Reply sent: end",
+                messagePreview = "RCS message",
+                messageSource = MessageSource.RCS,
+            ),
+        )
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 3_000L,
+                eventType = LogEventType.IGNORED,
+                ignoreReason = "Ignored: Known Google Contact",
+                messagePreview = "MMS message",
+                messageSource = MessageSource.MMS,
+            ),
+        )
+
+        val entries = detectionLogDao.getRecent().associateBy { it.timestamp }
+
+        assertEquals(MessageSource.SMS, entries[1_000L]?.messageSource)
+        assertEquals(MessageSource.RCS, entries[2_000L]?.messageSource)
+        assertEquals(MessageSource.MMS, entries[3_000L]?.messageSource)
+    }
+
+    @Test
+    fun detectionLog_defaultsMessageSourceToSms() = runBlocking {
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 1_000L,
+                eventType = LogEventType.DETECTION,
+                matchedPattern = "stop2stop",
+                replyStatus = "Reply sent: stop",
+                messagePreview = "default message",
+            ),
+        )
+
+        val retrieved = detectionLogDao.getRecent().single()
+
+        assertEquals(MessageSource.SMS, retrieved.messageSource)
     }
 
     // ---------------------------------------------------------------------

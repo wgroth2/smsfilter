@@ -66,6 +66,22 @@ enum class LogEventType {
 }
 
 /**
+ * The messaging protocol or transport medium an incoming message arrived on.
+ *
+ * Persisted by name through `RoomConverters`.
+ */
+enum class MessageSource {
+    /** Standard cellular Short Message Service. */
+    SMS,
+
+    /** Rich Communication Services chat message (via Google / Samsung Messages). */
+    RCS,
+
+    /** Multimedia Messaging Service. */
+    MMS,
+}
+
+/**
  * One entry in the activity and detection log.
  *
  * A single table backs detections, ignored events, and unmatched messages, discriminated by
@@ -86,6 +102,7 @@ enum class LogEventType {
  * @property messagePreview A truncated excerpt of the message body.
  * @property senderAddress The originating phone number, short code, or alphanumeric sender address;
  *   `null` for legacy rows or when omitted.
+ * @property messageSource The origin or transport medium of the message (SMS, RCS, MMS).
  */
 @Entity(
     tableName = DetectionLogEntity.TABLE_NAME,
@@ -116,6 +133,9 @@ data class DetectionLogEntity(
 
     @ColumnInfo(name = "sender_address")
     val senderAddress: String? = null,
+
+    @ColumnInfo(name = "message_source", defaultValue = "'SMS'")
+    val messageSource: MessageSource = MessageSource.SMS,
 ) {
     companion object {
         /** Room table name for log entries. */

@@ -165,9 +165,10 @@ messages, and non-matching messages).
 **Not Matched** entries indicate messages received from unknown senders that did not match
 any opt-out pattern.
 
-Each log entry displays the timestamp, the sender's phone number or short code (when available),
-and a truncated preview of the message body. Tapping the sender chip in any log row immediately
-opens that conversation thread in your default messaging app.
+Each log entry displays the timestamp, a message type indicator badge (`SMS`, `RCS`, or `MMS`)
+denoting the transport protocol over which the message arrived, the sender's phone number
+or short code (when available), and a truncated preview of the message body. Tapping the sender
+chip in any log row immediately opens that conversation thread in your default messaging app.
 
 Cooldown records continue to store a one-way hash of the sender rather than the number itself.
 

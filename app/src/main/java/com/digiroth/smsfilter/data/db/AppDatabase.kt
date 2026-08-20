@@ -67,7 +67,7 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
         DetectionLogEntity::class,
         AutoReplyCooldownEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -114,6 +114,16 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE detection_log ADD COLUMN sender_address TEXT")
+            }
+        }
+
+        /**
+         * Migrates the database from version 2 to version 3 by adding the `message_source`
+         * column with a default value of `'SMS'` to the detection log table.
+         */
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE ${DetectionLogEntity.TABLE_NAME} ADD COLUMN message_source TEXT DEFAULT 'SMS'")
             }
         }
 

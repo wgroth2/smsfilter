@@ -48,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -61,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.digiroth.smsfilter.R
 import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
 import com.digiroth.smsfilter.data.db.entity.LogEventType
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import java.text.DateFormat
 import java.util.Date
 
@@ -71,8 +73,8 @@ private const val TAG: String = "DetectionLogScreen"
  * The activity and detection log.
  *
  * Displays chronologically ordered log entries from [DetectionLogEntity]. Each entry shows
- * the timestamp, optional sender address chip (which can be tapped to open the messaging app),
- * event-specific outcome/reason, and the message preview.
+ * the timestamp, message source designator badge, optional sender address chip (which can be tapped
+ * to open the messaging app), event-specific outcome/reason, and the message preview.
  *
  * @param onNavigateBack Returns to Settings.
  * @param viewModel State holder, supplied by Hilt.
@@ -158,6 +160,38 @@ fun openConversation(context: Context, senderAddress: String): Unit {
     }
 }
 
+/**
+ * Renders a pill badge indicating the origin message source ([MessageSource.SMS], [MessageSource.RCS],
+ * or [MessageSource.MMS]).
+ *
+ * @param source The messaging protocol to display.
+ * @param modifier Optional layout modifier.
+ */
+@Composable
+private fun MessageSourceBadge(
+    source: MessageSource,
+    modifier: Modifier = Modifier,
+) {
+    val (containerColor, contentColor) = when (source) {
+        MessageSource.RCS -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        MessageSource.SMS -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        MessageSource.MMS -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraSmall,
+        color = containerColor,
+        contentColor = contentColor,
+    ) {
+        Text(
+            text = source.name,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
 @Composable
 private fun LogRow(entry: DetectionLogEntity) {
     val context = LocalContext.current
@@ -168,11 +202,17 @@ private fun LogRow(entry: DetectionLogEntity) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = formatTimestamp(entry.timestamp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = formatTimestamp(entry.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    MessageSourceBadge(source = entry.messageSource)
+                }
                 entry.senderAddress?.takeIf(String::isNotBlank)?.let { sender ->
                     SuggestionChip(
                         onClick = { openConversation(context, sender) },

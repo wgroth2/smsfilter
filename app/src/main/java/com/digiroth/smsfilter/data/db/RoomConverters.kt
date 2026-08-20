@@ -31,10 +31,13 @@ package com.digiroth.smsfilter.data.db
 import androidx.room.TypeConverter
 import com.digiroth.smsfilter.data.db.entity.LogEventType
 import com.digiroth.smsfilter.data.db.entity.MatchMode
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.data.db.entity.ReplyType
 
 /**
  * Room type converters for the enums stored in this database.
+ *
+ * Persists [ReplyType], [MatchMode], [LogEventType], and [MessageSource].
  *
  * Every enum is persisted as its `name` string rather than its ordinal, so that reordering
  * or inserting enum constants can never silently reinterpret existing rows. The seeding SQL
@@ -126,4 +129,19 @@ class RoomConverters {
      */
     @TypeConverter
     fun toLogEventType(value: String?): LogEventType? = value?.let(LogEventType::valueOf)
+
+    /**
+     * @param value The [MessageSource] to persist, or `null`.
+     * @return The enum's `name`, or `null`.
+     */
+    @TypeConverter
+    fun fromMessageSource(value: MessageSource?): String? = value?.name
+
+    /**
+     * @param value A persisted [MessageSource] name, or `null`.
+     * @return The matching [MessageSource], or [MessageSource.SMS] if the input was `null`.
+     * @throws IllegalArgumentException if the stored string is not a known [MessageSource].
+     */
+    @TypeConverter
+    fun toMessageSource(value: String?): MessageSource? = value?.let(MessageSource::valueOf) ?: MessageSource.SMS
 }

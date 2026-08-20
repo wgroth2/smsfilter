@@ -40,6 +40,7 @@ import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.digiroth.smsfilter.R
 import com.digiroth.smsfilter.SmsFilterApplication
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.platform.SmsSender
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -88,6 +89,7 @@ class SmsLookupWorker @AssistedInject constructor(
                 messageBody = body,
                 receivedAtMillis = if (receivedAt > 0L) receivedAt else System.currentTimeMillis(),
                 subscriptionId = subscriptionId,
+                messageSource = MessageSource.SMS,
             )
             Log.d(TAG, "Processing outcome: ${outcome::class.simpleName} (sub id $subscriptionId)")
             Result.success()

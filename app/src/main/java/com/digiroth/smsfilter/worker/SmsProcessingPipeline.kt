@@ -35,6 +35,7 @@ import com.digiroth.smsfilter.data.db.dao.StopListDao
 import com.digiroth.smsfilter.data.db.entity.AutoReplyCooldownEntity
 import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
 import com.digiroth.smsfilter.data.db.entity.LogEventType
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.data.repository.ContactLookupCache
 import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
 import com.digiroth.smsfilter.data.repository.ContactSource
@@ -177,6 +178,7 @@ class SmsProcessingPipeline @Inject constructor(
      *   subscription — the behaviour of every single-SIM device.
      * @param directReplyKey Ephemeral direct reply identifier if the message arrived via RCS
      *   notification, or `null` for normal SMS.
+     * @param messageSource The message transport type (e.g. SMS, RCS, MMS).
      * @return The decision reached, including the fate of any auto-reply.
      */
     suspend fun process(
@@ -185,6 +187,7 @@ class SmsProcessingPipeline @Inject constructor(
         receivedAtMillis: Long,
         subscriptionId: Int = SmsSender.UNKNOWN_SUBSCRIPTION_ID,
         directReplyKey: String? = null,
+        messageSource: MessageSource = MessageSource.SMS,
     ): ProcessingOutcome {
         // Step 0 — onboarding gate. Must precede everything: the receiver starts firing as soon as
         // RECEIVE_SMS is granted in wizard step 2, before the user has seen a settings screen or
@@ -214,6 +217,7 @@ class SmsProcessingPipeline @Inject constructor(
                 reason = "Ignored: Matched Stop List word '${matched.keyword}'",
                 body = messageBody,
                 sender = senderAddress,
+                messageSource = messageSource,
             )
             return ProcessingOutcome.Ignored(IgnoreReason.STOP_LIST, detail = matched.keyword)
         }
@@ -223,13 +227,25 @@ class SmsProcessingPipeline @Inject constructor(
         // Steps 3-4 — is this a known contact? A live cache entry short-circuits both lookups,
         // which is the latency win the cache exists for.
         if (contactLookupCache.isKnownContact(sender.primaryLookupValue)) {
-            logIgnored(receivedAtMillis, "Ignored: Known contact (cached)", messageBody, senderAddress)
+            logIgnored(
+                timestamp = receivedAtMillis,
+                reason = "Ignored: Known contact (cached)",
+                body = messageBody,
+                sender = senderAddress,
+                messageSource = messageSource,
+            )
             return ProcessingOutcome.Ignored(IgnoreReason.KNOWN_GOOGLE_CONTACT, detail = "cached")
         }
 
         if (contactSource.isKnownContact(sender.primaryLookupValue) == ContactLookupOutcome.Found) {
             contactLookupCache.markKnownContact(sender.primaryLookupValue)
-            logIgnored(receivedAtMillis, "Ignored: Known Google Contact", messageBody, senderAddress)
+            logIgnored(
+                timestamp = receivedAtMillis,
+                reason = "Ignored: Known Google Contact",
+                body = messageBody,
+                sender = senderAddress,
+                messageSource = messageSource,
+            )
             return ProcessingOutcome.Ignored(IgnoreReason.KNOWN_GOOGLE_CONTACT)
         }
 
@@ -239,7 +255,13 @@ class SmsProcessingPipeline @Inject constructor(
             // working whenever HubSpot is unreachable.
             if (hubSpotRepository.isKnownContact(sender.e164, sender.digits) == ContactLookupOutcome.Found) {
                 contactLookupCache.markKnownContact(sender.primaryLookupValue)
-                logIgnored(receivedAtMillis, "Ignored: Known HubSpot Contact", messageBody, senderAddress)
+                logIgnored(
+                    timestamp = receivedAtMillis,
+                    reason = "Ignored: Known HubSpot Contact",
+                    body = messageBody,
+                    sender = senderAddress,
+                    messageSource = messageSource,
+                )
                 return ProcessingOutcome.Ignored(IgnoreReason.KNOWN_HUBSPOT_CONTACT)
             }
         }
@@ -251,7 +273,12 @@ class SmsProcessingPipeline @Inject constructor(
                 // examined. Returning silently here used to leave no evidence whatsoever, which
                 // made a correctly-processed message indistinguishable from a broadcast the app
                 // never got — the app looked broken precisely when it was working.
-                logNoMatch(timestamp = receivedAtMillis, body = messageBody, sender = senderAddress)
+                logNoMatch(
+                    timestamp = receivedAtMillis,
+                    body = messageBody,
+                    sender = senderAddress,
+                    messageSource = messageSource,
+                )
                 return ProcessingOutcome.NoOptOutDetected
             }
 
@@ -284,6 +311,7 @@ class SmsProcessingPipeline @Inject constructor(
                 replyStatus = describe(disposition, detection),
                 messagePreview = preview(messageBody),
                 senderAddress = sender.rawAddress,
+                messageSource = messageSource,
             ),
         )
 
@@ -347,6 +375,7 @@ class SmsProcessingPipeline @Inject constructor(
         reason: String,
         body: String,
         sender: String? = null,
+        messageSource: MessageSource = MessageSource.SMS,
     ) {
         detectionLogDao.insert(
             DetectionLogEntity(
@@ -355,6 +384,7 @@ class SmsProcessingPipeline @Inject constructor(
                 ignoreReason = reason,
                 messagePreview = preview(body),
                 senderAddress = sender,
+                messageSource = messageSource,
             ),
         )
     }
@@ -363,16 +393,18 @@ class SmsProcessingPipeline @Inject constructor(
      * Records that a message reached detection and matched nothing.
      *
      * There is no pattern, no reply and no ignore reason to describe, so those columns stay `null`;
-     * the timestamp, preview, and sender address are the point of the row.
+     * the timestamp, preview, sender address, and message source are the point of the row.
      *
      * @param timestamp When the message arrived, in epoch milliseconds.
      * @param body The message body, truncated by [preview] before it is stored.
      * @param sender The originating sender address.
+     * @param messageSource The message transport type.
      */
     private suspend fun logNoMatch(
         timestamp: Long,
         body: String,
         sender: String? = null,
+        messageSource: MessageSource = MessageSource.SMS,
     ) {
         detectionLogDao.insert(
             DetectionLogEntity(
@@ -380,6 +412,7 @@ class SmsProcessingPipeline @Inject constructor(
                 eventType = LogEventType.NO_MATCH,
                 messagePreview = preview(body),
                 senderAddress = sender,
+                messageSource = messageSource,
             ),
         )
     }

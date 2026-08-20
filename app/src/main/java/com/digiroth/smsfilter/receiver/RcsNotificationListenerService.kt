@@ -33,6 +33,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.platform.AndroidDirectReplySender
 import com.digiroth.smsfilter.worker.SmsProcessingPipeline
 import dagger.hilt.android.AndroidEntryPoint
@@ -103,6 +104,7 @@ class RcsNotificationListenerService : NotificationListenerService() {
                     messageBody = body,
                     receivedAtMillis = sbn.postTime,
                     directReplyKey = replyKey,
+                    messageSource = MessageSource.RCS,
                 )
                 Log.d(TAG, "Processed notification message with outcome: ${outcome::class.simpleName}")
             }.onFailure { error ->

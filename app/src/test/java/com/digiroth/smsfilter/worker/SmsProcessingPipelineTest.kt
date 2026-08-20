@@ -32,6 +32,7 @@ import com.digiroth.smsfilter.data.db.entity.AutoReplyCooldownEntity
 import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
 import com.digiroth.smsfilter.data.db.entity.LogEventType
 import com.digiroth.smsfilter.data.db.entity.MatchMode
+import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
 import com.digiroth.smsfilter.data.db.entity.ReplyType
 import com.digiroth.smsfilter.data.db.entity.StopListEntity
@@ -769,6 +770,88 @@ class SmsProcessingPipelineTest {
         val outcome2 = pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, newTime)
         assertEquals(ReplyDisposition.SENT, (outcome2 as ProcessingOutcome.Detected).disposition)
         assertEquals(2, fakes.smsSender.sent.size)
+    }
+
+    // ---------------------------------------------------------------------
+    // MessageSource designator logging
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `detection log records SMS message source by default`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(MessageSource.SMS, row.messageSource)
+    }
+
+    @Test
+    fun `detection log records explicit SMS message source`() = runTest {
+        pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            messageSource = MessageSource.SMS,
+        )
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(MessageSource.SMS, row.messageSource)
+    }
+
+    @Test
+    fun `detection log records RCS message source on detection`() = runTest {
+        pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "reply-123",
+            messageSource = MessageSource.RCS,
+        )
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(MessageSource.RCS, row.messageSource)
+    }
+
+    @Test
+    fun `detection log records RCS message source on ignored message`() = runTest {
+        fakes.contactSource.outcome = ContactLookupOutcome.Found
+
+        pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            messageSource = MessageSource.RCS,
+        )
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.IGNORED, row.eventType)
+        assertEquals(MessageSource.RCS, row.messageSource)
+    }
+
+    @Test
+    fun `detection log records RCS message source on no-match event`() = runTest {
+        pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = NO_MATCH_BODY,
+            receivedAtMillis = now,
+            messageSource = MessageSource.RCS,
+        )
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.NO_MATCH, row.eventType)
+        assertEquals(MessageSource.RCS, row.messageSource)
+    }
+
+    @Test
+    fun `detection log records MMS message source`() = runTest {
+        pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            messageSource = MessageSource.MMS,
+        )
+
+        val row = fakes.logDao.inserted.single()
+        assertEquals(MessageSource.MMS, row.messageSource)
     }
 
     private fun snapshot(
