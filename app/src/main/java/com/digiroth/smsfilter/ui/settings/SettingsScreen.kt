@@ -93,6 +93,7 @@ import com.digiroth.smsfilter.data.db.entity.MatchMode
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
 import com.digiroth.smsfilter.data.db.entity.ReplyType
 import com.digiroth.smsfilter.data.db.entity.StopListEntity
+import com.digiroth.smsfilter.util.BuildInfo
 import android.provider.Settings as AndroidSettings
 
 /**
@@ -205,6 +206,14 @@ fun SettingsScreen(
             OutlinedButton(onClick = onNavigateToLog, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.settings_open_log))
             }
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = BuildInfo.formatBuildTime(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -23,6 +23,8 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        buildConfigField("long", "BUILD_TIME_EPOCH_MILLIS", "${System.currentTimeMillis()}L")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
