@@ -119,11 +119,11 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * Migrates the database from version 2 to version 3 by adding the `message_source`
-         * column with a default value of `'SMS'` to the detection log table.
+         * column with a non-null default value of `'SMS'` to the detection log table.
          */
         val MIGRATION_2_3: Migration = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE ${DetectionLogEntity.TABLE_NAME} ADD COLUMN message_source TEXT DEFAULT 'SMS'")
+                db.execSQL("ALTER TABLE ${DetectionLogEntity.TABLE_NAME} ADD COLUMN message_source TEXT NOT NULL DEFAULT 'SMS'")
             }
         }
 

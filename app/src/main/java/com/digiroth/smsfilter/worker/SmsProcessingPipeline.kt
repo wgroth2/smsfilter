@@ -168,14 +168,14 @@ class SmsProcessingPipeline @Inject constructor(
     /**
      * Processes one fully reconstructed incoming message.
      *
-     * @param senderAddress The originating address exactly as received. Multi-part messages share
+     * @param senderAddress The originating address exactly as received. Multipart messages share
      *   one address, taken from the first segment.
      * @param messageBody The complete message body, with all segments already concatenated.
      * @param receivedAtMillis When the message arrived, in epoch milliseconds.
      * @param subscriptionId The SIM subscription the message was received on, passed through
      *   untouched so any reply leaves from the same number. Defaults to
      *   [SmsSender.UNKNOWN_SUBSCRIPTION_ID], which lets the sender pick the default SMS
-     *   subscription — the behaviour of every single-SIM device.
+     *   subscription — the behavior of every single-SIM device.
      * @param directReplyKey Ephemeral direct reply identifier if the message arrived via RCS
      *   notification, or `null` for normal SMS.
      * @param messageSource The message transport type (e.g. SMS, RCS, MMS).
@@ -338,7 +338,7 @@ class SmsProcessingPipeline @Inject constructor(
         // Gate 1 — master switch. Detection-only mode, and the kill switch if a pattern misfires.
         if (!snapshot.autoReplyEnabled) return ReplyDisposition.SKIPPED_DRY_RUN
 
-        // Gate 2 — repliable sender. An alphanumeric ID cannot receive an SMS at all.
+        // Gate 2 — reliable sender. An alphanumeric ID cannot receive an SMS at all.
         if (!sender.isRepliable) return ReplyDisposition.SKIPPED_ALPHANUMERIC
 
         // Gate 3 — cooldown. Prevents an SMS ping-pong loop with an automated responder whose
