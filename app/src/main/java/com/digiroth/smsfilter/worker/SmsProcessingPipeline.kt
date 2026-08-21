@@ -82,6 +82,9 @@ enum class ReplyDisposition {
     /** Auto-reply is switched off; the app is in detection-only (dry run) mode. */
     SKIPPED_DRY_RUN,
 
+    /** The message was received in a group conversation thread; replies are suppressed. */
+    SKIPPED_GROUP_THREAD,
+
     /** The sender is an alphanumeric ID and cannot receive an SMS at all. */
     SKIPPED_ALPHANUMERIC,
 
@@ -134,9 +137,9 @@ sealed interface ProcessingOutcome {
  *
  * This class is deliberately free of every `android.*` import. All platform interaction — sending
  * an SMS, posting a notification, playing a sound, reading the clock — is reached through injected
- * interfaces, which is what allows the whole pipeline, including the three auto-reply safety
- * gates, to be exercised in fast JVM unit tests. `SmsLookupWorker` is a thin adapter over this
- * class and contains no decisions of its own.
+ * interfaces, which is what allows the whole pipeline, including the auto-reply safety gates, to
+ * be exercised in fast JVM unit tests. `SmsLookupWorker` is a thin adapter over this class and
+ * contains no decisions of its own.
  *
  * The step order below is fixed by the specification and is load-bearing: the stop-list check runs
  * before any contact lookup so an ignored message costs no network calls, and the onboarding gate
@@ -179,6 +182,7 @@ class SmsProcessingPipeline @Inject constructor(
      * @param directReplyKey Ephemeral direct reply identifier if the message arrived via RCS
      *   notification, or `null` for normal SMS.
      * @param messageSource The message transport type (e.g. SMS, RCS, MMS).
+     * @param isGroupThread Whether the message originated from a group conversation thread.
      * @return The decision reached, including the fate of any auto-reply.
      */
     suspend fun process(
@@ -188,6 +192,7 @@ class SmsProcessingPipeline @Inject constructor(
         subscriptionId: Int = SmsSender.UNKNOWN_SUBSCRIPTION_ID,
         directReplyKey: String? = null,
         messageSource: MessageSource = MessageSource.SMS,
+        isGroupThread: Boolean = false,
     ): ProcessingOutcome {
         // Step 0 — onboarding gate. Must precede everything: the receiver starts firing as soon as
         // RECEIVE_SMS is granted in wizard step 2, before the user has seen a settings screen or
@@ -288,17 +293,18 @@ class SmsProcessingPipeline @Inject constructor(
             detectionNotifier.notifyOptOutDetected(preview(messageBody))
         }
 
-        // Step 6 — the three auto-reply gates, in order.
+        // Step 6 — the auto-reply gates, in order.
         val disposition = resolveReply(
             snapshot = snapshot,
             sender = sender,
             detection = detection,
             subscriptionId = subscriptionId,
             directReplyKey = directReplyKey,
+            isGroupThread = isGroupThread,
         )
 
         // Step 8 — sound, only for a reply that actually went out.
-        if (disposition == ReplyDisposition.SENT && snapshot.beepOnOptOut) {
+        if ((disposition == ReplyDisposition.SENT) && snapshot.beepOnOptOut) {
             alertSoundPlayer.playOptOutAlert(snapshot.soundFileUri)
         }
 
@@ -319,13 +325,14 @@ class SmsProcessingPipeline @Inject constructor(
     }
 
     /**
-     * Applies the three auto-reply gates and, if all pass, sends the reply and records the cooldown.
+     * Applies the auto-reply gates and, if all pass, sends the reply and records the cooldown.
      *
      * @param snapshot The settings this message is being judged against.
      * @param sender The classified sender.
      * @param detection The pattern that matched.
      * @param subscriptionId The receiving SIM subscription, forwarded to the sender unchanged.
      * @param directReplyKey Ephemeral direct reply identifier if replying via RCS notification.
+     * @param isGroupThread Whether the message was received in a group conversation.
      * @return What happened to the reply.
      */
     private suspend fun resolveReply(
@@ -334,9 +341,13 @@ class SmsProcessingPipeline @Inject constructor(
         detection: OptOutResult,
         subscriptionId: Int,
         directReplyKey: String?,
+        isGroupThread: Boolean,
     ): ReplyDisposition {
         // Gate 1 — master switch. Detection-only mode, and the kill switch if a pattern misfires.
         if (!snapshot.autoReplyEnabled) return ReplyDisposition.SKIPPED_DRY_RUN
+
+        // Group thread protection gate — auto-replies must not be broadcast to group conversations.
+        if (isGroupThread) return ReplyDisposition.SKIPPED_GROUP_THREAD
 
         // Gate 2 — reliable sender. An alphanumeric ID cannot receive an SMS at all.
         if (!sender.isRepliable) return ReplyDisposition.SKIPPED_ALPHANUMERIC
@@ -436,6 +447,7 @@ class SmsProcessingPipeline @Inject constructor(
         when (disposition) {
             ReplyDisposition.SENT -> "Reply sent: ${detection.replyKeyword}"
             ReplyDisposition.SKIPPED_DRY_RUN -> "Reply skipped: dry run"
+            ReplyDisposition.SKIPPED_GROUP_THREAD -> "Skipped: Group thread"
             ReplyDisposition.SKIPPED_ALPHANUMERIC -> "Reply skipped: alphanumeric sender"
             ReplyDisposition.SKIPPED_COOLDOWN -> "Reply skipped: cooldown"
             ReplyDisposition.SEND_FAILED -> "Reply skipped: send failed"

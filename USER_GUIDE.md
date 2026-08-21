@@ -123,13 +123,16 @@ ever sent.
 Matching is case-insensitive. Trailing blank lines and Unicode space separators such as
 the non-breaking space are handled, so a message ending in `"STOP "` still matches.
 
-### The three auto-reply safety gates
+### The auto-reply safety gates
 
 1. **Master switch.** Turning Auto-Reply off puts the app in detect-and-notify-only mode.
    This is also the kill switch if a pattern starts misfiring.
-2. **Repliable sender.** Alphanumeric sender IDs such as `VERIZON` cannot receive an SMS,
+2. **Group conversation protection.** Messages originating from group conversation threads
+   (MMS or RCS group chats) are detected and notified, but automated replies are suppressed
+   (`Skipped: Group thread`) to avoid broadcasting automated opt-out responses to multiple participants.
+3. **Repliable sender.** Alphanumeric sender IDs such as `VERIZON` cannot receive an SMS,
    so no reply is attempted.
-3. **Cooldown.** At most one reply per sender per 24 hours. This prevents a reply loop
+4. **Cooldown.** At most one reply per sender per 24 hours. This prevents a reply loop
    where an automated responder's confirmation text itself trips a pattern.
 
 The notification fires *before* these gates, so you are told an opt-out was detected even
@@ -160,7 +163,7 @@ messages, and non-matching messages).
 
 **Detection** entries name the pattern that matched and the fate of the reply:
 `Reply sent: stop`, `Reply skipped: cooldown`, `Reply skipped: dry run`,
-`Reply skipped: alphanumeric sender`, or `Reply skipped: send failed`.
+`Skipped: Group thread`, `Reply skipped: alphanumeric sender`, or `Reply skipped: send failed`.
 
 **Not Matched** entries indicate messages received from unknown senders that did not match
 any opt-out pattern.

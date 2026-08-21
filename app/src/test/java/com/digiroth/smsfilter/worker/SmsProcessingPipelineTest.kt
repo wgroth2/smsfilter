@@ -854,6 +854,91 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.MMS, row.messageSource)
     }
 
+    @Test
+    fun `detection in group thread logs detection and skips auto reply with SKIPPED_GROUP_THREAD`() = runTest {
+        val outcome = pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            isGroupThread = true,
+            messageSource = MessageSource.MMS,
+        )
+
+        assertEquals(
+            ReplyDisposition.SKIPPED_GROUP_THREAD,
+            (outcome as ProcessingOutcome.Detected).disposition,
+        )
+        assertTrue("group thread messages must not receive auto-replies", fakes.smsSender.sent.isEmpty())
+        assertTrue("no direct reply sent for group thread", fakes.directReplySender.sent.isEmpty())
+        assertEquals(1, fakes.notifier.previews.size)
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.DETECTION, row.eventType)
+        assertEquals("Skipped: Group thread", row.replyStatus)
+        assertEquals(MessageSource.MMS, row.messageSource)
+        assertTrue("no cooldown row for a suppressed reply", fakes.cooldownDao.rows.isEmpty())
+    }
+
+    @Test
+    fun `1 to 1 MMS message detection sends reply and records MessageSource MMS`() = runTest {
+        val outcome = pipeline().process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            isGroupThread = false,
+            messageSource = MessageSource.MMS,
+        )
+
+        assertEquals(
+            ReplyDisposition.SENT,
+            (outcome as ProcessingOutcome.Detected).disposition,
+        )
+        assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
+        val row = fakes.logDao.inserted.single()
+        assertEquals(LogEventType.DETECTION, row.eventType)
+        assertEquals("Reply sent: stop", row.replyStatus)
+        assertEquals(MessageSource.MMS, row.messageSource)
+    }
+
+    @Test
+    fun `MMS ignore and no-match preserve MessageSource MMS`() = runTest {
+        val p1 = pipeline()
+        fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
+        val stopOutcome = p1.process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = "Big promo inside!\nSTOP",
+            receivedAtMillis = now,
+            messageSource = MessageSource.MMS,
+        )
+        assertEquals(ProcessingOutcome.Ignored(IgnoreReason.STOP_LIST, "promo"), stopOutcome)
+        assertEquals(MessageSource.MMS, fakes.logDao.inserted.last().messageSource)
+        assertEquals(LogEventType.IGNORED, fakes.logDao.inserted.last().eventType)
+
+        val p2 = pipeline()
+        fakes.stopListDao.keywords = emptyList()
+        fakes.contactSource.outcome = ContactLookupOutcome.Found
+        val contactOutcome = p2.process(
+            senderAddress = UNKNOWN_NUMBER,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now + 1_000L,
+            messageSource = MessageSource.MMS,
+        )
+        assertEquals(ProcessingOutcome.Ignored(IgnoreReason.KNOWN_GOOGLE_CONTACT), contactOutcome)
+        assertEquals(MessageSource.MMS, fakes.logDao.inserted.last().messageSource)
+        assertEquals(LogEventType.IGNORED, fakes.logDao.inserted.last().eventType)
+
+        val p3 = pipeline()
+        fakes.contactSource.outcome = ContactLookupOutcome.NotFound
+        val noMatchOutcome = p3.process(
+            senderAddress = "+16505559999",
+            messageBody = NO_MATCH_BODY,
+            receivedAtMillis = now + 2_000L,
+            messageSource = MessageSource.MMS,
+        )
+        assertEquals(ProcessingOutcome.NoOptOutDetected, noMatchOutcome)
+        assertEquals(MessageSource.MMS, fakes.logDao.inserted.last().messageSource)
+        assertEquals(LogEventType.NO_MATCH, fakes.logDao.inserted.last().eventType)
+    }
+
     private fun snapshot(
         firstRunComplete: Boolean = true,
         autoReplyEnabled: Boolean = true,
