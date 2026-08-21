@@ -49,7 +49,7 @@ graph TD
 Every detected opt-out passes four sequential negative gates:
 1. **Master Switch Gate**: Bypasses sending if auto-reply is disabled (detection-only dry run).
 2. **Group Thread Protection Gate**: If the message arrives in a group conversation, returns `ReplyDisposition.SKIPPED_GROUP_THREAD` to prevent broadcasting "STOP" to all participants while still notifying and logging.
-3. **Repliable Sender Gate**: Skips alphanumeric IDs (e.g. `VERIZON`) that cannot receive SMS.
+3. **Reliable Sender Gate**: Skips alphanumeric IDs (e.g. `VERIZON`) that cannot receive SMS.
 4. **24-Hour Cooldown Gate**: Stored as SHA-256 hashes (`AutoReplyCooldownEntity`) to prevent reply loops with automated bots.
 
 ### 5. Activity Log & Interactive UI

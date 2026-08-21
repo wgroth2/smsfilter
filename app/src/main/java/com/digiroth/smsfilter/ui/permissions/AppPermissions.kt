@@ -49,6 +49,12 @@ object AppPermissions {
     /** Optional: without it every sender is treated as unknown. */
     const val READ_CONTACTS: String = Manifest.permission.READ_CONTACTS
 
+    /** Required to receive MMS notifications and broadcasts. */
+    const val RECEIVE_MMS: String = Manifest.permission.RECEIVE_MMS
+
+    /** Required to read messages from the telephony content provider for MMS text resolution. */
+    const val READ_SMS: String = Manifest.permission.READ_SMS
+
     /** Required from API 33 to surface detections. */
     const val POST_NOTIFICATIONS: String = "android.permission.POST_NOTIFICATIONS"
 

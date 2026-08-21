@@ -37,6 +37,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.platform.AndroidDirectReplySender
+import com.digiroth.smsfilter.platform.MmsTextResolver
 import com.digiroth.smsfilter.worker.SmsProcessingPipeline
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -77,6 +78,10 @@ class RcsNotificationListenerService : NotificationListenerService() {
     @Inject
     lateinit var directReplySender: AndroidDirectReplySender
 
+    /** Telephony MMS storage resolver for recovering full message bodies. */
+    @Inject
+    lateinit var mmsTextResolver: MmsTextResolver
+
     /** Coroutine scope bound to the service lifecycle for asynchronous message processing. */
     private val serviceScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -113,13 +118,22 @@ class RcsNotificationListenerService : NotificationListenerService() {
         }
 
         val sender = messageData.sender
-        val body = messageData.body
+        var body = messageData.body
         if (sender.isBlank() || body.isBlank()) {
             return
         }
 
         if (body.endsWith("…") || body.endsWith("...")) {
             Log.w(TAG, "Notification message body may be truncated")
+        }
+
+        val hasAttachment = hasNotificationAttachment(notification)
+        if ((messageData.messageSource == MessageSource.MMS) || body.startsWith("Image") || hasAttachment) {
+            val resolvedFullText = mmsTextResolver.resolveFullMmsText(body)
+            if ((resolvedFullText != null) && ((resolvedFullText.length > body.length) || body.startsWith("Image"))) {
+                body = resolvedFullText
+                Log.d(TAG, "Resolved full MMS body from telephony provider (${body.length} chars)")
+            }
         }
 
         val replyKey = UUID.randomUUID().toString()
@@ -214,10 +228,7 @@ class RcsNotificationListenerService : NotificationListenerService() {
 
         val isGroupConversation = messagingStyle?.isGroupConversation
             ?: notification.extras.getBoolean(EXTRA_IS_GROUP_CONVERSATION, false)
-        val hasAttachment = (messagingStyle?.messages?.any { (it.dataMimeType != null) || (it.dataUri != null) } == true) ||
-            (rawMessages?.any { (it as? Bundle)?.getString("data_mime_type") != null } == true) ||
-            notification.extras.containsKey(Notification.EXTRA_PICTURE) ||
-            (notification.extras.getString(Notification.EXTRA_TEMPLATE)?.contains("BigPictureStyle") == true)
+        val hasAttachment = hasNotificationAttachment(notification)
 
         val messageSource = if (isGroupConversation || hasAttachment) {
             MessageSource.MMS
@@ -231,6 +242,24 @@ class RcsNotificationListenerService : NotificationListenerService() {
             messageSource = messageSource,
             isGroupThread = isGroupConversation,
         )
+    }
+
+    /**
+     * Determines whether a notification contains media or attachment indicators.
+     *
+     * @param notification The notification to inspect.
+     * @return `true` if the notification references media, images, or non-text message parts.
+     */
+    @Suppress("DEPRECATION")
+    private fun hasNotificationAttachment(notification: Notification): Boolean {
+        val messagingStyle = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification)
+        val rawMessages: Array<Parcelable>? = notification.extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+            ?: notification.extras.getParcelableArray("android.messages")
+
+        return (messagingStyle?.messages?.any { (it.dataMimeType != null) || (it.dataUri != null) } == true) ||
+            (rawMessages?.any { (it as? Bundle)?.getString("data_mime_type") != null } == true) ||
+            notification.extras.containsKey(Notification.EXTRA_PICTURE) ||
+            (notification.extras.getString(Notification.EXTRA_TEMPLATE)?.contains("BigPictureStyle") == true)
     }
 
     companion object {
