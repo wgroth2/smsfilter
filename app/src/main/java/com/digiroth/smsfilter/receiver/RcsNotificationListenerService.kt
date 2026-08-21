@@ -29,6 +29,8 @@
 package com.digiroth.smsfilter.receiver
 
 import android.app.Notification
+import android.os.Bundle
+import android.os.Parcelable
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -144,19 +146,32 @@ class RcsNotificationListenerService : NotificationListenerService() {
     /**
      * Extracts message data, sender address, and transport classification (RCS vs MMS) from a notification.
      *
+     * Examines both AndroidX [NotificationCompat.MessagingStyle] and native [Notification.EXTRA_MESSAGES]
+     * bundles to avoid truncation from platform version or styling differences.
+     *
      * @param notification The posted [Notification] instance to parse.
      * @return The extracted [NotificationMessageData], or `null` if the notification lacks usable text or sender.
      */
+    @Suppress("DEPRECATION")
     private fun extractNotificationMessage(notification: Notification): NotificationMessageData? {
         val messagingStyle = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification)
-        val sender: String? = if ((messagingStyle != null) && messagingStyle.messages.isNotEmpty()) {
-            val latestMessage = messagingStyle.messages.lastOrNull()
-            val person = latestMessage?.person
-            val senderKey = person?.key?.removePrefix(TEL_PREFIX)
-            val senderName = person?.name?.toString()
-            val fallbackTitle = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-            (senderKey ?: senderName ?: fallbackTitle)?.trim()
-        } else {
+        val rawMessages: Array<Parcelable>? = notification.extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+            ?: notification.extras.getParcelableArray("android.messages")
+
+        val sender: String? = run {
+            val stylePerson = messagingStyle?.messages?.lastOrNull()?.person
+            val styleKey = stylePerson?.key?.removePrefix(TEL_PREFIX)
+            val styleName = stylePerson?.name?.toString()
+            if (!styleKey.isNullOrBlank() || !styleName.isNullOrBlank()) {
+                return@run (styleKey ?: styleName)?.trim()
+            }
+
+            val lastRawBundle = rawMessages?.lastOrNull() as? Bundle
+            val rawSender = lastRawBundle?.getCharSequence("sender")?.toString()?.trim()
+            if (!rawSender.isNullOrBlank()) {
+                return@run rawSender
+            }
+
             notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
         }
 
@@ -164,12 +179,24 @@ class RcsNotificationListenerService : NotificationListenerService() {
             return null
         }
 
-        val messagingMessagesText = messagingStyle?.messages
-            ?.mapNotNull { it.text?.toString()?.trim() }
-            ?.filter { it.isNotEmpty() }
-            ?.joinToString("\n")
-            ?.ifEmpty { null }
+        // Collect message text fragments across all notification structures
+        val messageFragments = mutableListOf<String>()
 
+        messagingStyle?.messages?.forEach { msg ->
+            msg.text?.toString()?.trim()?.takeIf(String::isNotEmpty)?.let {
+                if (it !in messageFragments) messageFragments.add(it)
+            }
+        }
+
+        rawMessages?.forEach { item ->
+            if (item is Bundle) {
+                item.getCharSequence("text")?.toString()?.trim()?.takeIf(String::isNotEmpty)?.let {
+                    if (it !in messageFragments) messageFragments.add(it)
+                }
+            }
+        }
+
+        val joinedFragments = messageFragments.joinToString("\n").ifEmpty { null }
         val bigText = notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()?.ifEmpty { null }
         val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()?.ifEmpty { null }
         val textLines = notification.extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
@@ -179,14 +206,16 @@ class RcsNotificationListenerService : NotificationListenerService() {
             ?.joinToString("\n")
             ?.ifEmpty { null }
 
-        val candidates = listOfNotNull(messagingMessagesText, bigText, text, textLines)
+        val candidates = listOfNotNull(joinedFragments, bigText, text, textLines)
         val body = candidates.maxByOrNull { it.length } ?: return null
         if (body.isBlank()) {
             return null
         }
 
-        val isGroupConversation = messagingStyle?.isGroupConversation ?: false
+        val isGroupConversation = messagingStyle?.isGroupConversation
+            ?: notification.extras.getBoolean(EXTRA_IS_GROUP_CONVERSATION, false)
         val hasAttachment = (messagingStyle?.messages?.any { (it.dataMimeType != null) || (it.dataUri != null) } == true) ||
+            (rawMessages?.any { (it as? Bundle)?.getString("data_mime_type") != null } == true) ||
             notification.extras.containsKey(Notification.EXTRA_PICTURE) ||
             (notification.extras.getString(Notification.EXTRA_TEMPLATE)?.contains("BigPictureStyle") == true)
 
@@ -216,5 +245,8 @@ class RcsNotificationListenerService : NotificationListenerService() {
 
         /** Prefix for URI-based telephone keys in person metadata. */
         private const val TEL_PREFIX: String = "tel:"
+
+        /** Notification extra key for group conversation flag. */
+        private const val EXTRA_IS_GROUP_CONVERSATION: String = "android.isGroupConversation"
     }
 }
