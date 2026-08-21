@@ -58,12 +58,18 @@ class OptOutDetectorTest {
         matchMode = matchMode,
     )
 
-    /** The same four patterns the database seeds on first creation. */
+    /** The default patterns the database seeds on first creation. */
     private val defaultPatterns: List<OptOutPatternEntity> = listOf(
         pattern("stop2stop", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("end2end", ReplyType.END, MatchMode.ANYWHERE),
         pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_EXACT),
         pattern("end", ReplyType.END, MatchMode.LAST_LINE_EXACT),
+        pattern("stop to cancel", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to opt-out", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to opt out", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to end", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to quit", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop=end", ReplyType.STOP, MatchMode.ANYWHERE),
     )
 
     // ---------------------------------------------------------------------
@@ -99,6 +105,60 @@ class OptOutDetectorTest {
         val body = "end2end\nSee the attached details"
 
         assertEquals("end2end", detector.detect(body, defaultPatterns)?.pattern)
+    }
+
+    @Test
+    fun `detects stop to cancel mid message`() {
+        val result = detector.detect("Flash sale! Text STOP to Cancel alerts", defaultPatterns)
+
+        assertEquals("stop to cancel", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    @Test
+    fun `detects stop to opt-out mid message`() {
+        val result = detector.detect("Weekly specials: Reply STOP to opt-out anytime", defaultPatterns)
+
+        assertEquals("stop to opt-out", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    @Test
+    fun `detects stop to opt out mid message`() {
+        val result = detector.detect("Promo info. Reply STOP to opt out", defaultPatterns)
+
+        assertEquals("stop to opt out", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    @Test
+    fun `detects stop to end mid message`() {
+        val result = detector.detect("STOP to end account texts", defaultPatterns)
+
+        assertEquals("stop to end", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    @Test
+    fun `detects stop to quit mid message`() {
+        val result = detector.detect("Updates: text STOP to quit promotions", defaultPatterns)
+
+        assertEquals("stop to quit", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    @Test
+    fun `detects stop=end mid message`() {
+        val result = detector.detect("Latest discounts. Text STOP=END to unsubscribe", defaultPatterns)
+
+        assertEquals("stop=end", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
     }
 
     // ---------------------------------------------------------------------

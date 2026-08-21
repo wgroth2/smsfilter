@@ -67,7 +67,7 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
         DetectionLogEntity::class,
         AutoReplyCooldownEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -93,18 +93,24 @@ abstract class AppDatabase : RoomDatabase() {
         const val DATABASE_NAME: String = "smsfilter.db"
 
         /**
-         * The four opt-out patterns seeded into a freshly created database.
+         * The default opt-out patterns seeded into a freshly created database.
          *
-         * `stop2stop` and `end2end` match anywhere because they are distinctive enough that a
-         * substring hit is unambiguous. Bare `stop` and `end` are last-line-exact only —
-         * matching them anywhere would fire on ordinary marketing copy such as
-         * "reply STOP to unsubscribe", producing a false positive on nearly every message.
+         * `stop2stop`, `end2end`, and common multi-word phrases match anywhere because they are
+         * distinctive enough that a substring hit is unambiguous. Bare `stop` and `end` are
+         * last-line-exact only — matching them anywhere would fire on ordinary marketing copy such
+         * as "reply STOP to unsubscribe", producing a false positive on nearly every message.
          */
         val DEFAULT_PATTERNS: List<OptOutPatternEntity> = listOf(
             OptOutPatternEntity(pattern = "stop2stop", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "end2end", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop", replyType = ReplyType.STOP, matchMode = MatchMode.LAST_LINE_EXACT),
             OptOutPatternEntity(pattern = "end", replyType = ReplyType.END, matchMode = MatchMode.LAST_LINE_EXACT),
+            OptOutPatternEntity(pattern = "stop to cancel", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to opt-out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to opt out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to quit", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop=end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
         )
 
         /**
@@ -124,6 +130,30 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_2_3: Migration = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE ${DetectionLogEntity.TABLE_NAME} ADD COLUMN message_source TEXT NOT NULL DEFAULT 'SMS'")
+            }
+        }
+
+        /**
+         * Migrates the database from version 3 to version 4 by inserting new default opt-out patterns
+         * into the opt-out patterns table if they do not already exist.
+         */
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val newPatterns = listOf(
+                    Triple("stop to cancel", "STOP", "ANYWHERE"),
+                    Triple("stop to opt-out", "STOP", "ANYWHERE"),
+                    Triple("stop to opt out", "STOP", "ANYWHERE"),
+                    Triple("stop to end", "STOP", "ANYWHERE"),
+                    Triple("stop to quit", "STOP", "ANYWHERE"),
+                    Triple("stop=end", "STOP", "ANYWHERE"),
+                )
+                newPatterns.forEach { (pattern, replyType, matchMode) ->
+                    db.execSQL(
+                        "INSERT OR IGNORE INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) " +
+                            "SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM ${OptOutPatternEntity.TABLE_NAME} WHERE pattern = ?)",
+                        arrayOf(pattern, replyType, matchMode, pattern),
+                    )
+                }
             }
         }
 

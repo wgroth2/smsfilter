@@ -379,6 +379,30 @@ class SmsProcessingPipelineTest {
     }
 
     @Test
+    fun `stop to cancel anywhere match replies stop`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, "Text STOP to Cancel", now)
+
+        assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
+        assertEquals("stop to cancel", fakes.logDao.inserted.single().matchedPattern)
+    }
+
+    @Test
+    fun `stop to opt-out anywhere match replies stop`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, "Reply STOP to opt-out", now)
+
+        assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
+        assertEquals("stop to opt-out", fakes.logDao.inserted.single().matchedPattern)
+    }
+
+    @Test
+    fun `stop to end anywhere match replies stop`() = runTest {
+        pipeline().process(UNKNOWN_NUMBER, "STOP to end account texts", now)
+
+        assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
+        assertEquals("stop to end", fakes.logDao.inserted.single().matchedPattern)
+    }
+
+    @Test
     fun `case 14 - short code receives the reply at its exact raw address`() = runTest {
         // The E.164 fake would return a bogus conversion if consulted; asserting the raw address
         // proves the reply was never addressed to a normalized form.

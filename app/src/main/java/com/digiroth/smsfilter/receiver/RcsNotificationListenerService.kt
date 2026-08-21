@@ -149,48 +149,58 @@ class RcsNotificationListenerService : NotificationListenerService() {
      */
     private fun extractNotificationMessage(notification: Notification): NotificationMessageData? {
         val messagingStyle = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification)
-        if ((messagingStyle != null) && messagingStyle.messages.isNotEmpty()) {
-            val isGroupConversation = messagingStyle.isGroupConversation
-            val hasAttachment = messagingStyle.messages.any { (it.dataMimeType != null) || (it.dataUri != null) } ||
-                notification.extras.containsKey(Notification.EXTRA_PICTURE) ||
-                (notification.extras.getString(Notification.EXTRA_TEMPLATE)?.contains("BigPictureStyle") == true)
-
-            val messageSource = if (isGroupConversation || hasAttachment) {
-                MessageSource.MMS
-            } else {
-                MessageSource.RCS
-            }
-
-            val latestMessage = messagingStyle.messages.lastOrNull() ?: return null
-            val body = latestMessage.text?.toString()?.trim() ?: return null
-            val person = latestMessage.person
+        val sender: String? = if ((messagingStyle != null) && messagingStyle.messages.isNotEmpty()) {
+            val latestMessage = messagingStyle.messages.lastOrNull()
+            val person = latestMessage?.person
             val senderKey = person?.key?.removePrefix(TEL_PREFIX)
             val senderName = person?.name?.toString()
             val fallbackTitle = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-            val sender = (senderKey ?: senderName ?: fallbackTitle)?.trim() ?: return null
-
-            return NotificationMessageData(
-                sender = sender,
-                body = body,
-                messageSource = messageSource,
-                isGroupThread = isGroupConversation,
-            )
+            (senderKey ?: senderName ?: fallbackTitle)?.trim()
+        } else {
+            notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
         }
 
-        val extras = notification.extras
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim() ?: return null
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()
-        val body = bigText ?: text ?: return null
-        val hasAttachment = extras.containsKey(Notification.EXTRA_PICTURE) ||
-            (extras.getString(Notification.EXTRA_TEMPLATE)?.contains("BigPictureStyle") == true)
-        val messageSource = if (hasAttachment) MessageSource.MMS else MessageSource.RCS
+        if (sender.isNullOrBlank()) {
+            return null
+        }
+
+        val messagingMessagesText = messagingStyle?.messages
+            ?.mapNotNull { it.text?.toString()?.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.joinToString("\n")
+            ?.ifEmpty { null }
+
+        val bigText = notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()?.ifEmpty { null }
+        val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()?.ifEmpty { null }
+        val textLines = notification.extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            ?.filterNotNull()
+            ?.map { it.toString().trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.joinToString("\n")
+            ?.ifEmpty { null }
+
+        val candidates = listOfNotNull(messagingMessagesText, bigText, text, textLines)
+        val body = candidates.maxByOrNull { it.length } ?: return null
+        if (body.isBlank()) {
+            return null
+        }
+
+        val isGroupConversation = messagingStyle?.isGroupConversation ?: false
+        val hasAttachment = (messagingStyle?.messages?.any { (it.dataMimeType != null) || (it.dataUri != null) } == true) ||
+            notification.extras.containsKey(Notification.EXTRA_PICTURE) ||
+            (notification.extras.getString(Notification.EXTRA_TEMPLATE)?.contains("BigPictureStyle") == true)
+
+        val messageSource = if (isGroupConversation || hasAttachment) {
+            MessageSource.MMS
+        } else {
+            MessageSource.RCS
+        }
 
         return NotificationMessageData(
-            sender = title,
+            sender = sender,
             body = body,
             messageSource = messageSource,
-            isGroupThread = false,
+            isGroupThread = isGroupConversation,
         )
     }
 

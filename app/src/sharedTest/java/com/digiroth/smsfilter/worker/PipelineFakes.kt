@@ -231,12 +231,18 @@ class PipelineFakes {
     }
 
     class FakeOptOutPatternDao : OptOutPatternDao {
-        /** Defaults to the same four rows a fresh database is seeded with. */
+        /** Defaults to the same ten rows a fresh database is seeded with. */
         var patterns: List<OptOutPatternEntity> = listOf(
             OptOutPatternEntity(id = 1, pattern = "stop2stop", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(id = 2, pattern = "end2end", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(id = 3, pattern = "stop", replyType = ReplyType.STOP, matchMode = MatchMode.LAST_LINE_EXACT),
             OptOutPatternEntity(id = 4, pattern = "end", replyType = ReplyType.END, matchMode = MatchMode.LAST_LINE_EXACT),
+            OptOutPatternEntity(id = 5, pattern = "stop to cancel", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(id = 6, pattern = "stop to opt-out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(id = 7, pattern = "stop to opt out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(id = 8, pattern = "stop to end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(id = 9, pattern = "stop to quit", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(id = 10, pattern = "stop=end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
         )
 
         override suspend fun getAll(): List<OptOutPatternEntity> = patterns

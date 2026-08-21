@@ -29,6 +29,9 @@
 package com.digiroth.smsfilter.data.db
 
 import androidx.room.Room
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.digiroth.smsfilter.data.db.dao.AutoReplyCooldownDao
@@ -103,10 +106,10 @@ class RoomDatabaseTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun freshDatabase_seedsFourDefaultOptOutPatterns() = runBlocking {
+    fun freshDatabase_seedsTenDefaultOptOutPatterns() = runBlocking {
         val patterns = optOutPatternDao.getAll()
 
-        assertEquals("expected exactly the four seeded defaults", 4, patterns.size)
+        assertEquals("expected exactly the ten seeded defaults", 10, patterns.size)
     }
 
     @Test
@@ -128,6 +131,30 @@ class RoomDatabaseTest {
         val end = patterns["end" to MatchMode.LAST_LINE_EXACT]
         assertNotNull("bare end should be seeded as LAST_LINE_EXACT", end)
         assertEquals(ReplyType.END, end?.replyType)
+
+        val stopToCancel = patterns["stop to cancel" to MatchMode.ANYWHERE]
+        assertNotNull("stop to cancel should be seeded as ANYWHERE", stopToCancel)
+        assertEquals(ReplyType.STOP, stopToCancel?.replyType)
+
+        val stopToOptOutHyphen = patterns["stop to opt-out" to MatchMode.ANYWHERE]
+        assertNotNull("stop to opt-out should be seeded as ANYWHERE", stopToOptOutHyphen)
+        assertEquals(ReplyType.STOP, stopToOptOutHyphen?.replyType)
+
+        val stopToOptOutSpace = patterns["stop to opt out" to MatchMode.ANYWHERE]
+        assertNotNull("stop to opt out should be seeded as ANYWHERE", stopToOptOutSpace)
+        assertEquals(ReplyType.STOP, stopToOptOutSpace?.replyType)
+
+        val stopToEnd = patterns["stop to end" to MatchMode.ANYWHERE]
+        assertNotNull("stop to end should be seeded as ANYWHERE", stopToEnd)
+        assertEquals(ReplyType.STOP, stopToEnd?.replyType)
+
+        val stopToQuit = patterns["stop to quit" to MatchMode.ANYWHERE]
+        assertNotNull("stop to quit should be seeded as ANYWHERE", stopToQuit)
+        assertEquals(ReplyType.STOP, stopToQuit?.replyType)
+
+        val stopEqualsEnd = patterns["stop=end" to MatchMode.ANYWHERE]
+        assertNotNull("stop=end should be seeded as ANYWHERE", stopEqualsEnd)
+        assertEquals(ReplyType.STOP, stopEqualsEnd?.replyType)
     }
 
     @Test
@@ -239,7 +266,7 @@ class RoomDatabaseTest {
         )
 
         assertEquals("exact duplicate should be ignored", -1L, duplicate)
-        assertEquals(4, optOutPatternDao.count())
+        assertEquals(10, optOutPatternDao.count())
     }
 
     @Test
@@ -248,7 +275,7 @@ class RoomDatabaseTest {
 
         optOutPatternDao.delete(target)
 
-        assertEquals(3, optOutPatternDao.count())
+        assertEquals(9, optOutPatternDao.count())
         assertTrue(optOutPatternDao.getAll().none { it.pattern == "end2end" })
     }
 
@@ -501,6 +528,63 @@ class RoomDatabaseTest {
         assertEquals(1, deleted)
         assertEquals(1, cooldownDao.count())
         assertNotNull("the recent row must survive", cooldownDao.findByHash("b".repeat(64)))
+    }
+
+    // ---------------------------------------------------------------------
+    // Migration
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun migration3To4_seedsNewPatternsWithoutOverwritingExisting() {
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(ApplicationProvider.getApplicationContext())
+                .name(null)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(3) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                "CREATE TABLE IF NOT EXISTS `${OptOutPatternEntity.TABLE_NAME}` (" +
+                                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                                    "`pattern` TEXT NOT NULL, " +
+                                    "`reply_type` TEXT NOT NULL, " +
+                                    "`match_mode` TEXT NOT NULL)",
+                            )
+                            db.execSQL(
+                                "CREATE UNIQUE INDEX IF NOT EXISTS `index_opt_out_patterns_pattern_match_mode` " +
+                                    "ON `${OptOutPatternEntity.TABLE_NAME}` (`pattern`, `match_mode`)",
+                            )
+                            // Seed existing v3 patterns + one existing pattern that overlaps with v4 additions
+                            db.execSQL("INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) VALUES ('stop2stop', 'STOP', 'ANYWHERE')")
+                            db.execSQL("INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) VALUES ('end2end', 'END', 'ANYWHERE')")
+                            db.execSQL("INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) VALUES ('stop', 'STOP', 'LAST_LINE_EXACT')")
+                            db.execSQL("INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) VALUES ('end', 'END', 'LAST_LINE_EXACT')")
+                            db.execSQL("INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) VALUES ('stop to cancel', 'STOP', 'ANYWHERE')")
+                        }
+
+                        override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                    },
+                )
+                .build(),
+        )
+        helper.writableDatabase.use { db ->
+            AppDatabase.MIGRATION_3_4.migrate(db)
+
+            val cursor = db.query("SELECT pattern, reply_type, match_mode FROM ${OptOutPatternEntity.TABLE_NAME}")
+            val patterns = mutableListOf<Triple<String, String, String>>()
+            cursor.use {
+                while (it.moveToNext()) {
+                    patterns.add(Triple(it.getString(0), it.getString(1), it.getString(2)))
+                }
+            }
+
+            assertEquals(10, patterns.size)
+            assertTrue(patterns.contains(Triple("stop to cancel", "STOP", "ANYWHERE")))
+            assertTrue(patterns.contains(Triple("stop to opt-out", "STOP", "ANYWHERE")))
+            assertTrue(patterns.contains(Triple("stop to opt out", "STOP", "ANYWHERE")))
+            assertTrue(patterns.contains(Triple("stop to end", "STOP", "ANYWHERE")))
+            assertTrue(patterns.contains(Triple("stop to quit", "STOP", "ANYWHERE")))
+            assertTrue(patterns.contains(Triple("stop=end", "STOP", "ANYWHERE")))
+        }
     }
 
     private fun detection(
