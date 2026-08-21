@@ -405,6 +405,31 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Updates an existing opt-out pattern.
+     *
+     * Blank input is ignored.
+     *
+     * @param id The row ID of the pattern to update.
+     * @param pattern The updated pattern text; blank input is ignored.
+     * @param replyType Which keyword to reply with.
+     * @param matchMode How the pattern is evaluated.
+     */
+    fun updatePattern(id: Long, pattern: String, replyType: ReplyType, matchMode: MatchMode): Unit {
+        val trimmed = pattern.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            optOutPatternDao.update(
+                OptOutPatternEntity(
+                    id = id,
+                    pattern = trimmed,
+                    replyType = replyType,
+                    matchMode = matchMode,
+                ),
+            )
+        }
+    }
+
     /** @param entity The pattern row to remove. */
     fun deletePattern(entity: OptOutPatternEntity) {
         viewModelScope.launch { optOutPatternDao.delete(entity) }

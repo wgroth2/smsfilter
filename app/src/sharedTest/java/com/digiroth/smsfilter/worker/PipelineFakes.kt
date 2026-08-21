@@ -252,6 +252,8 @@ class PipelineFakes {
         override suspend fun insertAll(entities: List<OptOutPatternEntity>): List<Long> =
             throw NotImplementedError()
 
+        override suspend fun update(pattern: OptOutPatternEntity): Int = throw NotImplementedError()
+
         override suspend fun delete(entity: OptOutPatternEntity): Unit = throw NotImplementedError()
     }
 

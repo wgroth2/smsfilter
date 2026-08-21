@@ -37,6 +37,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -175,6 +176,7 @@ fun SettingsScreen(
             PatternsSection(
                 patterns = patterns,
                 onAdd = viewModel::addPattern,
+                onUpdate = viewModel::updatePattern,
                 onDelete = viewModel::deletePattern,
             )
             SectionDivider()
@@ -535,11 +537,13 @@ private fun StopListSection(
 private fun PatternsSection(
     patterns: List<OptOutPatternEntity>,
     onAdd: (String, ReplyType, MatchMode) -> Unit,
+    onUpdate: (Long, String, ReplyType, MatchMode) -> Unit,
     onDelete: (OptOutPatternEntity) -> Unit,
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var replyType by rememberSaveable { mutableStateOf(ReplyType.STOP) }
     var matchMode by rememberSaveable { mutableStateOf(MatchMode.LAST_LINE_EXACT) }
+    var patternToEdit by remember { mutableStateOf<OptOutPatternEntity?>(null) }
 
     SectionTitle(stringResource(R.string.settings_patterns_title))
     Text(
@@ -550,7 +554,10 @@ private fun PatternsSection(
 
     patterns.forEach { pattern ->
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { patternToEdit = pattern }
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -567,6 +574,14 @@ private fun PatternsSection(
                 Text(stringResource(R.string.common_delete))
             }
         }
+    }
+
+    patternToEdit?.let { target ->
+        EditPatternDialog(
+            pattern = target,
+            onDismiss = { patternToEdit = null },
+            onSave = onUpdate,
+        )
     }
 
     Spacer(Modifier.height(12.dp))
@@ -613,6 +628,102 @@ private fun PatternsSection(
     ) {
         Text(stringResource(R.string.common_add))
     }
+}
+
+/**
+ * Dialog for editing an existing opt-out pattern's keyword, reply type, and match mode.
+ *
+ * @param pattern The pattern entity being edited.
+ * @param onDismiss Callback invoked when the dialog is cancelled or dismissed.
+ * @param onSave Callback invoked with the updated pattern values (id, pattern, replyType, matchMode).
+ */
+@Composable
+private fun EditPatternDialog(
+    pattern: OptOutPatternEntity,
+    onDismiss: () -> Unit,
+    onSave: (Long, String, ReplyType, MatchMode) -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf(pattern.pattern) }
+    var replyType by rememberSaveable { mutableStateOf(pattern.replyType) }
+    var matchMode by rememberSaveable { mutableStateOf(pattern.matchMode) }
+
+    val trimmed = text.trim()
+    val isChanged = (trimmed != pattern.pattern) || (replyType != pattern.replyType) || (matchMode != pattern.matchMode)
+    val isValid = trimmed.isNotEmpty() && isChanged
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_patterns_edit_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.settings_patterns_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    stringResource(R.string.settings_patterns_reply_type),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ReplyType.entries.forEach { type ->
+                        RadioButton(selected = replyType == type, onClick = { replyType = type })
+                        Text(type.keyword, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
+                Text(
+                    stringResource(R.string.settings_patterns_match_mode),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                MatchMode.entries.forEach { mode ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = matchMode == mode, onClick = { matchMode = mode })
+                        Text(stringResource(matchModeLabel(mode)), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    text = stringResource(matchModeExplanation(matchMode)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(pattern.id, trimmed, replyType, matchMode)
+                    onDismiss()
+                },
+                enabled = isValid,
+            ) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        },
+    )
+}
+
+private fun matchModeExplanation(mode: MatchMode): Int = when (mode) {
+    MatchMode.ANYWHERE -> R.string.match_mode_anywhere_desc
+    MatchMode.LAST_LINE_EXACT -> R.string.match_mode_last_line_desc
+    MatchMode.LAST_LINE_CONTAINS -> R.string.match_mode_last_line_contains_desc
 }
 
 private fun matchModeLabel(mode: MatchMode): Int = when (mode) {

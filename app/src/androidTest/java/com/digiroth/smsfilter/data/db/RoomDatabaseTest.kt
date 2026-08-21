@@ -280,6 +280,24 @@ class RoomDatabaseTest {
     }
 
     @Test
+    fun optOutPattern_updatesPatternSuccessfully() = runBlocking {
+        val target = optOutPatternDao.getAll().first { it.pattern == "end2end" }
+        val updated = target.copy(
+            pattern = "end2end_custom",
+            replyType = ReplyType.STOP,
+            matchMode = MatchMode.LAST_LINE_EXACT,
+        )
+
+        val count = optOutPatternDao.update(updated)
+
+        assertEquals(1, count)
+        val retrieved = optOutPatternDao.getAll().single { it.id == target.id }
+        assertEquals("end2end_custom", retrieved.pattern)
+        assertEquals(ReplyType.STOP, retrieved.replyType)
+        assertEquals(MatchMode.LAST_LINE_EXACT, retrieved.matchMode)
+    }
+
+    @Test
     fun optOutPattern_enumRoundTripsThroughConverters() = runBlocking {
         optOutPatternDao.insert(
             OptOutPatternEntity(

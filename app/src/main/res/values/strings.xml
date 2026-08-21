@@ -74,6 +74,7 @@
          Settings and detection log (Phase 7). Appended, not rewritten.
          =================================================================== -->
     <string name="common_add">Add</string>
+    <string name="common_save">Save</string>
     <string name="common_delete">Delete</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_dismiss">Dismiss</string>
@@ -114,6 +115,7 @@
     <string name="settings_stop_list_empty">No keywords yet. Messages containing a keyword you add here are ignored completely.</string>
 
     <string name="settings_patterns_title">Opt-Out Patterns</string>
+    <string name="settings_patterns_edit_title">Edit Pattern</string>
     <string name="settings_patterns_hint">Pattern</string>
     <string name="settings_patterns_case_note">All matching is case-insensitive.</string>
     <string name="settings_patterns_reply_type">Reply with</string>
@@ -121,6 +123,9 @@
     <string name="match_mode_anywhere">Match anywhere</string>
     <string name="match_mode_last_line">Exact match on last line</string>
     <string name="match_mode_last_line_contains">Whole word on last line</string>
+    <string name="match_mode_anywhere_desc">Matches anywhere in the message body.</string>
+    <string name="match_mode_last_line_desc">Matches only when the last line equals this keyword exactly.</string>
+    <string name="match_mode_last_line_contains_desc">Matches when the last line contains this keyword as a whole word.</string>
     <string name="reply_type_stop">stop</string>
     <string name="reply_type_end">end</string>
 

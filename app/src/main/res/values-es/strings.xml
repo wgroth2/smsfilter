@@ -60,6 +60,7 @@
     <string name="detection_log_placeholder_body">El registro de detecciones se implementa en la siguiente fase.</string>
 
     <string name="common_add">Añadir</string>
+    <string name="common_save">Guardar</string>
     <string name="common_delete">Eliminar</string>
     <string name="common_cancel">Cancelar</string>
     <string name="common_dismiss">Descartar</string>
@@ -100,6 +101,7 @@
     <string name="settings_stop_list_empty">Aún no hay palabras clave. Los mensajes que contengan una palabra clave que añadas aquí se ignoran por completo.</string>
 
     <string name="settings_patterns_title">Patrones de baja</string>
+    <string name="settings_patterns_edit_title">Editar patrón</string>
     <string name="settings_patterns_hint">Patrón</string>
     <string name="settings_patterns_case_note">Todas las coincidencias no distinguen mayúsculas de minúsculas.</string>
     <string name="settings_patterns_reply_type">Responder con</string>
@@ -107,6 +109,9 @@
     <string name="match_mode_anywhere">Coincidir en cualquier lugar</string>
     <string name="match_mode_last_line">Coincidencia exacta en la última línea</string>
     <string name="match_mode_last_line_contains">Palabra completa en la última línea</string>
+    <string name="match_mode_anywhere_desc">Coincide en cualquier parte del cuerpo del mensaje.</string>
+    <string name="match_mode_last_line_desc">Coincide solo cuando la última línea es exactamente igual a esta palabra clave.</string>
+    <string name="match_mode_last_line_contains_desc">Coincide cuando la última línea contiene esta palabra clave como palabra completa.</string>
     <string name="reply_type_stop">stop</string>
     <string name="reply_type_end">end</string>
 

@@ -33,6 +33,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -80,6 +81,15 @@ interface OptOutPatternDao {
      */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(entities: List<OptOutPatternEntity>): List<Long>
+
+    /**
+     * Updates an existing pattern.
+     *
+     * @param pattern The pattern entity containing updated values, matched by primary key.
+     * @return The number of rows updated (1 if found, 0 otherwise).
+     */
+    @Update
+    suspend fun update(pattern: OptOutPatternEntity): Int
 
     /**
      * Deletes a pattern.

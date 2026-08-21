@@ -153,7 +153,7 @@ Launching the app after setup lands on Settings.
 | Connection Health | Status indicators for Google Contacts and HubSpot, re-checked on every resume so revoking contacts access is reflected rather than leaving a stale result. |
 | Auto-Reply | Master on/off, plus a note explaining the 24-hour cooldown. Off means detect and notify only. |
 | Stop List | Keywords marking messages the app should never touch. Coarse substring match, so `promo` also matches `promotional`. Over-matching is safe: it only means a message is left alone. |
-| Opt-Out Patterns | Add, edit, and remove detection rules. User-added patterns behave identically to the seeded defaults. |
+| Opt-Out Patterns | Add, edit, and remove detection rules. Tapping any pattern row opens an edit dialog allowing you to change its keyword, reply type (`stop` or `end`), and match mode. User-added patterns behave identically to the seeded defaults. |
 | HubSpot CRM | Optional API token, stored encrypted. When enabled, CRM contacts are also treated as known senders. |
 | Sound | On/off and a ringtone picker. Falls back to the system notification sound. |
 | Language | English or Spanish. |
