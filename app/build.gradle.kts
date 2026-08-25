@@ -7,12 +7,31 @@ plugins {
     alias(libs.plugins.hilt.plugin)
 }
 
-// Release signing is supplied entirely through the environment so that no keystore
-// path, password, or alias is ever committed. When the variables are absent (a normal
-// developer machine), the release build falls back to the debug key so `assembleRelease`
-// still succeeds locally; only CI/production builds produce a properly signed APK.
-val releaseKeystorePath: String? = System.getenv("SMSFILTER_KEYSTORE_PATH")
-val hasReleaseSigning: Boolean = !releaseKeystorePath.isNullOrBlank()
+// Release signing is supplied via `local.properties` (for local IDE development) or
+// environment variables (for CI/production). When the variables are absent, the release
+// build falls back to the debug key so `assembleRelease` still succeeds locally.
+val localProps = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.bufferedReader().use { load(it) }
+    }
+}
+
+fun getSigningProperty(key: String): String? {
+    return localProps.getProperty(key)
+        ?: (findProperty(key) as? String)
+        ?: System.getenv(key)
+}
+
+val releaseKeystorePath: String? = getSigningProperty("SMSFILTER_KEYSTORE_PATH")
+val releaseKeystorePassword: String? = getSigningProperty("SMSFILTER_KEYSTORE_PASSWORD")
+val releaseKeyAlias: String? = getSigningProperty("SMSFILTER_KEY_ALIAS")
+val releaseKeyPassword: String? = getSigningProperty("SMSFILTER_KEY_PASSWORD")
+
+val hasReleaseSigning: Boolean = !releaseKeystorePath.isNullOrBlank() &&
+    !releaseKeystorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
 
 val buildNumberFile: File = rootProject.file("build_number.properties")
 val currentBuildNumber: Int = if (buildNumberFile.exists()) {
@@ -44,9 +63,9 @@ android {
         create("release") {
             if (hasReleaseSigning) {
                 storeFile = file(releaseKeystorePath!!)
-                storePassword = System.getenv("SMSFILTER_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("SMSFILTER_KEY_ALIAS")
-                keyPassword = System.getenv("SMSFILTER_KEY_PASSWORD")
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
