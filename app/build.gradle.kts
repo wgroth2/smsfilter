@@ -26,7 +26,7 @@ fun getSigningProperty(key: String): String? {
 val releaseKeystorePath: String? = getSigningProperty("SMSFILTER_KEYSTORE_PATH")
 val releaseKeystorePassword: String? = getSigningProperty("SMSFILTER_KEYSTORE_PASSWORD")
 val releaseKeyAlias: String? = getSigningProperty("SMSFILTER_KEY_ALIAS")
-val releaseKeyPassword: String? = getSigningProperty("SMSFILTER_KEY_PASSWORD")
+val releaseKeyPassword: String? = getSigningProperty("SMSFILTER_KEY_PASSWORD") ?: releaseKeystorePassword
 
 val hasReleaseSigning: Boolean = !releaseKeystorePath.isNullOrBlank() &&
     !releaseKeystorePassword.isNullOrBlank() &&
