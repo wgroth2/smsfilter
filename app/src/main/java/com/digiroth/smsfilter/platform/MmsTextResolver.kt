@@ -54,16 +54,17 @@ class MmsTextResolver @Inject constructor(
      * Resolves the full text body of a recently received MMS message from the telephony provider.
      *
      * Queries `content://mms/part` for parts with content type `text/plain`, sorted by `_id DESC`,
-     * checking up to the newest 10 records. If [prefixSnippet] is provided, attempts to find a record
-     * whose text matches or starts with the sanitized snippet (stripping leading attachment labels
-     * such as "Image\n" and trailing ellipsis). If [prefixSnippet] is null or blank, returns the
-     * most recent plain text part.
+     * checking up to the newest 100 records. If [prefixSnippet] is provided, attempts to find a record
+     * whose text starts with or contains the sanitized search prefix (first 40 characters, stripping
+     * leading attachment labels such as "Image\n" and trailing ellipsis). If [prefixSnippet] is null
+     * or blank, returns the most recent plain text part.
      *
      * @param prefixSnippet The initial snippet or truncated notification body to match against, or `null`.
      * @return The full MMS message text body if resolved, or `null` if not found or on error.
      */
     fun resolveFullMmsText(prefixSnippet: String? = null): String? = runCatching {
         val cleanSnippet = prefixSnippet?.let(::sanitizeSnippet)?.takeIf { it.isNotBlank() }
+        val searchPrefix = cleanSnippet?.take(SEARCH_PREFIX_LENGTH)?.trim()?.takeIf { it.isNotBlank() }
 
         val uri = MMS_PART_URI
         val projection = arrayOf(COLUMN_ID, COLUMN_TEXT)
@@ -96,9 +97,14 @@ class MmsTextResolver @Inject constructor(
                     fallbackFirstText = text
                 }
 
-                if ((cleanSnippet != null) && (text.startsWith(cleanSnippet) || cleanSnippet.startsWith(text.take(cleanSnippet.length.coerceAtMost(text.length))))) {
-                    Log.d(TAG, "Matched full MMS text ($recordsChecked records examined)")
-                    return@runCatching text
+                if (searchPrefix != null) {
+                    if (text.startsWith(searchPrefix, ignoreCase = true) ||
+                        text.contains(searchPrefix, ignoreCase = true) ||
+                        cleanSnippet.startsWith(text.take(cleanSnippet.length.coerceAtMost(text.length)), ignoreCase = true)
+                    ) {
+                        Log.d(TAG, "Matched full MMS text ($recordsChecked records examined)")
+                        return@runCatching text
+                    }
                 }
             }
 
@@ -139,7 +145,10 @@ class MmsTextResolver @Inject constructor(
         private const val TAG: String = "MmsTextResolver"
 
         /** Maximum number of recent MMS part records to scan. */
-        const val MAX_RECORDS_TO_CHECK: Int = 10
+        const val MAX_RECORDS_TO_CHECK: Int = 100
+
+        /** Number of characters from the snippet prefix used for robust database text search. */
+        const val SEARCH_PREFIX_LENGTH: Int = 40
 
         /** Telephony MMS part content URI string. */
         const val MMS_PART_URI_STRING: String = "content://mms/part"
