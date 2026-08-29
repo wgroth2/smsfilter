@@ -83,7 +83,7 @@ enabled a tone also plays, but only when a reply was actually sent.
 Checks run in a fixed order, cheapest first, so an ignored message costs no contact
 lookups and no network calls.
 
-![SMS Filter Pipeline Architecture](pipeline_flow.svg)
+![SMS Filter Pipeline Architecture](pipeline_flow.png)
 
 <details>
 <summary>View Mermaid Source Code</summary>
