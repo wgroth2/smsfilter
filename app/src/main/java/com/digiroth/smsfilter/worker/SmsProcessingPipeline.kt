@@ -206,10 +206,12 @@ class SmsProcessingPipeline @Inject constructor(
         // before the cooldown check so an expired record can never block a legitimate reply.
         pruneExpiredCooldowns()
 
-        if (messageDeduplicator.isDuplicate(senderAddress, messageBody)) {
+        val sender = phoneNumberNormalizer.normalize(senderAddress)
+
+        if (messageDeduplicator.isDuplicate(sender.primaryLookupValue, messageBody)) {
             return ProcessingOutcome.Ignored(IgnoreReason.STOP_LIST, detail = "duplicate")
         }
-        messageDeduplicator.record(senderAddress, messageBody)
+        messageDeduplicator.record(sender.primaryLookupValue, messageBody)
 
         // Step 1 — read the lists once, so one message is judged against one consistent snapshot.
         val stopListKeywords = stopListDao.getAll()
@@ -226,8 +228,6 @@ class SmsProcessingPipeline @Inject constructor(
             )
             return ProcessingOutcome.Ignored(IgnoreReason.STOP_LIST, detail = matched.keyword)
         }
-
-        val sender = phoneNumberNormalizer.normalize(senderAddress)
 
         // Steps 3-4 — is this a known contact? A live cache entry short-circuits both lookups,
         // which is the latency win the cache exists for.
@@ -353,8 +353,9 @@ class SmsProcessingPipeline @Inject constructor(
         if (!sender.isRepliable) return ReplyDisposition.SKIPPED_ALPHANUMERIC
 
         // Gate 3 — cooldown. Prevents an SMS ping-pong loop with an automated responder whose
-        // confirmation text itself trips a pattern.
-        val senderHash = senderHasher.hash(sender.rawAddress)
+        // confirmation text itself trips a pattern. Uses normalized primary lookup value so
+        // formatted numbers (e.g. from RCS notifications) share the same cooldown record as E.164.
+        val senderHash = senderHasher.hash(sender.primaryLookupValue)
         val now = timeProvider.nowMillis()
         val cutoff = now - AutoReplyCooldownEntity.COOLDOWN_WINDOW_MS
         if (cooldownDao.isInCooldown(senderHash, cutoff)) return ReplyDisposition.SKIPPED_COOLDOWN

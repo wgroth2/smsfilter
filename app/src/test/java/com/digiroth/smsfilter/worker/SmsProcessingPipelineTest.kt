@@ -576,6 +576,29 @@ class SmsProcessingPipelineTest {
         assertEquals("fresh row retained", now - 1_000, fakes.cooldownDao.rows["fresh"])
     }
 
+    @Test
+    fun `deduplicator ignores identical message arriving via formatted RCS after raw SMS`() = runTest {
+        val p = pipeline()
+        val firstOutcome = p.process("+12026500977", OPT_OUT_BODY, now, messageSource = MessageSource.SMS)
+        assertTrue("first message is detected", firstOutcome is ProcessingOutcome.Detected)
+
+        val secondOutcome = p.process("(202) 650-0977", OPT_OUT_BODY, now + 5_000L, messageSource = MessageSource.RCS)
+        assertTrue("second message is ignored as duplicate", secondOutcome is ProcessingOutcome.Ignored)
+        assertEquals("duplicate", (secondOutcome as ProcessingOutcome.Ignored).detail)
+    }
+
+    @Test
+    fun `cooldown blocks formatted RCS sender after raw SMS reply sent`() = runTest {
+        val p = pipeline()
+        // First reply sent to E.164 number via SMS
+        val firstOutcome = p.process("+12026500977", "First blast with Stop2Stop", now, messageSource = MessageSource.SMS)
+        assertEquals(ReplyDisposition.SENT, (firstOutcome as ProcessingOutcome.Detected).disposition)
+
+        // Second message with different text arrives 30 seconds later via formatted RCS number
+        val secondOutcome = p.process("(202) 650-0977", "Second blast with End2End", now + 30_000L, messageSource = MessageSource.RCS)
+        assertEquals(ReplyDisposition.SKIPPED_COOLDOWN, (secondOutcome as ProcessingOutcome.Detected).disposition)
+    }
+
     // ---------------------------------------------------------------------
     // Sound (cases 11 and 12)
     // ---------------------------------------------------------------------

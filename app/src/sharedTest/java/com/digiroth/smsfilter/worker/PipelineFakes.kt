@@ -122,7 +122,16 @@ class PipelineFakes {
     }
 
     class FakeE164Formatter(var result: String? = null) : E164Formatter {
-        override fun format(rawNumber: String, defaultRegion: String): String? = result
+        override fun format(rawNumber: String, defaultRegion: String): String? {
+            if (result != null) return result
+            val digits = rawNumber.filter(Char::isDigit)
+            return when {
+                rawNumber.startsWith("+") -> "+$digits"
+                digits.length == 10 -> "+1$digits"
+                digits.length == 11 && digits.startsWith("1") -> "+$digits"
+                else -> null
+            }
+        }
     }
 
     class FakeSmsSender : SmsSender {
