@@ -84,26 +84,28 @@ Checks run in a fixed order, cheapest first, so an ignored message costs no cont
 lookups and no network calls.
 
 ```mermaid
-flowchart TD
-    A["SMS arrives"] --> B{"Setup finished?"}
-    B -->|No| Z1["Drop silently<br/>no log, no reply"]
-    B -->|Yes| C{"Body contains a<br/>stop-list keyword?"}
-    C -->|Yes| Z2["Ignore<br/>logged as 'Matched Stop List'"]
-    C -->|No| D{"Sender in<br/>Google Contacts?"}
-    D -->|Yes| Z3["Ignore<br/>logged as 'Known Contact'"]
-    D -->|No| E{"HubSpot on and<br/>sender is a CRM contact?"}
-    E -->|Yes| Z4["Ignore<br/>logged as 'Known HubSpot Contact'"]
-    E -->|No| F{"Body contains an<br/>opt-out pattern?"}
-    F -->|No| Z5["Do nothing"]
-    F -->|Yes| G["Notify you"]
+graph TD
+    A["Message received<br/>(SMS, MMS, or RCS)"] --> B{"Setup finished?"}
+    B -- No --> Z1["Drop silently<br/>no log, no reply"]
+    B -- Yes --> C{"Body contains a<br/>stop-list keyword?"}
+    C -- Yes --> Z2["Ignore<br/>logged as Matched Stop List"]
+    C -- No --> D{"Sender in<br/>Google Contacts?"}
+    D -- Yes --> Z3["Ignore<br/>logged as Known Contact"]
+    D -- No --> E{"HubSpot on and<br/>sender is a CRM contact?"}
+    E -- Yes --> Z4["Ignore<br/>logged as Known HubSpot Contact"]
+    E -- No --> F{"Body contains an<br/>opt-out pattern?"}
+    F -- No --> Z5["Log NO_MATCH"]
+    F -- Yes --> G["Notify you"]
     G --> H{"Auto-reply<br/>enabled?"}
-    H -->|No| Y1["Log: 'skipped: dry run'"]
-    H -->|Yes| I{"Sender can<br/>receive SMS?"}
-    I -->|No, alphanumeric ID| Y2["Log: 'skipped: alphanumeric'"]
-    I -->|Yes| J{"Replied to them<br/>in last 24h?"}
-    J -->|Yes| Y3["Log: 'skipped: cooldown'"]
-    J -->|No| K["Send 'stop' or 'end'"]
-    K --> L["Play sound<br/>Log: 'Reply sent'"]
+    H -- No --> Y1["Log: skipped: dry run"]
+    H -- Yes --> I{"Group MMS<br/>conversation?"}
+    I -- Yes --> Y2["Log: skipped: group thread"]
+    I -- No --> J{"Sender can<br/>receive reply?"}
+    J -- No, alphanumeric ID --> Y3["Log: skipped: alphanumeric"]
+    J -- Yes --> K{"Replied to them<br/>in last 24h?"}
+    K -- Yes --> Y4["Log: skipped: cooldown"]
+    K -- No --> L["Send stop or end"]
+    L --> M["Play sound<br/>Log: Reply sent"]
 ```
 
 ### The detection patterns seeded on install
