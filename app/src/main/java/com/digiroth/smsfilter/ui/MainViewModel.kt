@@ -50,6 +50,10 @@ enum class StartDestination {
 /**
  * Decides the app's start destination.
  *
+ * For official Android documentation on architecture and StateFlow lifecycle sharing, see:
+ * - Architecture Guide: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * `firstRunComplete` is a `Flow`, so its first value arrives asynchronously. [startDestination]
  * therefore begins as `null`, meaning "not yet known", and the UI shows a neutral loading state until
  * it resolves. Defaulting to onboarding instead would make returning users see the wizard flash on

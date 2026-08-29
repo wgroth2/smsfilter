@@ -72,6 +72,10 @@ private const val TAG: String = "DetectionLogScreen"
 /**
  * The activity and detection log.
  *
+ * For official Android documentation on architecture and Navigation Compose, see:
+ * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Displays chronologically ordered log entries from [DetectionLogEntity]. Each entry shows
  * the timestamp, message source designator badge, optional sender address chip (which can be tapped
  * to open the messaging app), event-specific outcome/reason, and the message preview.
@@ -133,6 +137,12 @@ fun DetectionLogScreen(
     }
 }
 
+/**
+ * Maps a log filter enum option to its corresponding string resource ID.
+ *
+ * @param filter The selected log filter.
+ * @return String resource ID for the filter chip label.
+ */
 private fun filterLabel(filter: LogFilter): Int = when (filter) {
     LogFilter.ALL -> R.string.log_filter_all
     LogFilter.DETECTIONS -> R.string.log_filter_detections
@@ -192,6 +202,12 @@ private fun MessageSourceBadge(
     }
 }
 
+/**
+ * Renders a single detection log row card with timestamp, message source badge, sender chip,
+ * matched pattern or ignore reason, and message preview.
+ *
+ * @param entry The log entity to display.
+ */
 @Composable
 private fun LogRow(entry: DetectionLogEntity) {
     val context = LocalContext.current

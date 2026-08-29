@@ -70,6 +70,10 @@ enum class LogFilter {
 /**
  * State holder for the activity and detection log.
  *
+ * For official Android documentation on architecture and StateFlow lifecycle sharing, see:
+ * - Architecture Guide: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Filtering is done in SQL rather than in memory: the query already caps results at
  * [DetectionLogEntity.MAX_DISPLAYED_ENTRIES], and filtering a capped list client-side would show
  * fewer than that many rows of the selected kind whenever the newest hundred entries were mostly

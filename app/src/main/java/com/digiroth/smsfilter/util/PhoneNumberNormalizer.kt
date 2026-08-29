@@ -94,6 +94,9 @@ data class NormalizedSender(
 /**
  * Classifies incoming sender addresses and normalizes dialable ones to E.164.
  *
+ * For official Android documentation on `PhoneNumberUtils` and telephony number parsing, see:
+ * - Telephony PhoneNumberUtils: [https://developer.android.com/reference/android/telephony/PhoneNumberUtils](https://developer.android.com/reference/android/telephony/PhoneNumberUtils)
+ *
  * Classification is pure Kotlin with no dependency on the Android framework, so it is directly
  * unit-testable; the single platform-dependent step is delegated to [E164Formatter]. See that
  * interface for why the seam exists.

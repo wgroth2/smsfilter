@@ -42,6 +42,9 @@ import javax.inject.Singleton
 /**
  * Android framework implementation of [DirectReplySender].
  *
+ * For official Android documentation on RemoteInput and Direct Reply notification actions, see:
+ * - Direct Reply Actions: [https://developer.android.com/develop/ui/views/notifications/actions#direct-reply](https://developer.android.com/develop/ui/views/notifications/actions#direct-reply)
+ *
  * Maintains an in-memory cache of ephemeral direct reply handles captured from
  * incoming RCS messaging notifications, and dispatches direct replies through
  * the registered [PendingIntent] with [RemoteInput] results.
@@ -55,7 +58,10 @@ class AndroidDirectReplySender @Inject constructor(
     private val timeProvider: TimeProvider,
 ) : DirectReplySender {
 
+    /** Synchronization lock for handle storage access. */
     private val lock: Any = Any()
+
+    /** Ephemeral in-memory registry of direct reply handles keyed by unique token. */
     private val handles: MutableMap<String, DirectReplyHandle> = mutableMapOf()
 
     /**
@@ -105,11 +111,23 @@ class AndroidDirectReplySender @Inject constructor(
         }.getOrDefault(defaultValue = false)
     }
 
+    /**
+     * Prunes cached direct reply handles that have exceeded [HANDLE_TTL_MILLIS].
+     *
+     * @param now Current timestamp in epoch milliseconds.
+     */
     private fun pruneExpired(now: Long) {
         val cutoff = now - HANDLE_TTL_MILLIS
         handles.entries.removeIf { it.value.registeredAtMillis < cutoff }
     }
 
+    /**
+     * Ephemeral container holding the pending intent and remote input required to send an inline reply.
+     *
+     * @property pendingIntent The notification action pending intent.
+     * @property remoteInput The remote input specification describing the reply input key.
+     * @property registeredAtMillis Epoch timestamp when this handle was registered.
+     */
     private data class DirectReplyHandle(
         val pendingIntent: PendingIntent,
         val remoteInput: RemoteInput,

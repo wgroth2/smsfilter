@@ -44,6 +44,9 @@ import javax.inject.Singleton
 /**
  * Checks incoming senders against the device's synced Google Contacts.
  *
+ * For official Android documentation on `ContactsContract.PhoneLookup`, see:
+ * - PhoneLookup Content Provider: [https://developer.android.com/reference/android/provider/ContactsContract.PhoneLookup](https://developer.android.com/reference/android/provider/ContactsContract.PhoneLookup)
+ *
  * Uses `ContactsContract.PhoneLookup`, which performs the platform's own number matching — that
  * is what allows a contact stored as "(650) 555-1234" to match an incoming "+16505551234"
  * without the app doing its own normalization. The query is local, so no network call and no

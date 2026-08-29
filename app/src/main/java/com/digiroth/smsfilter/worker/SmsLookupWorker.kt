@@ -48,6 +48,10 @@ import dagger.assisted.AssistedInject
 /**
  * Runs the SMS decision pipeline for one incoming message.
  *
+ * For official Android documentation on Expedited Work and Foreground Services, see:
+ * - Expedited Work: [https://developer.android.com/topic/libraries/architecture/workmanager/how-to/expedited-work](https://developer.android.com/topic/libraries/architecture/workmanager/how-to/expedited-work)
+ * - Foreground Services: [https://developer.android.com/develop/background-work/services/foreground-services](https://developer.android.com/develop/background-work/services/foreground-services)
+ *
  * This class is a deliberately thin adapter: it unpacks the worker's input [androidx.work.Data],
  * delegates every decision to [SmsProcessingPipeline], and maps the outcome onto a WorkManager
  * [Result]. Keeping the logic in the pipeline is what allows it to be unit-tested on the JVM,
@@ -64,6 +68,12 @@ class SmsLookupWorker @AssistedInject constructor(
     private val pipeline: SmsProcessingPipeline,
 ) : CoroutineWorker(appContext, params) {
 
+    /**
+     * Executes the background message evaluation pipeline on an expedited worker thread.
+     *
+     * @return [Result.success] on completed evaluation, [Result.failure] for malformed input,
+     *   or [Result.retry] on transient database/network errors.
+     */
     override suspend fun doWork(): Result {
         val sender = inputData.getString(KEY_SENDER_ADDRESS)
         val body = inputData.getString(KEY_MESSAGE_BODY)

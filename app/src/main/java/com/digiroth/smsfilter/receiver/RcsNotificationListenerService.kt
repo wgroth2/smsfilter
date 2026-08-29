@@ -66,6 +66,10 @@ data class NotificationMessageData(
 /**
  * Listens for incoming messaging notifications from RCS and MMS capable apps (Google Messages, Samsung Messages)
  * to detect opt-out requests and execute direct inline auto-replies via RemoteInput PendingIntents.
+ *
+ * For official Android documentation on notification listening and messaging styles, see:
+ * - NotificationListenerService: [https://developer.android.com/reference/android/service/notification/NotificationListenerService](https://developer.android.com/reference/android/service/notification/NotificationListenerService)
+ * - MessagingStyle Notifications: [https://developer.android.com/develop/ui/views/notifications/expanded#message-style](https://developer.android.com/develop/ui/views/notifications/expanded#message-style)
  */
 @AndroidEntryPoint
 class RcsNotificationListenerService : NotificationListenerService() {

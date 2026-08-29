@@ -147,6 +147,10 @@ data class SettingsUiState(
 /**
  * State holder for the Settings screen.
  *
+ * For official Android documentation on architecture and ViewModel StateFlow management, see:
+ * - Architecture Guide: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Health indicators are derived through [ConnectionHealthEvaluator] rather than computed inline, so
  * the four-state HubSpot rule — in which two of the four states must never render as errors — lives
  * in one tested place.
@@ -204,6 +208,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Launches a coroutine in [viewModelScope] to collect emissions from the specified [flow].
+     *
+     * @param flow The upstream flow to observe.
+     * @param action Suspending lambda to execute for each emitted value.
+     */
     private fun <T> collect(flow: kotlinx.coroutines.flow.Flow<T>, action: suspend (T) -> Unit) {
         viewModelScope.launch { flow.collect(action) }
     }
@@ -415,7 +425,7 @@ class SettingsViewModel @Inject constructor(
      * @param replyType Which keyword to reply with.
      * @param matchMode How the pattern is evaluated.
      */
-    fun updatePattern(id: Long, pattern: String, replyType: ReplyType, matchMode: MatchMode): Unit {
+    fun updatePattern(id: Long, pattern: String, replyType: ReplyType, matchMode: MatchMode) {
         val trimmed = pattern.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
@@ -452,6 +462,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Maps an error reason string returned by [HubSpotRepository] to a categorized [HubSpotConnectError].
+     *
+     * @param reason The internal failure reason string.
+     * @return The classified [HubSpotConnectError] suitable for UI display.
+     */
     private fun classify(reason: String): HubSpotConnectError = when {
         reason == HubSpotRepositoryImpl.REASON_UNAUTHORIZED -> HubSpotConnectError.INVALID_TOKEN
         reason == HubSpotRepositoryImpl.REASON_NO_TOKEN -> HubSpotConnectError.INVALID_TOKEN

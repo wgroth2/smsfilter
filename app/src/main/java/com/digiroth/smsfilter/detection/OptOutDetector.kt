@@ -142,6 +142,8 @@ class OptOutDetector @Inject constructor() {
          * appear in real marketing SMS — so a message ending in `"STOP "` would otherwise
          * fail to match the `stop` last-line pattern and the opt-out would be silently missed.
          * Combining both predicates covers the space-separator category as well.
+         *
+         * @return `true` if this character is standard whitespace or a Unicode space character.
          */
         fun Char.isBlankChar(): Boolean = isWhitespace() || Character.isSpaceChar(this)
 
@@ -152,6 +154,8 @@ class OptOutDetector @Inject constructor() {
          * Letters and digits are word characters; everything else — spaces, punctuation, the
          * start and end of the line — is a boundary. Punctuation counting as a boundary is what
          * lets "STOP to cancel." and "...help, STOP" both match.
+         *
+         * @return `true` if this character is a letter or digit.
          */
         fun Char.isWordChar(): Boolean = isLetterOrDigit()
     }

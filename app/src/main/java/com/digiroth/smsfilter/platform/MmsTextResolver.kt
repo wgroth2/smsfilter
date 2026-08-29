@@ -39,6 +39,9 @@ import javax.inject.Singleton
 /**
  * Resolves full text bodies of MMS messages directly from the Android Telephony content provider.
  *
+ * For official Android documentation on the Telephony MMS content provider, see:
+ * - Telephony.Mms: [https://developer.android.com/reference/android/provider/Telephony.Mms](https://developer.android.com/reference/android/provider/Telephony.Mms)
+ *
  * Notification payloads from messaging apps (e.g. Google Messages) often truncate MMS body text
  * or prepend image/attachment placeholders such as "Image\n". This resolver queries the telephony
  * MMS part table (`content://mms/part`) to locate the complete plain text part associated with recent

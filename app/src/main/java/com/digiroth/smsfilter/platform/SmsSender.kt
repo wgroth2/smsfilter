@@ -39,6 +39,9 @@ import javax.inject.Singleton
 /**
  * Sends an outgoing SMS.
  *
+ * For official Android documentation on `SmsManager` and SMS dispatching, see:
+ * - Telephony SmsManager: [https://developer.android.com/reference/android/telephony/SmsManager](https://developer.android.com/reference/android/telephony/SmsManager)
+ *
  * This is the most consequential seam in the app. The three auto-reply safety gates — dry-run
  * mode, unrepliable sender, and the 24-hour cooldown — are all defined by what must *not*
  * happen, and a negative like "no message was sent" cannot be asserted against a static

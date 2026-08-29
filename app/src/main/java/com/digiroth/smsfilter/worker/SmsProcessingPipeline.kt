@@ -377,11 +377,23 @@ class SmsProcessingPipeline @Inject constructor(
         return ReplyDisposition.SENT
     }
 
+    /**
+     * Deletes auto-reply cooldown records older than [AutoReplyCooldownEntity.COOLDOWN_WINDOW_MS].
+     */
     private suspend fun pruneExpiredCooldowns() {
         val cutoff = timeProvider.nowMillis() - AutoReplyCooldownEntity.COOLDOWN_WINDOW_MS
         cooldownDao.deleteOlderThan(cutoff)
     }
 
+    /**
+     * Inserts an activity log entry for an incoming message that was ignored.
+     *
+     * @param timestamp Message arrival timestamp in epoch milliseconds.
+     * @param reason Human-readable explanation of why the message was ignored.
+     * @param body The message body text.
+     * @param sender The originating sender address, if known.
+     * @param messageSource The incoming message protocol type.
+     */
     private suspend fun logIgnored(
         timestamp: Long,
         reason: String,

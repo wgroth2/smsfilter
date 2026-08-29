@@ -96,6 +96,9 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 /**
  * The single store for every scalar setting and flag in the app.
  *
+ * For official Android documentation on Jetpack DataStore Preferences, see:
+ * - DataStore: [https://developer.android.com/topic/libraries/architecture/datastore](https://developer.android.com/topic/libraries/architecture/datastore)
+ *
  * This class is the whole settings surface: application configuration, onboarding flags, and
  * persisted connection health all live here. There is intentionally **no** settings table in
  * Room, so later phases inject exactly one type to read or write any preference.
@@ -321,6 +324,12 @@ class SettingsDataStore @Inject constructor(
         )
     }
 
+    /**
+     * Persists a preference key-value pair asynchronously into DataStore.
+     *
+     * @param key The preference key to write.
+     * @param value The value to store.
+     */
     private suspend fun <T> write(key: Preferences.Key<T>, value: T) {
         runCatching {
             dataStore.edit { prefs -> prefs[key] = value }
@@ -357,16 +366,35 @@ class SettingsDataStore @Inject constructor(
         /** The one-time HubSpot prompt has not been shown on a fresh install. */
         const val DEFAULT_HUBSPOT_PROMPT_SHOWN: Boolean = false
 
+        /** Key for auto-reply enabled flag. */
         private val KEY_AUTO_REPLY_ENABLED = booleanPreferencesKey("auto_reply_enabled")
+
+        /** Key for HubSpot enabled flag. */
         private val KEY_USE_HUBSPOT = booleanPreferencesKey("use_hubspot")
+
+        /** Key for beep on opt-out flag. */
         private val KEY_BEEP_ON_OPT_OUT = booleanPreferencesKey("beep_on_opt_out")
+
+        /** Key for custom sound file URI. */
         private val KEY_SOUND_FILE_URI = stringPreferencesKey("sound_file_uri")
+
+        /** Key for opt-out notification enabled flag. */
         private val KEY_OPT_OUT_NOTIFICATION_ENABLED =
             booleanPreferencesKey("opt_out_notification_enabled")
+
+        /** Key for app language preference. */
         private val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
+
+        /** Key for first run completed flag. */
         private val KEY_FIRST_RUN_COMPLETE = booleanPreferencesKey("first_run_complete")
+
+        /** Key for HubSpot prompt shown flag. */
         private val KEY_HUBSPOT_PROMPT_SHOWN = booleanPreferencesKey("hubspot_prompt_shown")
+
+        /** Key for persisted Google Contacts status. */
         private val KEY_GOOGLE_CONTACTS_STATUS = stringPreferencesKey("google_contacts_status")
+
+        /** Key for persisted HubSpot status. */
         private val KEY_HUBSPOT_STATUS = stringPreferencesKey("hubspot_status")
     }
 }

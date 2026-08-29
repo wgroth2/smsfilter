@@ -119,6 +119,10 @@ data class OnboardingUiState(
 /**
  * State holder for the onboarding wizard.
  *
+ * For official Android documentation on architecture and ViewModel StateFlow management, see:
+ * - Architecture Guide: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Permission facts arrive from the composable rather than being read here: both
  * `checkSelfPermission` and `shouldShowRequestPermissionRationale` need an `Activity`, which a
  * ViewModel must not retain. The composable supplies the raw booleans on every resume and this class

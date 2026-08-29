@@ -46,6 +46,9 @@ import javax.inject.Singleton
 /**
  * Provides the Room database and its DAOs.
  *
+ * For official Android documentation on Room database architecture and schema migrations, see:
+ * - Room Migrations: [https://developer.android.com/training/data-storage/room/migrating-db-versions](https://developer.android.com/training/data-storage/room/migrating-db-versions)
+ *
  * This is the project's first Hilt module, generated in the same phase as the Room classes it
  * references — modules are deliberately co-located with their dependencies so that no phase
  * ever compiles a module whose bindings do not yet exist.

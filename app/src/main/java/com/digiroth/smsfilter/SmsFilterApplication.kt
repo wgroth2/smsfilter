@@ -40,6 +40,11 @@ import javax.inject.Inject
 /**
  * Application entry point for the SMS Compliance Filter.
  *
+ * For official Android documentation on the architectural patterns used here, see:
+ * - WorkManager with Hilt: [https://developer.android.com/training/dependency-injection/hilt-jetpack#workmanager](https://developer.android.com/training/dependency-injection/hilt-jetpack#workmanager)
+ * - Custom WorkManager configuration: [https://developer.android.com/topic/libraries/architecture/workmanager/advanced/custom-configuration](https://developer.android.com/topic/libraries/architecture/workmanager/advanced/custom-configuration)
+ * - Notification channels: [https://developer.android.com/develop/ui/views/notifications/channels](https://developer.android.com/develop/ui/views/notifications/channels)
+ *
  * Two responsibilities are handled here, both of which must happen before any other
  * component runs:
  *
@@ -75,6 +80,10 @@ class SmsFilterApplication : Application(), Configuration.Provider {
             .setMinimumLoggingLevel(if (BuildConfig.DEBUG) Log.DEBUG else Log.INFO)
             .build()
 
+    /**
+     * Performs process-level initialization on application startup, creating all required
+     * notification channels.
+     */
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Application starting; registering notification channels")

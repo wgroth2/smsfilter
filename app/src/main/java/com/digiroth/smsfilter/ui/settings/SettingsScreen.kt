@@ -100,6 +100,10 @@ import android.provider.Settings as AndroidSettings
 /**
  * The app's main screen: connection health, integrations, detection rules, and preferences.
  *
+ * For official Android documentation on architecture and Navigation Compose, see:
+ * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Connection health is re-derived on every `ON_RESUME` because contacts access can be revoked from
  * system settings while the app is backgrounded, and a stale green dot would misrepresent whether
  * the filter is actually working.
@@ -228,6 +232,9 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * Renders a visual divider with standard vertical spacing between settings sections.
+ */
 @Composable
 private fun SectionDivider() {
     Spacer(Modifier.height(16.dp))
@@ -235,12 +242,23 @@ private fun SectionDivider() {
     Spacer(Modifier.height(16.dp))
 }
 
+/**
+ * Renders a section header title.
+ *
+ * @param text The section title text to display.
+ */
 @Composable
 private fun SectionTitle(text: String) {
     Text(text = text, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
 }
 
+/**
+ * Renders the Connection Health Summary section with color-coded status dots for Google Contacts and HubSpot.
+ *
+ * @param googleHealth The evaluated Google Contacts connection health.
+ * @param hubSpotHealth The evaluated HubSpot integration health.
+ */
 @Composable
 private fun ConnectionHealthSection(
     googleHealth: GoogleContactsHealth,
@@ -304,6 +322,13 @@ private fun ConnectionHealthSection(
     }
 }
 
+/**
+ * Renders a single connection health indicator row with a colored status dot, service label, and status text.
+ *
+ * @param label The name of the service or integration.
+ * @param color The semantic color representing the health state.
+ * @param status The human-readable status description.
+ */
 @Composable
 private fun HealthRow(label: String, color: Color, status: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -323,6 +348,15 @@ private fun HealthRow(label: String, color: Color, status: String) {
     }
 }
 
+/**
+ * Renders the Google Contacts settings section, including permission status, test connection button,
+ * and a shortcut to system App Settings when permission is missing.
+ *
+ * @param health The current Google Contacts health state.
+ * @param check The active or most recent Google Contacts check result.
+ * @param onTest Callback to trigger a Google Contacts lookup diagnostic test.
+ * @param onOpenAppSettings Callback to open system application settings.
+ */
 @Composable
 private fun GoogleContactsSection(
     health: GoogleContactsHealth,
@@ -353,6 +387,11 @@ private fun GoogleContactsSection(
     ContactsCheckText(check)
 }
 
+/**
+ * Renders the status text resulting from a Google Contacts diagnostic test.
+ *
+ * @param check The current Google Contacts check result.
+ */
 @Composable
 private fun ContactsCheckText(check: ContactsCheck) {
     when (check) {
@@ -373,6 +412,16 @@ private fun ContactsCheckText(check: ContactsCheck) {
     }
 }
 
+/**
+ * Renders the HubSpot CRM integration configuration section.
+ *
+ * @param state Current UI state of settings.
+ * @param onToggle Callback to toggle the HubSpot integration enabled switch.
+ * @param onConnect Callback to connect with a Private App token string.
+ * @param onDisconnect Callback to disconnect and clear stored token.
+ * @param onTest Callback to execute a connection test against HubSpot API.
+ * @param onOpenHelp Callback to open HubSpot Private Apps documentation URL.
+ */
 @Composable
 private fun HubSpotSection(
     state: SettingsUiState,
@@ -458,6 +507,11 @@ private fun HubSpotSection(
     }
 }
 
+/**
+ * Renders the result message for a HubSpot API connectivity diagnostic test.
+ *
+ * @param check The current HubSpot diagnostic check result.
+ */
 @Composable
 private fun HubSpotCheckText(check: HubSpotCheck) {
     when (check) {
@@ -478,12 +532,25 @@ private fun HubSpotCheckText(check: HubSpotCheck) {
     }
 }
 
+/**
+ * Resolves the user-facing error message string resource for a HubSpot connection failure.
+ *
+ * @param error The specific connection error reason.
+ * @return String resource ID of the error message.
+ */
 private fun connectErrorMessage(error: HubSpotConnectError): Int = when (error) {
     HubSpotConnectError.INVALID_TOKEN -> R.string.settings_hubspot_error_invalid_token
     HubSpotConnectError.MISSING_SCOPE -> R.string.settings_hubspot_error_missing_scope
     HubSpotConnectError.NETWORK -> R.string.settings_hubspot_error_network
 }
 
+/**
+ * Renders the Stop List management section for adding and deleting keyword rules.
+ *
+ * @param keywords List of active stop-list keyword entities.
+ * @param onAdd Callback invoked to add a new stop-list keyword string.
+ * @param onDelete Callback invoked to remove a stop-list keyword entity.
+ */
 @Composable
 private fun StopListSection(
     keywords: List<StopListEntity>,
@@ -533,6 +600,15 @@ private fun StopListSection(
     }
 }
 
+/**
+ * Renders the Opt-Out Patterns configuration section, listing custom and default pattern rules
+ * and providing an inline input row to add new patterns.
+ *
+ * @param patterns The list of active opt-out pattern entities.
+ * @param onAdd Callback invoked to add a new pattern entity.
+ * @param onUpdate Callback invoked to edit an existing pattern entity.
+ * @param onDelete Callback invoked to delete an opt-out pattern entity.
+ */
 @Composable
 private fun PatternsSection(
     patterns: List<OptOutPatternEntity>,
@@ -720,18 +796,36 @@ private fun EditPatternDialog(
     )
 }
 
+/**
+ * Resolves the descriptive explanation string resource ID for a given match mode.
+ *
+ * @param mode The match mode to explain.
+ * @return String resource ID explaining the matching rule behavior.
+ */
 private fun matchModeExplanation(mode: MatchMode): Int = when (mode) {
     MatchMode.ANYWHERE -> R.string.match_mode_anywhere_desc
     MatchMode.LAST_LINE_EXACT -> R.string.match_mode_last_line_desc
     MatchMode.LAST_LINE_CONTAINS -> R.string.match_mode_last_line_contains_desc
 }
 
+/**
+ * Resolves the short display name string resource ID for a given match mode.
+ *
+ * @param mode The match mode to name.
+ * @return String resource ID of the match mode label.
+ */
 private fun matchModeLabel(mode: MatchMode): Int = when (mode) {
     MatchMode.ANYWHERE -> R.string.match_mode_anywhere
     MatchMode.LAST_LINE_EXACT -> R.string.match_mode_last_line
     MatchMode.LAST_LINE_CONTAINS -> R.string.match_mode_last_line_contains
 }
 
+/**
+ * Renders the master Auto-Reply configuration section, disclosing the 24-hour cooldown rule.
+ *
+ * @param enabled Whether automatic replies are active.
+ * @param onToggle Callback invoked when the auto-reply switch state changes.
+ */
 @Composable
 private fun AutoReplySection(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     SectionTitle(stringResource(R.string.settings_auto_reply_title))
@@ -752,6 +846,17 @@ private fun AutoReplySection(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     )
 }
 
+/**
+ * Renders the Sound and Language settings section, allowing customization of alert tones and app locale.
+ *
+ * @param beepEnabled Whether sound alerts are played on successful opt-out replies.
+ * @param notificationsEnabled Whether high-priority notifications are posted on detections.
+ * @param soundUri The custom sound URI string, or `null` for system default.
+ * @param onBeepToggle Callback invoked when the beep toggle state changes.
+ * @param onNotificationToggle Callback invoked when the notification toggle state changes.
+ * @param onSoundSelected Callback invoked when a new notification sound URI is selected.
+ * @param onLanguageSelected Callback invoked when a language locale code is chosen.
+ */
 @Composable
 private fun SoundAndLanguageSection(
     beepEnabled: Boolean,
@@ -842,6 +947,13 @@ private fun SoundAndLanguageSection(
     }
 }
 
+/**
+ * Renders the Diagnostics section with a button to run connectivity checks on all integrations.
+ *
+ * @param contactsCheck The current Google Contacts check result.
+ * @param hubSpotCheck The current HubSpot check result.
+ * @param onTestAll Callback invoked to test all configured connection endpoints.
+ */
 @Composable
 private fun DiagnosticsSection(
     contactsCheck: ContactsCheck,
@@ -857,6 +969,13 @@ private fun DiagnosticsSection(
     HubSpotCheckText(hubSpotCheck)
 }
 
+/**
+ * Renders a row containing a descriptive setting label and an aligned toggle switch.
+ *
+ * @param label The setting label text.
+ * @param checked The boolean state of the switch.
+ * @param onCheckedChange Callback invoked when the switch is toggled.
+ */
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
@@ -869,6 +988,12 @@ private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean
     }
 }
 
+/**
+ * Renders the one-time post-onboarding dialog prompting the user to optionally connect HubSpot CRM.
+ *
+ * @param onConnect Callback invoked when user elects to connect HubSpot.
+ * @param onDecline Callback invoked when user declines or dismisses the prompt.
+ */
 @Composable
 private fun HubSpotPromptDialog(onConnect: () -> Unit, onDecline: () -> Unit) {
     AlertDialog(
@@ -892,20 +1017,37 @@ private fun HubSpotPromptDialog(onConnect: () -> Unit, onDecline: () -> Unit) {
 
 /** Indicator colours, fixed rather than themed so the semantic meaning is unambiguous. */
 private object HealthColors {
+    /** Color indicating healthy and connected status (Green). */
     val GREEN = Color(0xFF2E7D32)
+
+    /** Color indicating setup incomplete or action needed (Amber). */
     val AMBER = Color(0xFFF9A825)
+
+    /** Color indicating error or connection failure (Red). */
     val RED = Color(0xFFC62828)
+
+    /** Color indicating disabled or turned off status (Gray). */
     val GRAY = Color(0xFF9E9E9E)
 }
 
+/** Default ISO 639-1 language code. */
 private const val DEFAULT_LANGUAGE = "en"
+
+/** URL to HubSpot Private Apps developer documentation. */
 private const val HUBSPOT_PRIVATE_APPS_URL = "https://developers.hubspot.com/docs/api/private-apps"
 
+/** Supported application locales mapped to their display name string resource IDs. */
 private val LANGUAGES = listOf(
     "en" to R.string.settings_language_english,
     "es" to R.string.settings_language_spanish,
 )
 
+/**
+ * Renders the RCS and Chat Messages notification listener status and configuration section.
+ *
+ * @param isNotificationAccessGranted Whether system Notification Access is granted to the app.
+ * @param onOpenNotificationListenerSettings Callback to open the system Notification Access settings screen.
+ */
 @Composable
 private fun RcsChatMessagesSection(
     isNotificationAccessGranted: Boolean,
@@ -936,6 +1078,11 @@ private fun RcsChatMessagesSection(
     }
 }
 
+/**
+ * Launches the system Notification Listener access settings screen.
+ *
+ * @param context Android context used to launch the settings activity.
+ */
 private fun openNotificationListenerSettings(context: Context) {
     runCatching {
         context.startActivity(
@@ -945,6 +1092,11 @@ private fun openNotificationListenerSettings(context: Context) {
     }
 }
 
+/**
+ * Launches the system Application Details Settings screen for this package.
+ *
+ * @param context Android context used to launch the settings activity.
+ */
 private fun openAppSettings(context: Context) {
     runCatching {
         context.startActivity(
@@ -956,6 +1108,12 @@ private fun openAppSettings(context: Context) {
     }
 }
 
+/**
+ * Opens a web URL in the system browser.
+ *
+ * @param context Android context used to launch the browser intent.
+ * @param url The external URL string to open.
+ */
 private fun openUrl(context: Context, url: String) {
     runCatching {
         context.startActivity(

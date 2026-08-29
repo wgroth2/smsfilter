@@ -91,6 +91,10 @@ fun readShouldShowRationale(activity: Activity?): Map<String, Boolean> =
 /**
  * Step 2 of the wizard: request the runtime permissions.
  *
+ * For official Android documentation on architecture and Navigation Compose, see:
+ * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Each permission is shown with the reason it is needed, its current state, and the one action that
  * can actually change that state — a request prompt, or App Settings once Android has stopped
  * showing prompts. Offering a request button in the permanently-denied case would produce a control
@@ -269,6 +273,12 @@ private fun PermissionRow(permission: String, state: PermissionState?) {
     }
 }
 
+/**
+ * Resolves the display name string resource ID for a given permission.
+ *
+ * @param permission The manifest permission constant.
+ * @return The string resource ID for the permission title.
+ */
 private fun permissionLabel(permission: String): Int = when (permission) {
     AppPermissions.RECEIVE_SMS -> R.string.permission_name_receive_sms
     AppPermissions.SEND_SMS -> R.string.permission_name_send_sms
@@ -276,6 +286,12 @@ private fun permissionLabel(permission: String): Int = when (permission) {
     else -> R.string.permission_name_post_notifications
 }
 
+/**
+ * Resolves the explanatory reason string resource ID for a given permission.
+ *
+ * @param permission The manifest permission constant.
+ * @return The string resource ID explaining why the permission is requested.
+ */
 private fun permissionReason(permission: String): Int = when (permission) {
     AppPermissions.RECEIVE_SMS -> R.string.permission_reason_receive_sms
     AppPermissions.SEND_SMS -> R.string.permission_reason_send_sms
@@ -283,6 +299,12 @@ private fun permissionReason(permission: String): Int = when (permission) {
     else -> R.string.permission_reason_post_notifications
 }
 
+/**
+ * Resolves the status indicator label string resource ID for an evaluated permission state.
+ *
+ * @param state The evaluated permission state.
+ * @return The string resource ID representing the grant status.
+ */
 private fun stateLabel(state: PermissionState?): Int = when (state) {
     PermissionState.Granted -> R.string.permission_status_granted
     PermissionState.DeniedCanRetry, PermissionState.DeniedPermanently -> R.string.permission_status_denied

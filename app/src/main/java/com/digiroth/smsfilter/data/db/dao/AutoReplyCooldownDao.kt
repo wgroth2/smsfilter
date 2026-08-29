@@ -36,6 +36,9 @@ import com.digiroth.smsfilter.data.db.entity.AutoReplyCooldownEntity
 /**
  * Data access for the 24-hour auto-reply cooldown table.
  *
+ * For official Android documentation on Room DAO patterns and database access, see:
+ * - Room Migrations & Database Architecture: [https://developer.android.com/training/data-storage/room/migrating-db-versions](https://developer.android.com/training/data-storage/room/migrating-db-versions)
+ *
  * Every method is keyed by the SHA-256 hash of the raw sender address — the plain address is
  * never passed to or stored by this DAO.
  */

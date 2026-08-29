@@ -39,6 +39,9 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Data access for stop-list keywords.
  *
+ * For official Android documentation on Room DAO patterns and database access, see:
+ * - Room Migrations & Database Architecture: [https://developer.android.com/training/data-storage/room/migrating-db-versions](https://developer.android.com/training/data-storage/room/migrating-db-versions)
+ *
  * Two read shapes are offered deliberately: [observeAll] backs the Settings UI reactively,
  * while [getAll] is a one-shot suspending read for `SmsLookupWorker`, which needs a
  * snapshot of the list at the moment a message arrives rather than a subscription.

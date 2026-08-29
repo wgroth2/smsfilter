@@ -68,6 +68,10 @@ import com.digiroth.smsfilter.ui.permissions.readShouldShowRationale
 /**
  * The three-step first-run wizard: Welcome, Permissions, Connection Test.
  *
+ * For official Android documentation on architecture and Navigation Compose, see:
+ * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Step state lives in [OnboardingViewModel] rather than in a nav graph. The steps are strictly
  * linear, they share one piece of state (permission facts), and step 2 must gate forward movement —
  * a `NavHost` here would add back-stack behaviour that has to be suppressed rather than used.

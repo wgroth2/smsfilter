@@ -40,6 +40,9 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Data access for opt-out patterns.
  *
+ * For official Android documentation on Room DAO patterns and database access, see:
+ * - Room Migrations & Database Architecture: [https://developer.android.com/training/data-storage/room/migrating-db-versions](https://developer.android.com/training/data-storage/room/migrating-db-versions)
+ *
  * `SmsLookupWorker` reads the live list via [getAll] and passes it to `OptOutDetector`; the
  * detector itself never touches this DAO, which keeps it a pure, database-free class that
  * can be unit-tested on the JVM.

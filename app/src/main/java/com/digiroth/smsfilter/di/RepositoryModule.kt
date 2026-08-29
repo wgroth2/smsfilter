@@ -76,10 +76,6 @@ abstract class RepositoryModule {
     abstract fun bindHubSpotRepository(impl: HubSpotRepositoryImpl): HubSpotRepository
 
     /**
-     * @param impl Platform SMS implementation.
-     * @return The bound [SmsSender].
-     */
-    /**
      * @param impl Adapter over the DataStore-backed settings store.
      * @return The bound [SettingsSnapshotProvider], which keeps the pipeline free of any
      *   `Context`-requiring dependency and therefore JVM-testable.
@@ -99,6 +95,10 @@ abstract class RepositoryModule {
     @Singleton
     abstract fun bindContactSource(impl: GoogleContactSource): ContactSource
 
+    /**
+     * @param impl Platform SMS implementation.
+     * @return The bound [SmsSender].
+     */
     @Binds
     @Singleton
     abstract fun bindSmsSender(impl: AndroidSmsSender): SmsSender

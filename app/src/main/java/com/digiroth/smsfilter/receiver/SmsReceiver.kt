@@ -44,6 +44,9 @@ import com.digiroth.smsfilter.worker.SmsLookupWorker
 /**
  * Receives incoming SMS broadcasts and hands each complete message to [SmsLookupWorker].
  *
+ * For official Android documentation on Telephony SMS Broadcast Intents & multi-part PDUs, see:
+ * - Telephony.Sms.Intents: [https://developer.android.com/reference/android/provider/Telephony.Sms.Intents](https://developer.android.com/reference/android/provider/Telephony.Sms.Intents)
+ *
  * Manifest-declared, so it runs even when the app has no process alive. It performs no lookups and
  * makes no decisions — `onReceive` has a few seconds at most before the system may kill the
  * process, so all real work is deferred to an expedited worker.
@@ -52,6 +55,13 @@ import com.digiroth.smsfilter.worker.SmsLookupWorker
  */
 class SmsReceiver : BroadcastReceiver() {
 
+    /**
+     * Intercepts incoming SMS broadcasts, reassembles multi-part PDU message segments,
+     * resolves receiving subscription ID, and dispatches processing to [SmsLookupWorker].
+     *
+     * @param context Application/receiver context.
+     * @param intent The broadcast intent containing SMS PDUs.
+     */
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
 

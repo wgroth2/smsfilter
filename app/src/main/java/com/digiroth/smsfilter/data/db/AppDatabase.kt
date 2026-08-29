@@ -48,6 +48,9 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
 /**
  * The application's Room database.
  *
+ * For official Android documentation on Room database architecture and schema migrations, see:
+ * - Room Migrations: [https://developer.android.com/training/data-storage/room/migrating-db-versions](https://developer.android.com/training/data-storage/room/migrating-db-versions)
+ *
  * Holds only list-shaped data: stop-list keywords, opt-out patterns, the activity log, and
  * auto-reply cooldown records. **All scalar settings and flags live in
  * `DataStore<Preferences>` instead — there is deliberately no settings table here.**

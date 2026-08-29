@@ -74,6 +74,8 @@ object AppPermissions {
     /**
      * Permissions the app asks for but does not require. A denial here shows a warning and the user
      * may still finish the wizard — contacts access is explicitly non-blocking by design.
+     *
+     * @return The list of optional permissions.
      */
     fun optional(): List<String> = listOf(READ_CONTACTS)
 

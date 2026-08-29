@@ -40,6 +40,9 @@ import javax.inject.Singleton
 /**
  * Encrypted storage for the HubSpot Private App access token.
  *
+ * For official Android documentation on EncryptedSharedPreferences and MasterKey security, see:
+ * - EncryptedSharedPreferences: [https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences](https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences)
+ *
  * The token is the only secret the app holds. It is entered by the user at runtime and never
  * appears in source, `BuildConfig`, `local.properties`, or version control. Private App
  * tokens do not expire, so there is no refresh logic — the token is written once when the
@@ -117,6 +120,11 @@ class SecureTokenStore @Inject constructor(
      */
     fun hasAccessToken(): Boolean = getAccessToken() != null
 
+    /**
+     * Opens the encrypted preferences file using AndroidX Security MasterKey and EncryptedSharedPreferences.
+     *
+     * @return The opened [SharedPreferences] instance, or `null` if Keystore initialization fails.
+     */
     private fun openEncryptedPreferences(): SharedPreferences? = runCatching {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)

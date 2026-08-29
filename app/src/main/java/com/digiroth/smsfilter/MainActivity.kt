@@ -39,6 +39,11 @@ import dagger.hilt.android.AndroidEntryPoint
 /**
  * The app's single Activity.
  *
+ * Implements Modern Android Architecture (UDF) and Navigation Compose.
+ * See:
+ * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Must live in this package: `AndroidManifest.xml` declares `android:name=".MainActivity"` with the
  * launcher intent filter, so moving it would produce a `ClassNotFoundException` at launch.
  *
@@ -54,6 +59,12 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
+    /**
+     * Initializes the activity, reads any initial navigation routing extras from the launching intent,
+     * and sets the Compose content hierarchy.
+     *
+     * @param savedInstanceState Saved instance state bundle, or `null` if freshly launched.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

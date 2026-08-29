@@ -38,6 +38,9 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Data access for the activity and detection log.
  *
+ * For official Android documentation on Room DAO patterns and database access, see:
+ * - Room Migrations & Database Architecture: [https://developer.android.com/training/data-storage/room/migrating-db-versions](https://developer.android.com/training/data-storage/room/migrating-db-versions)
+ *
  * The log screen shows at most [DetectionLogEntity.MAX_DISPLAYED_ENTRIES] rows, enforced
  * here as a query `LIMIT` rather than by deleting older rows, so history survives for
  * debugging even though the UI shows only the most recent window.

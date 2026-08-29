@@ -61,6 +61,10 @@ object AppRoute {
 /**
  * The app's navigation graph.
  *
+ * For official Android documentation on UDF architecture and Navigation Compose, see:
+ * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
+ * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
+ *
  * Nothing is rendered until the start destination is known. `firstRunComplete` arrives
  * asynchronously, and picking a default would show one screen and then replace it — visible as a
  * flash of the wizard for users who finished setup long ago.
@@ -98,6 +102,12 @@ fun AppNavHost(
     }
 }
 
+/**
+ * Builds the application [NavHost] destinations and back-stack transitions.
+ *
+ * @param navController The navigation controller managing app navigation.
+ * @param startRoute The initial destination route.
+ */
 @Composable
 private fun NavGraph(navController: NavHostController, startRoute: String) {
     NavHost(navController = navController, startDestination = startRoute) {
@@ -132,6 +142,9 @@ private fun NavGraph(navController: NavHostController, startRoute: String) {
     }
 }
 
+/**
+ * Renders a full-screen loading spinner while initial preferences and start destination resolve.
+ */
 @Composable
 private fun LoadingScreen() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

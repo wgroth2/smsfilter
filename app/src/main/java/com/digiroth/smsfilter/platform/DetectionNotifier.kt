@@ -118,11 +118,22 @@ class AndroidDetectionNotifier @Inject constructor(
         }
     }
 
+    /**
+     * Checks whether the app has runtime permission to post notifications.
+     *
+     * @return `true` if below Android 13 (API 33) or if `POST_NOTIFICATIONS` is granted.
+     */
     private fun hasPostPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Builds the content [PendingIntent] to navigate to the detection log screen when the user taps
+     * the notification.
+     *
+     * @return A pending intent targeting the main activity with routing extras, or `null` if the launch intent cannot be resolved.
+     */
     private fun detectionLogIntent(): PendingIntent? {
         val launchIntent = context.packageManager
             .getLaunchIntentForPackage(context.packageName)

@@ -46,7 +46,10 @@ class MessageDeduplicator @Inject constructor(
     private val timeProvider: TimeProvider,
 ) {
 
+    /** Synchronization lock protecting access to [recentMessages]. */
     private val lock: Any = Any()
+
+    /** Map of message SHA-256 hashes to their arrival timestamp in epoch milliseconds. */
     private val recentMessages: MutableMap<String, Long> = mutableMapOf()
 
     /**
@@ -85,11 +88,23 @@ class MessageDeduplicator @Inject constructor(
         recentMessages.clear()
     }
 
+    /**
+     * Removes cached message entries older than [TTL_MILLIS].
+     *
+     * @param now Current epoch timestamp in milliseconds.
+     */
     private fun pruneExpired(now: Long) {
         val cutoff = now - TTL_MILLIS
         recentMessages.entries.removeIf { it.value < cutoff }
     }
 
+    /**
+     * Computes a SHA-256 hash digest of the sender address and message body combined.
+     *
+     * @param senderAddress Originating sender address.
+     * @param messageBody Content of the message.
+     * @return A lowercase hexadecimal SHA-256 hash string.
+     */
     private fun hashMessage(senderAddress: String, messageBody: String): String {
         val payload = "$senderAddress\n$messageBody"
         val digest = MessageDigest.getInstance(DIGEST_ALGORITHM)

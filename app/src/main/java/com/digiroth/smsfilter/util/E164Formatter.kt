@@ -34,6 +34,9 @@ import android.util.Log
 /**
  * Converts a raw dialable string to E.164 form.
  *
+ * For official Android documentation on `PhoneNumberUtils`, see:
+ * - Telephony PhoneNumberUtils: [https://developer.android.com/reference/android/telephony/PhoneNumberUtils](https://developer.android.com/reference/android/telephony/PhoneNumberUtils)
+ *
  * This interface exists purely as a seam around the Android platform call. In a JVM unit test
  * the framework is replaced by a stub whose methods throw
  * `Method … in android.telephony.PhoneNumberUtils not mocked`, so a class that calls

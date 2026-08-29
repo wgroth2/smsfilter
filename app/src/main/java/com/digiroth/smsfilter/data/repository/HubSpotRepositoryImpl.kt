@@ -249,6 +249,12 @@ class HubSpotRepositoryImpl @VisibleForTesting constructor(
         limit = SEARCH_RESULT_LIMIT,
     )
 
+    /**
+     * Determines whether an HTTP response status code is transient and eligible for retry.
+     *
+     * @param code The HTTP status code.
+     * @return `true` if the request should be retried (429 rate limit or 5xx server error).
+     */
     private fun isRetryable(code: Int): Boolean =
         code == HTTP_TOO_MANY_REQUESTS || code >= HTTP_SERVER_ERROR_FLOOR
 
@@ -282,8 +288,13 @@ class HubSpotRepositoryImpl @VisibleForTesting constructor(
         /** Reported when every attempt failed. */
         const val REASON_RETRIES_EXHAUSTED: String = "retries_exhausted"
 
-        private const val HTTP_UNAUTHORIZED = 401
-        private const val HTTP_TOO_MANY_REQUESTS = 429
-        private const val HTTP_SERVER_ERROR_FLOOR = 500
+        /** HTTP 401 Unauthorized status code. */
+        private const val HTTP_UNAUTHORIZED: Int = 401
+
+        /** HTTP 429 Too Many Requests status code. */
+        private const val HTTP_TOO_MANY_REQUESTS: Int = 429
+
+        /** Lowest HTTP 5xx Server Error status code. */
+        private const val HTTP_SERVER_ERROR_FLOOR: Int = 500
     }
 }

@@ -90,13 +90,18 @@ class ContactLookupCache @Inject constructor(
      *
      * @param lookupKey The value the sender was resolved by.
      */
-    fun markKnownContact(lookupKey: String) = synchronized(entries) {
-        entries[lookupKey] = timeProvider.nowMillis()
-        Unit
+    fun markKnownContact(lookupKey: String): Unit {
+        synchronized(entries) {
+            entries[lookupKey] = timeProvider.nowMillis()
+        }
     }
 
     /** Drops every entry. Used when contact permissions change or the user disconnects HubSpot. */
-    fun clear() = synchronized(entries) { entries.clear() }
+    fun clear(): Unit {
+        synchronized(entries) {
+            entries.clear()
+        }
+    }
 
     /**
      * @return The number of entries currently held, expired or not. Exposed for tests and
@@ -111,7 +116,10 @@ class ContactLookupCache @Inject constructor(
         /** Upper bound on retained entries, so a burst of distinct senders cannot grow the map. */
         const val MAX_ENTRIES: Int = 128
 
-        private const val INITIAL_CAPACITY = 16
-        private const val LOAD_FACTOR = 0.75f
+        /** Initial hash map bucket capacity. */
+        private const val INITIAL_CAPACITY: Int = 16
+
+        /** Hash map load factor threshold for resizing. */
+        private const val LOAD_FACTOR: Float = 0.75f
     }
 }
