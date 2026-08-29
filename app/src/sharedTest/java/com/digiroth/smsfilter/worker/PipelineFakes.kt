@@ -278,6 +278,9 @@ class PipelineFakes {
         override suspend fun getRecent(limit: Int): List<DetectionLogEntity> =
             inserted.sortedByDescending { it.timestamp }.take(limit)
 
+        override fun observeAll(limit: Int): Flow<List<DetectionLogEntity>> =
+            flowOf(inserted.take(limit))
+
         override fun observeRecentActionable(
             limit: Int,
             excludedType: LogEventType,

@@ -46,6 +46,7 @@ import com.digiroth.smsfilter.data.db.entity.MessageSource
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
 import com.digiroth.smsfilter.data.db.entity.ReplyType
 import com.digiroth.smsfilter.data.db.entity.StopListEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -328,6 +329,45 @@ class RoomDatabaseTest {
         assertEquals(3, entries.size)
         assertEquals("newest entry should sort first", 3_000L, entries.first().timestamp)
         assertEquals("oldest entry should sort last", 1_000L, entries.last().timestamp)
+    }
+
+    @Test
+    fun detectionLog_observeAllEmitsEveryEntryType() = runBlocking {
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 1_000L,
+                eventType = LogEventType.DETECTION,
+                matchedPattern = "stop2stop",
+                replyStatus = "Reply sent: stop",
+                messagePreview = "stop2stop text",
+            ),
+        )
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 2_000L,
+                eventType = LogEventType.IGNORED,
+                ignoreReason = "Ignored: Known Google Contact",
+                messagePreview = "Lunch at noon?",
+            ),
+        )
+        detectionLogDao.insert(
+            DetectionLogEntity(
+                timestamp = 3_000L,
+                eventType = LogEventType.NO_MATCH,
+                messagePreview = "Random promo",
+            ),
+        )
+
+        val entries = detectionLogDao.observeAll().first()
+
+        assertEquals(3, entries.size)
+        val types = entries.map { it.eventType }
+        assertTrue(types.contains(LogEventType.DETECTION))
+        assertTrue(types.contains(LogEventType.IGNORED))
+        assertTrue(types.contains(LogEventType.NO_MATCH))
+        assertEquals(3_000L, entries[0].timestamp)
+        assertEquals(2_000L, entries[1].timestamp)
+        assertEquals(1_000L, entries[2].timestamp)
     }
 
     @Test

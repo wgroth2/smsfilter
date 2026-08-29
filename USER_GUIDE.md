@@ -164,6 +164,12 @@ Launching the app after setup lands on Settings.
 A chronological record of every decision, with three event types (detections, ignored
 messages, and non-matching messages).
 
+Filter chips let you view:
+- **All**: Displays every evaluated message received by the app, including detections, ignored messages, and unmatched texts.
+- **Detections**: Only opt-out detections and the fate of the automated reply.
+- **Ignored**: Messages bypassed due to stop list keywords or known contacts.
+- **Not Matched**: Messages received from unknown senders that did not match any opt-out pattern.
+
 **Ignored** entries name the reason, for example `Ignored: Known Google Contact` or
 `Ignored: Matched Stop List word 'promo'`.
 

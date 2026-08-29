@@ -118,7 +118,7 @@ class RcsNotificationListenerService : NotificationListenerService() {
         }
 
         val sender = messageData.sender
-        var body = messageData.body
+        val body = messageData.body
         if (sender.isBlank() || body.isBlank()) {
             return
         }
@@ -127,24 +127,24 @@ class RcsNotificationListenerService : NotificationListenerService() {
             Log.w(TAG, "Notification message body may be truncated")
         }
 
-        val hasAttachment = hasNotificationAttachment(notification)
-        if ((messageData.messageSource == MessageSource.MMS) || body.startsWith("Image") || hasAttachment) {
-            val resolvedFullText = mmsTextResolver.resolveFullMmsText(body)
-            if ((resolvedFullText != null) && ((resolvedFullText.length > body.length) || body.startsWith("Image"))) {
-                body = resolvedFullText
-                Log.d(TAG, "Resolved full MMS body from telephony provider (${body.length} chars)")
-            }
-        }
-
         val replyKey = UUID.randomUUID().toString()
         val remoteInput = directReplyAction.remoteInputs.first()
         directReplySender.registerHandle(replyKey, directReplyAction.actionIntent, remoteInput)
 
         serviceScope.launch {
             runCatching {
+                var messageBody = body
+                if ((messageData.messageSource == MessageSource.MMS) || messageBody.startsWith("Image") || messageBody.startsWith("Photo")) {
+                    val resolvedFullText = mmsTextResolver.resolveFullMmsTextWithRetry(messageBody)
+                    if ((resolvedFullText != null) && ((resolvedFullText.length > messageBody.length) || messageBody.startsWith("Image") || messageBody.startsWith("Photo"))) {
+                        messageBody = resolvedFullText
+                        Log.d(TAG, "Resolved full MMS body from telephony provider (${messageBody.length} chars)")
+                    }
+                }
+
                 val outcome = pipeline.process(
                     senderAddress = sender,
-                    messageBody = body,
+                    messageBody = messageBody,
                     receivedAtMillis = sbn.postTime,
                     directReplyKey = replyKey,
                     messageSource = messageData.messageSource,

@@ -46,6 +46,23 @@ import kotlinx.coroutines.flow.Flow
 interface DetectionLogDao {
 
     /**
+     * Observes every log entry regardless of event type, newest first.
+     *
+     * Backs the "All" filter chip. Emits all message evaluations received by the app,
+     * including detections, ignored messages, and non-matching texts.
+     *
+     * @param limit Maximum rows to emit.
+     * @return A [Flow] that re-emits whenever the table changes.
+     */
+    @Query(
+        "SELECT * FROM ${DetectionLogEntity.TABLE_NAME} " +
+            "ORDER BY timestamp DESC, id DESC LIMIT :limit",
+    )
+    fun observeAll(
+        limit: Int = DetectionLogEntity.MAX_DISPLAYED_ENTRIES,
+    ): Flow<List<DetectionLogEntity>>
+
+    /**
      * Observes the most recent entries the app actually acted on, newest first: detections and
      * ignored messages, but not [LogEventType.NO_MATCH].
      *

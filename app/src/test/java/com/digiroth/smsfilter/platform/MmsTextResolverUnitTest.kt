@@ -86,4 +86,34 @@ class MmsTextResolverUnitTest {
         val result = resolver.sanitizeSnippet("Image")
         assertEquals("", result)
     }
+
+    @Test
+    fun resolveFullMmsTextWithRetry_retriesAndReturnsResolvedTextWhenAvailable() = kotlinx.coroutines.test.runTest {
+        val retryResolver = object : MmsTextResolver(ContextWrapper(null)) {
+            var callCount = 0
+            override fun resolveFullMmsText(prefixSnippet: String?): String? {
+                callCount++
+                return if (callCount >= 2) "Full resolved MMS text" else null
+            }
+        }
+
+        val result = retryResolver.resolveFullMmsTextWithRetry(prefixSnippet = "STOP", maxAttempts = 3, delayMillis = 10L)
+        assertEquals("Full resolved MMS text", result)
+        assertEquals(2, retryResolver.callCount)
+    }
+
+    @Test
+    fun resolveFullMmsTextWithRetry_returnsNullWhenAllAttemptsFail() = kotlinx.coroutines.test.runTest {
+        val failingResolver = object : MmsTextResolver(ContextWrapper(null)) {
+            var callCount = 0
+            override fun resolveFullMmsText(prefixSnippet: String?): String? {
+                callCount++
+                return null
+            }
+        }
+
+        val result = failingResolver.resolveFullMmsTextWithRetry(prefixSnippet = "STOP", maxAttempts = 3, delayMillis = 10L)
+        org.junit.Assert.assertNull(result)
+        assertEquals(3, failingResolver.callCount)
+    }
 }

@@ -47,11 +47,8 @@ import javax.inject.Inject
 /** Which entries the log screen is showing. */
 enum class LogFilter {
     /**
-     * Every message the app acted on: detections and ignored messages together.
-     *
-     * Messages that matched nothing are deliberately left out. They are high-volume diagnostic
-     * data — one row per non-matching text the device receives — and would crowd out the rows the
-     * user opened the log to read. They are reachable under [NO_MATCH] instead.
+     * Every message received and evaluated by the app: detections, ignored messages,
+     * and non-matching messages.
      */
     ALL,
 
@@ -78,10 +75,8 @@ enum class LogFilter {
  * fewer than that many rows of the selected kind whenever the newest hundred entries were mostly
  * of the other kind.
  *
- * [LogFilter.ALL] means "every message the app acted on", not "every row in the table":
- * [LogEventType.NO_MATCH] rows are excluded there and surfaced only under [LogFilter.NO_MATCH],
- * because one is written for every non-matching text received and they would otherwise fill the
- * capped window on their own.
+ * [LogFilter.ALL] displays all evaluated messages including detections, ignored messages, and
+ * unmatched texts.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -98,7 +93,7 @@ class DetectionLogViewModel @Inject constructor(
     val entries: StateFlow<List<DetectionLogEntity>> = _filter
         .flatMapLatest { selected ->
             when (selected) {
-                LogFilter.ALL -> detectionLogDao.observeRecentActionable()
+                LogFilter.ALL -> detectionLogDao.observeAll()
                 LogFilter.DETECTIONS -> detectionLogDao.observeRecentByType(LogEventType.DETECTION)
                 LogFilter.IGNORED -> detectionLogDao.observeRecentByType(LogEventType.IGNORED)
                 LogFilter.NO_MATCH -> detectionLogDao.observeRecentByType(LogEventType.NO_MATCH)

@@ -32,6 +32,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,9 +47,39 @@ import javax.inject.Singleton
  * @property context The application context used to obtain the content resolver.
  */
 @Singleton
-class MmsTextResolver @Inject constructor(
+open class MmsTextResolver @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+
+    /**
+     * Resolves the full text body of an MMS message, retrying asynchronously if the telephony
+     * provider has not yet committed the text part records.
+     *
+     * Performs an initial immediate lookup via [resolveFullMmsText]. If no matching text is found
+     * (e.g. if the notification arrived before the MMS part was fully parsed and saved to telephony storage),
+     * suspends for [delayMillis] and retries up to [maxAttempts] total attempts.
+     *
+     * @param prefixSnippet The initial snippet or truncated notification body to match against, or `null`.
+     * @param maxAttempts Maximum number of query attempts before giving up. Defaults to 3.
+     * @param delayMillis Suspension duration between retry attempts in milliseconds. Defaults to 350ms.
+     * @return The resolved full MMS body text, or `null` if resolution failed across all attempts.
+     */
+    suspend fun resolveFullMmsTextWithRetry(
+        prefixSnippet: String? = null,
+        maxAttempts: Int = 3,
+        delayMillis: Long = 350L,
+    ): String? {
+        for (attempt in 1..maxAttempts) {
+            val resolved = resolveFullMmsText(prefixSnippet)
+            if (resolved != null) {
+                return resolved
+            }
+            if (attempt < maxAttempts) {
+                delay(delayMillis)
+            }
+        }
+        return null
+    }
 
     /**
      * Resolves the full text body of a recently received MMS message from the telephony provider.
@@ -62,7 +93,7 @@ class MmsTextResolver @Inject constructor(
      * @param prefixSnippet The initial snippet or truncated notification body to match against, or `null`.
      * @return The full MMS message text body if resolved, or `null` if not found or on error.
      */
-    fun resolveFullMmsText(prefixSnippet: String? = null): String? = runCatching {
+    open fun resolveFullMmsText(prefixSnippet: String? = null): String? = runCatching {
         val cleanSnippet = prefixSnippet?.let(::sanitizeSnippet)?.takeIf { it.isNotBlank() }
         val searchPrefix = cleanSnippet?.take(SEARCH_PREFIX_LENGTH)?.trim()?.takeIf { it.isNotBlank() }
 
