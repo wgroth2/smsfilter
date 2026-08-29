@@ -83,6 +83,8 @@ enabled a tone also plays, but only when a reply was actually sent.
 Checks run in a fixed order, cheapest first, so an ignored message costs no contact
 lookups and no network calls.
 
+> 📊 *Android Studio users with the Mermaid plugin can open and live-preview the dedicated diagram file directly:* **[pipeline_flow.mermaid](pipeline_flow.mermaid)**
+
 ```mermaid
 graph TD
     A["Message received<br/>(SMS, MMS, or RCS)"] --> B{"Setup finished?"}
