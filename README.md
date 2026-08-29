@@ -12,6 +12,11 @@ Marketing and automated SMS/RCS messages often carry an opt-out instruction, but
 
 An incoming message is evaluated in a fixed order, and the order is load-bearing:
 
+![SMS Filter Architecture Pipeline](pipeline_flow.svg)
+
+<details>
+<summary>View Diagram Definition</summary>
+
 ```mermaid
 graph TD
     A["Message received<br/>(SMS, MMS, or RCS)"] --> B["Ingress layer<br/>SmsReceiver or NotificationListener"]
@@ -31,6 +36,8 @@ graph TD
     J -- All pass --> K["Send 'stop' or 'end'<br/>to the raw address"]
     J -- Any blocks --> L["Log the skip reason"]
 ```
+
+</details>
 
 **Multi-protocol ingress.** The app supports three distinct message types, visible via badges in the Activity Log:
 - **`[SMS]`**: Standard cellular SMS reassembled directly from broadcast PDUs (`SmsReceiver`).

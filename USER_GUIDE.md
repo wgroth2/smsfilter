@@ -83,7 +83,10 @@ enabled a tone also plays, but only when a reply was actually sent.
 Checks run in a fixed order, cheapest first, so an ignored message costs no contact
 lookups and no network calls.
 
-> 📊 *Android Studio users with the Mermaid plugin can open and live-preview the dedicated diagram file directly:* **[pipeline_flow.mermaid](pipeline_flow.mermaid)**
+![SMS Filter Pipeline Architecture](pipeline_flow.svg)
+
+<details>
+<summary>View Mermaid Source Code</summary>
 
 ```mermaid
 graph TD
@@ -109,6 +112,8 @@ graph TD
     K -- No --> L["Send stop or end"]
     L --> M["Play sound<br/>Log: Reply sent"]
 ```
+
+</details>
 
 ### The detection patterns seeded on install
 
