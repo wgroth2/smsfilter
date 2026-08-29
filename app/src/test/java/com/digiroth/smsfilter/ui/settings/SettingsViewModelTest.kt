@@ -32,6 +32,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import androidx.lifecycle.viewModelScope
 import com.digiroth.smsfilter.data.db.dao.OptOutPatternDao
 import com.digiroth.smsfilter.data.db.dao.StopListDao
 import com.digiroth.smsfilter.data.db.entity.MatchMode
@@ -45,6 +46,7 @@ import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -64,6 +66,9 @@ import java.nio.file.Files
 
 /**
  * JVM unit tests for [SettingsViewModel], verifying pattern and stop-list mutations.
+ *
+ * Verifies that updating and adding opt-out patterns sanitizes input text, updates the DAO,
+ * and ignores empty or whitespace-only patterns.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -78,6 +83,7 @@ class SettingsViewModelTest {
     private lateinit var healthEvaluator: ConnectionHealthEvaluator
     private lateinit var stopListDao: FakeStopListDao
     private lateinit var optOutPatternDao: RecordingOptOutPatternDao
+    private var activeViewModel: SettingsViewModel? = null
 
     @Before
     fun setUp() {
@@ -95,21 +101,33 @@ class SettingsViewModelTest {
 
     @After
     fun tearDown() {
+        activeViewModel?.viewModelScope?.cancel()
+        testDispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
         tempDir.deleteRecursively()
     }
 
-    private fun createViewModel(): SettingsViewModel = SettingsViewModel(
-        context = fakeContext,
-        settingsDataStore = settingsDataStore,
-        secureTokenStore = secureTokenStore,
-        contactRepository = contactRepository,
-        hubSpotRepository = hubSpotRepository,
-        healthEvaluator = healthEvaluator,
-        stopListDao = stopListDao,
-        optOutPatternDao = optOutPatternDao,
-    )
+    private fun createViewModel(): SettingsViewModel {
+        val vm = SettingsViewModel(
+            context = fakeContext,
+            settingsDataStore = settingsDataStore,
+            secureTokenStore = secureTokenStore,
+            contactRepository = contactRepository,
+            hubSpotRepository = hubSpotRepository,
+            healthEvaluator = healthEvaluator,
+            stopListDao = stopListDao,
+            optOutPatternDao = optOutPatternDao,
+        )
+        activeViewModel = vm
+        return vm
+    }
 
+    /**
+     * Tests that updatePattern trims leading and trailing whitespace from pattern text before persisting to the DAO.
+     *
+     * Preconditions: Calling updatePattern with id=42, pattern="  stop2stop  ", STOP reply type, ANYWHERE match mode.
+     * Expected: OptOutPatternDao receives an updated entity with trimmed pattern "stop2stop".
+     */
     @Test
     fun `updatePattern trims pattern text and updates DAO`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
@@ -130,6 +148,12 @@ class SettingsViewModelTest {
         assertEquals(MatchMode.ANYWHERE, updated.matchMode)
     }
 
+    /**
+     * Tests that updatePattern ignores blank or whitespace-only pattern strings without calling the DAO.
+     *
+     * Preconditions: Calling updatePattern with whitespace pattern "   ".
+     * Expected: No updates are dispatched to [OptOutPatternDao].
+     */
     @Test
     fun `updatePattern ignores blank pattern`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
@@ -145,6 +169,12 @@ class SettingsViewModelTest {
         assertTrue(optOutPatternDao.updatedPatterns.isEmpty())
     }
 
+    /**
+     * Tests that addPattern trims whitespace from pattern text and inserts the new entity into the DAO.
+     *
+     * Preconditions: Calling addPattern with pattern="  unsubscribe  ", STOP reply type, ANYWHERE match mode.
+     * Expected: [OptOutPatternDao] receives an insert with trimmed pattern "unsubscribe".
+     */
     @Test
     fun `addPattern trims pattern text and inserts into DAO`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
@@ -163,6 +193,12 @@ class SettingsViewModelTest {
         assertEquals(MatchMode.ANYWHERE, inserted.matchMode)
     }
 
+    /**
+     * Tests that addPattern ignores blank or whitespace-only pattern strings without inserting into the DAO.
+     *
+     * Preconditions: Calling addPattern with whitespace pattern "   ".
+     * Expected: No inserts are dispatched to [OptOutPatternDao].
+     */
     @Test
     fun `addPattern ignores blank pattern`() = runTest(testDispatcher) {
         val viewModel = createViewModel()

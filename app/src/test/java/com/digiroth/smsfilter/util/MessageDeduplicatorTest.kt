@@ -45,11 +45,23 @@ class MessageDeduplicatorTest {
     private val timeProvider = TestTimeProvider()
     private val deduplicator = MessageDeduplicator(timeProvider)
 
+    /**
+     * Tests that an unrecorded message is not flagged as a duplicate.
+     *
+     * Preconditions: Empty deduplicator.
+     * Expected: [MessageDeduplicator.isDuplicate] returns false.
+     */
     @Test
     fun unrecordedMessageIsNotDuplicate() {
         assertFalse(deduplicator.isDuplicate("+16505551234", "STOP"))
     }
 
+    /**
+     * Tests that recording a message causes an identical sender and body within the TTL window to be identified as a duplicate.
+     *
+     * Preconditions: Message from "+16505551234" with body "STOP" is recorded.
+     * Expected: [MessageDeduplicator.isDuplicate] returns true.
+     */
     @Test
     fun recordedMessageWithinTtlIsDuplicate() {
         val sender = "+16505551234"
@@ -60,6 +72,12 @@ class MessageDeduplicatorTest {
         assertTrue(deduplicator.isDuplicate(sender, body))
     }
 
+    /**
+     * Tests that messages with identical bodies from different senders are not treated as duplicates.
+     *
+     * Preconditions: Message recorded for "+16505551234" with body "STOP".
+     * Expected: [MessageDeduplicator.isDuplicate] returns false for sender "+16505559999".
+     */
     @Test
     fun differentSenderIsNotDuplicate() {
         val body = "STOP"
@@ -68,6 +86,12 @@ class MessageDeduplicatorTest {
         assertFalse(deduplicator.isDuplicate("+16505559999", body))
     }
 
+    /**
+     * Tests that messages from the same sender with different bodies are not treated as duplicates.
+     *
+     * Preconditions: Message recorded for "+16505551234" with body "STOP".
+     * Expected: [MessageDeduplicator.isDuplicate] returns false for body "END".
+     */
     @Test
     fun differentBodyIsNotDuplicate() {
         val sender = "+16505551234"
@@ -76,6 +100,12 @@ class MessageDeduplicatorTest {
         assertFalse(deduplicator.isDuplicate(sender, "END"))
     }
 
+    /**
+     * Tests that recorded messages expire once time advances past the deduplication TTL window.
+     *
+     * Preconditions: Message recorded at time T, time advances to T + TTL + 1 ms.
+     * Expected: [MessageDeduplicator.isDuplicate] returns false.
+     */
     @Test
     fun messageOutsideTtlExpires() {
         val sender = "+16505551234"
@@ -90,6 +120,12 @@ class MessageDeduplicatorTest {
         assertFalse(deduplicator.isDuplicate(sender, body))
     }
 
+    /**
+     * Tests that clearing the deduplicator removes all recorded message hashes.
+     *
+     * Preconditions: Message recorded, then [MessageDeduplicator.clear] is called.
+     * Expected: [MessageDeduplicator.isDuplicate] returns false.
+     */
     @Test
     fun clearRemovesAllRecords() {
         val sender = "+16505551234"

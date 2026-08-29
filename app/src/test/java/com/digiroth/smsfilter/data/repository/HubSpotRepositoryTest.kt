@@ -51,12 +51,9 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 /**
  * JVM unit tests for [HubSpotRepositoryImpl], driven by MockWebServer.
  *
- * Retrofit is built here against `server.url("/")`, which is only possible because the repository
- * takes [HubSpotApiService] as a constructor parameter rather than building its own Retrofit. The
- * backoff is set to zero so the retry tests cost no wall-clock time.
- *
- * The auth interceptor is included in the client under test, so header assertions exercise the real
- * production interceptor rather than a stand-in.
+ * Verifies HubSpot contact search behavior, E.164 and raw digit fallback queries,
+ * authentication headers, error classification (e.g. 401 Unauthorized), retry policies,
+ * and connection health testing.
  */
 class HubSpotRepositoryTest {
 
@@ -113,6 +110,12 @@ class HubSpotRepositoryTest {
     // Matching
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that finding a matching contact in HubSpot returns Found.
+     *
+     * Preconditions: MockWebServer enqueues a matching contact response.
+     * Expected: [HubSpotRepository.isKnownContact] returns [ContactLookupOutcome.Found].
+     */
     @Test
     fun `contact match returns Found`() = runTest {
         server.enqueue(jsonResponse(MATCH_BODY))
@@ -123,6 +126,12 @@ class HubSpotRepositoryTest {
         assertEquals(1, server.requestCount)
     }
 
+    /**
+     * Tests that receiving empty results on both E.164 and raw digit queries returns NotFound.
+     *
+     * Preconditions: MockWebServer enqueues two empty responses.
+     * Expected: [HubSpotRepository.isKnownContact] returns [ContactLookupOutcome.NotFound] after trying both search terms.
+     */
     @Test
     fun `no match on either search returns NotFound`() = runTest {
         server.enqueue(jsonResponse(EMPTY_BODY))
@@ -134,6 +143,12 @@ class HubSpotRepositoryTest {
         assertEquals("both search terms must be tried", 2, server.requestCount)
     }
 
+    /**
+     * Tests that a raw digit fallback query is performed only when the primary E.164 search returns empty.
+     *
+     * Preconditions: First query returns empty body, second query returns match body.
+     * Expected: Outcome is Found, 2 requests made (first with E.164, second with raw digits).
+     */
     @Test
     fun `raw digit fallback fires only after the e164 search finds nothing`() = runTest {
         server.enqueue(jsonResponse(EMPTY_BODY))
@@ -150,6 +165,12 @@ class HubSpotRepositoryTest {
         assertTrue("fallback search must use the raw digits", secondBody.contains(RAW_DIGITS))
     }
 
+    /**
+     * Tests that when the initial E.164 search succeeds, no second search is performed.
+     *
+     * Preconditions: First query returns match body.
+     * Expected: Exactly 1 request made.
+     */
     @Test
     fun `no second search when the first already matched`() = runTest {
         server.enqueue(jsonResponse(MATCH_BODY))
@@ -159,6 +180,12 @@ class HubSpotRepositoryTest {
         assertEquals("a match must not trigger the fallback", 1, server.requestCount)
     }
 
+    /**
+     * Tests that when E.164 and raw digits are identical, only one query is dispatched.
+     *
+     * Preconditions: e164Value == rawDigits.
+     * Expected: Outcome is NotFound and request count is 1.
+     */
     @Test
     fun `identical e164 and raw digits are searched only once`() = runTest {
         server.enqueue(jsonResponse(EMPTY_BODY))
@@ -169,6 +196,12 @@ class HubSpotRepositoryTest {
         assertEquals("duplicate terms must be de-duplicated", 1, server.requestCount)
     }
 
+    /**
+     * Tests that when E.164 is null, only the raw digits are searched.
+     *
+     * Preconditions: e164Value is null.
+     * Expected: Exactly 1 query dispatched using raw digits, returning Found.
+     */
     @Test
     fun `null e164 searches the raw digits only`() = runTest {
         server.enqueue(jsonResponse(MATCH_BODY))
@@ -180,6 +213,12 @@ class HubSpotRepositoryTest {
         assertTrue(server.takeRequest().body.readUtf8().contains(RAW_DIGITS))
     }
 
+    /**
+     * Tests that queries target HubSpot's searchable calculated phone property with CONTAINS_TOKEN operator.
+     *
+     * Preconditions: Standard search request.
+     * Expected: Request payload filters on hs_searchable_calculated_phone_number using CONTAINS_TOKEN.
+     */
     @Test
     fun `searches the normalized calculated phone property`() = runTest {
         server.enqueue(jsonResponse(MATCH_BODY))
@@ -198,6 +237,12 @@ class HubSpotRepositoryTest {
     // Authentication
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that outgoing API requests include the Authorization Bearer header.
+     *
+     * Preconditions: Access token configured in token provider.
+     * Expected: HTTP request header "Authorization" equals "Bearer <token>".
+     */
     @Test
     fun `every request carries the bearer token`() = runTest {
         server.enqueue(jsonResponse(MATCH_BODY))
@@ -207,6 +252,12 @@ class HubSpotRepositoryTest {
         assertEquals("Bearer $TOKEN", server.takeRequest().getHeader("Authorization"))
     }
 
+    /**
+     * Tests that a 401 Unauthorized response records AUTH_ERROR and returns Failed.
+     *
+     * Preconditions: MockWebServer returns HTTP 401.
+     * Expected: Outcome is [ContactLookupOutcome.Failed] with UNAUTHORIZED reason, and ConnectionStatus.AUTH_ERROR is recorded.
+     */
     @Test
     fun `unauthorized writes AUTH_ERROR and returns Failed`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
@@ -224,6 +275,12 @@ class HubSpotRepositoryTest {
         )
     }
 
+    /**
+     * Tests that receiving a 401 Unauthorized response does not delete or clear the stored token.
+     *
+     * Preconditions: 401 Unauthorized response.
+     * Expected: Stored token remains unchanged in the provider.
+     */
     @Test
     fun `unauthorized does not clear the stored token`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
@@ -237,6 +294,12 @@ class HubSpotRepositoryTest {
         )
     }
 
+    /**
+     * Tests that a 401 Unauthorized response is not retried.
+     *
+     * Preconditions: 401 Unauthorized response.
+     * Expected: Only 1 request attempt is made.
+     */
     @Test
     fun `unauthorized is not retried`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
@@ -246,6 +309,12 @@ class HubSpotRepositoryTest {
         assertEquals("a 401 can never succeed on retry", 1, server.requestCount)
     }
 
+    /**
+     * Tests that a missing (null) access token immediately returns Failed without making any network request.
+     *
+     * Preconditions: Access token is null.
+     * Expected: Outcome is Failed with REASON_NO_TOKEN and request count is 0.
+     */
     @Test
     fun `missing token returns Failed without any network call`() = runTest {
         tokenProvider.token = null
@@ -260,6 +329,12 @@ class HubSpotRepositoryTest {
         assertEquals("no request may be made without a token", 0, server.requestCount)
     }
 
+    /**
+     * Tests that a whitespace-only token is treated as missing and bypasses network calls.
+     *
+     * Preconditions: Access token is "   ".
+     * Expected: Outcome is Failed and request count is 0.
+     */
     @Test
     fun `blank token is treated as missing`() = runTest {
         tokenProvider.token = "   "
@@ -274,6 +349,12 @@ class HubSpotRepositoryTest {
     // Retry policy
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that rate limits (HTTP 429) are retried up to MAX_ATTEMPTS before returning Failed.
+     *
+     * Preconditions: Server responds with HTTP 429 for all attempts.
+     * Expected: [HubSpotRepositoryImpl.MAX_ATTEMPTS] requests made, outcome is Failed with REASON_RETRIES_EXHAUSTED.
+     */
     @Test
     fun `rate limit is retried up to the attempt cap then fails`() = runTest {
         repeat(HubSpotRepositoryImpl.MAX_ATTEMPTS) {
@@ -290,6 +371,12 @@ class HubSpotRepositoryTest {
         assertEquals(HubSpotRepositoryImpl.MAX_ATTEMPTS, server.requestCount)
     }
 
+    /**
+     * Tests that server errors (HTTP 500) are retried up to MAX_ATTEMPTS before returning Failed.
+     *
+     * Preconditions: Server responds with HTTP 500 for all attempts.
+     * Expected: Exactly MAX_ATTEMPTS requests made and outcome is Failed.
+     */
     @Test
     fun `server error is retried up to the attempt cap then fails`() = runTest {
         repeat(HubSpotRepositoryImpl.MAX_ATTEMPTS) {
@@ -302,6 +389,12 @@ class HubSpotRepositoryTest {
         assertEquals(HubSpotRepositoryImpl.MAX_ATTEMPTS, server.requestCount)
     }
 
+    /**
+     * Tests that a transient error followed by a successful 200 response returns Found.
+     *
+     * Preconditions: First attempt returns 500, second attempt returns match body.
+     * Expected: Outcome is Found with 2 total request attempts.
+     */
     @Test
     fun `a retry that succeeds returns the real result`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
@@ -313,6 +406,12 @@ class HubSpotRepositoryTest {
         assertEquals(2, server.requestCount)
     }
 
+    /**
+     * Tests that client error 400 Bad Request is not retried.
+     *
+     * Preconditions: Server responds with HTTP 400.
+     * Expected: Outcome is Failed and only 1 request attempt is made.
+     */
     @Test
     fun `bad request is not retried`() = runTest {
         server.enqueue(MockResponse().setResponseCode(400))
@@ -323,6 +422,12 @@ class HubSpotRepositoryTest {
         assertEquals("a 400 is a client bug and cannot succeed on retry", 1, server.requestCount)
     }
 
+    /**
+     * Tests that an exhaustion of retries on 503 Service Unavailable returns Failed, not NotFound.
+     *
+     * Preconditions: Server returns 503 for all attempts.
+     * Expected: Outcome is not [ContactLookupOutcome.NotFound] so that service outages are not treated as unknown senders.
+     */
     @Test
     fun `lookup failure never reports NotFound`() = runTest {
         // The distinction the SMS pipeline depends on: an outage must not look like an empty CRM.
@@ -342,6 +447,12 @@ class HubSpotRepositoryTest {
     // Connection test
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that testConnection succeeds on HTTP 200 and persists the CONNECTED status.
+     *
+     * Preconditions: Server returns HTTP 200 empty response.
+     * Expected: Outcome is not Failed and ConnectionStatus.CONNECTED is recorded.
+     */
     @Test
     fun `connection test succeeds on 200 and records CONNECTED`() = runTest {
         server.enqueue(jsonResponse(EMPTY_BODY))
@@ -352,6 +463,12 @@ class HubSpotRepositoryTest {
         assertTrue(statusWriter.written.contains(ConnectionStatus.CONNECTED))
     }
 
+    /**
+     * Tests that testConnection queries the contacts endpoint with limit=1.
+     *
+     * Preconditions: Executing testConnection against MockWebServer.
+     * Expected: HTTP GET request to "/crm/v3/objects/contacts" with "limit=1".
+     */
     @Test
     fun `connection test hits the lightweight contacts endpoint`() = runTest {
         server.enqueue(jsonResponse(EMPTY_BODY))
@@ -364,6 +481,12 @@ class HubSpotRepositoryTest {
         assertTrue("must request only one record", request.path?.contains("limit=1") == true)
     }
 
+    /**
+     * Tests that testConnection returns Failed on network transport errors.
+     *
+     * Preconditions: Server is shut down before testConnection is invoked.
+     * Expected: Outcome is [ContactLookupOutcome.Failed].
+     */
     @Test
     fun `connection test fails on a transport error`() = runTest {
         // Shutting the server down produces a genuine connection failure rather than an HTTP status.
@@ -374,6 +497,12 @@ class HubSpotRepositoryTest {
         assertTrue(outcome is ContactLookupOutcome.Failed)
     }
 
+    /**
+     * Tests that testConnection without a token makes no network requests and returns Failed.
+     *
+     * Preconditions: Token is null.
+     * Expected: Outcome is [ContactLookupOutcome.Failed] with 0 network requests.
+     */
     @Test
     fun `connection test without a token makes no request`() = runTest {
         tokenProvider.token = null

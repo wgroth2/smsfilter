@@ -121,6 +121,12 @@ class SmsProcessingPipelineTest {
     // Onboarding gate (case 18)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that incoming messages arriving before onboarding completion are dropped immediately without any action.
+     *
+     * Preconditions: Settings firstRunComplete is false.
+     * Expected: Outcome is [ProcessingOutcome.SkippedBeforeOnboarding]; no lookups, SMS sends, notifications, logs, or sounds occur.
+     */
     @Test
     fun `case 18 - message before onboarding completes is dropped entirely`() = runTest {
         fakes.settings.snapshot = snapshot(firstRunComplete = false)
@@ -140,6 +146,12 @@ class SmsProcessingPipelineTest {
     // Stop list (case 6)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that matching a word in the stop list immediately ignores the message without querying contacts or sending replies.
+     *
+     * Preconditions: Stop-list contains "promo" and message contains "Big promo inside!\nSTOP".
+     * Expected: Outcome is [ProcessingOutcome.Ignored] with [IgnoreReason.STOP_LIST]; an IGNORED log row is written and lookups are skipped.
+     */
     @Test
     fun `case 6 - stop list hit ignores the message without any lookup`() = runTest {
         fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
@@ -161,6 +173,12 @@ class SmsProcessingPipelineTest {
     // Known contacts (cases 1 and 2)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that an opt-out message from a known Google Contacts contact is ignored without sending an auto-reply.
+     *
+     * Preconditions: Google Contacts lookup returns Found.
+     * Expected: Outcome is [ProcessingOutcome.Ignored] with [IgnoreReason.KNOWN_GOOGLE_CONTACT] and no SMS is sent.
+     */
     @Test
     fun `case 1 - known google contact is ignored`() = runTest {
         fakes.contactSource.outcome = ContactLookupOutcome.Found
@@ -172,6 +190,12 @@ class SmsProcessingPipelineTest {
         assertEquals("Ignored: Known Google Contact", fakes.logDao.inserted.single().ignoreReason)
     }
 
+    /**
+     * Tests that an opt-out message from a known HubSpot CRM contact is ignored without sending an auto-reply.
+     *
+     * Preconditions: HubSpot integration enabled and HubSpot lookup returns Found.
+     * Expected: Outcome is [ProcessingOutcome.Ignored] with [IgnoreReason.KNOWN_HUBSPOT_CONTACT] and no SMS is sent.
+     */
     @Test
     fun `case 2 - known hubspot contact is ignored`() = runTest {
         fakes.settings.snapshot = snapshot(useHubSpot = true)
@@ -184,6 +208,12 @@ class SmsProcessingPipelineTest {
         assertEquals("Ignored: Known HubSpot Contact", fakes.logDao.inserted.single().ignoreReason)
     }
 
+    /**
+     * Tests that a transient failure or timeout in HubSpot lookup does not abort processing and allows detection to proceed.
+     *
+     * Preconditions: HubSpot integration enabled and HubSpot returns Failed outcome.
+     * Expected: Outcome is [ProcessingOutcome.Detected] with disposition SENT.
+     */
     @Test
     fun `hubspot lookup failure still proceeds to detection`() = runTest {
         // An outage must not be mistaken for "this is a known contact" — otherwise the app quietly
@@ -197,6 +227,12 @@ class SmsProcessingPipelineTest {
         assertEquals(ReplyDisposition.SENT, (outcome as ProcessingOutcome.Detected).disposition)
     }
 
+    /**
+     * Tests that HubSpot CRM is never queried when the integration toggle in settings is disabled.
+     *
+     * Preconditions: useHubSpot is false.
+     * Expected: HubSpot repository queried list is empty.
+     */
     @Test
     fun `hubspot is never consulted when the toggle is off`() = runTest {
         fakes.settings.snapshot = snapshot(useHubSpot = false)
@@ -206,6 +242,12 @@ class SmsProcessingPipelineTest {
         assertTrue("HubSpot must be bypassed entirely", fakes.hubSpot.queried.isEmpty())
     }
 
+    /**
+     * Tests that a sender found in contacts on the first message is served from the in-memory cache on subsequent messages.
+     *
+     * Preconditions: ContactSource returns Found for initial lookup; pipeline processes two messages sequentially.
+     * Expected: ContactSource is queried exactly once across both message processing runs.
+     */
     @Test
     fun `cached known sender skips both lookups on the second message`() = runTest {
         fakes.contactSource.outcome = ContactLookupOutcome.Found
@@ -221,6 +263,12 @@ class SmsProcessingPipelineTest {
     // No detection (cases 3, 9, 10)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that inline "STOP" inside marketing copy on a single line does not trigger an opt-out detection.
+     *
+     * Preconditions: Message "Hello, reply STOP to unsubscribe".
+     * Expected: Outcome is [ProcessingOutcome.NoOptOutDetected], no reply sent, no notification, and NO_MATCH logged.
+     */
     @Test
     fun `case 3 - stop inside marketing copy does not trigger an alert`() = runTest {
         val outcome = pipeline().process(UNKNOWN_NUMBER, "Hello, reply STOP to unsubscribe", now)
@@ -235,6 +283,12 @@ class SmsProcessingPipelineTest {
         )
     }
 
+    /**
+     * Tests that words embedding "stop" on non-final lines do not trigger detection.
+     *
+     * Preconditions: Message "Postop care instructions\nCall us".
+     * Expected: Outcome is [ProcessingOutcome.NoOptOutDetected] and no reply is sent.
+     */
     @Test
     fun `case 9 - stop embedded in a word on a non final line does not trigger`() = runTest {
         val outcome = pipeline().process(UNKNOWN_NUMBER, "Postop care instructions\nCall us", now)
@@ -243,6 +297,12 @@ class SmsProcessingPipelineTest {
         assertTrue(fakes.smsSender.sent.isEmpty())
     }
 
+    /**
+     * Tests that an empty message body does not trigger detection.
+     *
+     * Preconditions: Message body is "".
+     * Expected: Outcome is [ProcessingOutcome.NoOptOutDetected] and no reply is sent.
+     */
     @Test
     fun `case 10 - empty message does not trigger`() = runTest {
         val outcome = pipeline().process(UNKNOWN_NUMBER, "", now)
@@ -260,6 +320,12 @@ class SmsProcessingPipelineTest {
     // escapes the onboarding gate.
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that an unknown sender with a non-matching message writes exactly one NO_MATCH log row.
+     *
+     * Preconditions: Non-matching message body processed for unknown sender.
+     * Expected: Outcome is NoOptOutDetected and logDao contains 1 row with eventType NO_MATCH.
+     */
     @Test
     fun `unknown sender with no opt-out pattern logs exactly one no-match row`() = runTest {
         val outcome = pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
@@ -272,6 +338,12 @@ class SmsProcessingPipelineTest {
         assertEquals(NO_MATCH_BODY, row.messagePreview)
     }
 
+    /**
+     * Tests that a NO_MATCH log row leaves pattern, reply status, and ignore reason columns null.
+     *
+     * Preconditions: Non-matching message body.
+     * Expected: Log row has null matchedPattern, null replyStatus, and null ignoreReason.
+     */
     @Test
     fun `no-match row leaves the detection and ignore columns null`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
@@ -282,6 +354,12 @@ class SmsProcessingPipelineTest {
         assertNull("the message was not ignored", row.ignoreReason)
     }
 
+    /**
+     * Tests that long non-matching message previews are truncated to PREVIEW_MAX_LENGTH.
+     *
+     * Preconditions: 500-character message body.
+     * Expected: Logged messagePreview length equals [DetectionLogEntity.PREVIEW_MAX_LENGTH].
+     */
     @Test
     fun `no-match preview is truncated to the documented maximum`() = runTest {
         val longBody = "y".repeat(500)
@@ -297,6 +375,12 @@ class SmsProcessingPipelineTest {
         assertEquals("y".repeat(DetectionLogEntity.PREVIEW_MAX_LENGTH), row.messagePreview)
     }
 
+    /**
+     * Tests that messages ignored by the stop-list write an IGNORED log event and never a NO_MATCH event.
+     *
+     * Preconditions: Stop-list contains "promo" against "Big promo inside!".
+     * Expected: Single log row with eventType IGNORED and no NO_MATCH rows.
+     */
     @Test
     fun `stop list ignore logs ignored and never no-match`() = runTest {
         fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
@@ -310,6 +394,12 @@ class SmsProcessingPipelineTest {
         )
     }
 
+    /**
+     * Tests that messages ignored because of a known contact write an IGNORED event and never a NO_MATCH event.
+     *
+     * Preconditions: ContactSource returns Found for non-matching message body.
+     * Expected: Log event is IGNORED and no NO_MATCH events exist.
+     */
     @Test
     fun `known contact ignore logs ignored and never no-match`() = runTest {
         // Deliberately a body with no opt-out pattern: the ignore must short-circuit before
@@ -324,6 +414,12 @@ class SmsProcessingPipelineTest {
         )
     }
 
+    /**
+     * Tests that a successful detection writes a DETECTION log event and never a NO_MATCH event.
+     *
+     * Preconditions: Opt-out message processed for unknown number.
+     * Expected: Log row has eventType DETECTION and no NO_MATCH rows exist.
+     */
     @Test
     fun `successful detection logs detection and never no-match`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
@@ -334,6 +430,12 @@ class SmsProcessingPipelineTest {
         )
     }
 
+    /**
+     * Tests that NO_MATCH events are not logged before onboarding has been completed.
+     *
+     * Preconditions: Settings firstRunComplete is false.
+     * Expected: Outcome is SkippedBeforeOnboarding and no log entries are inserted.
+     */
     @Test
     fun `no-match logging stays behind the onboarding gate`() = runTest {
         // The gate returns before any logging at all. A non-matching message arriving mid-wizard
@@ -350,6 +452,12 @@ class SmsProcessingPipelineTest {
     // Successful reply (cases 4, 7, 8)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that a message ending with "STOP" sends an SMS reply with "stop" to the sender's raw address.
+     *
+     * Preconditions: Message "Hello\nSTOP" for unknown number.
+     * Expected: Outcome is Detected(SENT); SMS sent to raw address with body "stop"; log recorded with replyStatus "Reply sent: stop".
+     */
     @Test
     fun `case 4 - last line stop sends the stop keyword to the raw address`() = runTest {
         val outcome = pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
@@ -364,6 +472,12 @@ class SmsProcessingPipelineTest {
         assertEquals("stop", fakes.logDao.inserted.single().matchedPattern)
     }
 
+    /**
+     * Tests that a message matching "stop2stop" anywhere sends an SMS reply with "stop".
+     *
+     * Preconditions: Message "stop2stop this deal".
+     * Expected: SMS sent with body "stop".
+     */
     @Test
     fun `case 7 - stop2stop anywhere match replies stop`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, "stop2stop this deal", now)
@@ -371,6 +485,12 @@ class SmsProcessingPipelineTest {
         assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
     }
 
+    /**
+     * Tests that a message matching "end2end" anywhere sends an SMS reply with "end".
+     *
+     * Preconditions: Message "end2end encryption rocks".
+     * Expected: SMS sent with body "end".
+     */
     @Test
     fun `case 8 - end2end anywhere match replies end`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, "end2end encryption rocks", now)
@@ -378,6 +498,12 @@ class SmsProcessingPipelineTest {
         assertEquals(listOf(UNKNOWN_NUMBER to "end"), fakes.smsSender.sent)
     }
 
+    /**
+     * Tests that a message matching "stop to cancel" anywhere sends an SMS reply with "stop".
+     *
+     * Preconditions: Message "Text STOP to Cancel".
+     * Expected: SMS sent with body "stop" and matchedPattern "stop to cancel" logged.
+     */
     @Test
     fun `stop to cancel anywhere match replies stop`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, "Text STOP to Cancel", now)
@@ -386,6 +512,12 @@ class SmsProcessingPipelineTest {
         assertEquals("stop to cancel", fakes.logDao.inserted.single().matchedPattern)
     }
 
+    /**
+     * Tests that a message matching "stop to opt-out" anywhere sends an SMS reply with "stop".
+     *
+     * Preconditions: Message "Reply STOP to opt-out".
+     * Expected: SMS sent with body "stop" and matchedPattern "stop to opt-out" logged.
+     */
     @Test
     fun `stop to opt-out anywhere match replies stop`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, "Reply STOP to opt-out", now)
@@ -394,6 +526,12 @@ class SmsProcessingPipelineTest {
         assertEquals("stop to opt-out", fakes.logDao.inserted.single().matchedPattern)
     }
 
+    /**
+     * Tests that a message matching "stop to end" anywhere sends an SMS reply with "stop".
+     *
+     * Preconditions: Message "STOP to end account texts".
+     * Expected: SMS sent with body "stop" and matchedPattern "stop to end" logged.
+     */
     @Test
     fun `stop to end anywhere match replies stop`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, "STOP to end account texts", now)
@@ -402,6 +540,12 @@ class SmsProcessingPipelineTest {
         assertEquals("stop to end", fakes.logDao.inserted.single().matchedPattern)
     }
 
+    /**
+     * Tests that a short code sender receives the reply at its exact raw short code digits rather than a normalized number.
+     *
+     * Preconditions: Short code "89887" and fake E.164 conversion set to "+189887".
+     * Expected: SMS sent to raw destination "89887".
+     */
     @Test
     fun `case 14 - short code receives the reply at its exact raw address`() = runTest {
         // The E.164 fake would return a bogus conversion if consulted; asserting the raw address
@@ -421,6 +565,12 @@ class SmsProcessingPipelineTest {
     // retry for 24 hours. The subscription id must therefore survive the pipeline untouched.
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that the auto-reply SMS is dispatched on the exact subscription ID that the incoming message arrived on.
+     *
+     * Preconditions: subscriptionId set to RECEIVING_SUB_ID.
+     * Expected: [SmsSender.sendTextMessage] invoked with RECEIVING_SUB_ID.
+     */
     @Test
     fun `reply leaves on the subscription the message arrived on`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now, subscriptionId = RECEIVING_SUB_ID)
@@ -428,6 +578,12 @@ class SmsProcessingPipelineTest {
         assertEquals(RECEIVING_SUB_ID, fakes.smsSender.lastSubscriptionId)
     }
 
+    /**
+     * Tests that short code replies are also dispatched on the receiving SIM subscription ID.
+     *
+     * Preconditions: Short code sender with subscriptionId RECEIVING_SUB_ID.
+     * Expected: Reply sent to SHORT_CODE using RECEIVING_SUB_ID.
+     */
     @Test
     fun `short code reply also leaves on the receiving subscription`() = runTest {
         // Short codes are carrier- and country-specific, so this is the case that fails hardest
@@ -438,6 +594,12 @@ class SmsProcessingPipelineTest {
         assertEquals(RECEIVING_SUB_ID, fakes.smsSender.lastSubscriptionId)
     }
 
+    /**
+     * Tests that an unspecified/unknown subscription ID is passed through without being substituted.
+     *
+     * Preconditions: Message processed without explicit subscriptionId.
+     * Expected: [SmsSender.UNKNOWN_SUBSCRIPTION_ID] is passed to the sender.
+     */
     @Test
     fun `unknown subscription is passed through rather than substituted`() = runTest {
         // The pipeline must not invent a subscription id: only AndroidSmsSender knows what the
@@ -450,6 +612,12 @@ class SmsProcessingPipelineTest {
         )
     }
 
+    /**
+     * Tests that non-default dual-SIM subscription IDs are preserved throughout pipeline routing.
+     *
+     * Preconditions: subscriptionId set to SECOND_SIM_SUB_ID.
+     * Expected: Sender records SECOND_SIM_SUB_ID in sentSubscriptionIds.
+     */
     @Test
     fun `a non-default subscription id is not defaulted away`() = runTest {
         // Guards against a future refactor quietly dropping the parameter: the value asserted here
@@ -460,6 +628,12 @@ class SmsProcessingPipelineTest {
         assertEquals(listOf(SECOND_SIM_SUB_ID), fakes.smsSender.sentSubscriptionIds)
     }
 
+    /**
+     * Tests that the three auto-reply safety gates (dry run, alphanumeric, cooldown) still suppress sends when subscription ID is specified.
+     *
+     * Preconditions: Testing dry run, alphanumeric sender, and active cooldown with explicit subscriptionId.
+     * Expected: No SMS sends dispatched across any of the 3 gate conditions.
+     */
     @Test
     fun `the three auto-reply gates still suppress the send with a subscription id present`() =
         runTest {
@@ -480,6 +654,12 @@ class SmsProcessingPipelineTest {
     // Gate 1 — dry run (case 16)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests Gate 1: when auto-reply is disabled, detection posts a notification and logs dry run but sends no SMS.
+     *
+     * Preconditions: Settings autoReplyEnabled is false.
+     * Expected: Disposition is SKIPPED_DRY_RUN, no SMS sent, notification is posted, log shows "Reply skipped: dry run", no cooldown recorded.
+     */
     @Test
     fun `case 16 - auto-reply off notifies and logs dry run but sends nothing`() = runTest {
         fakes.settings.snapshot = snapshot(autoReplyEnabled = false)
@@ -500,6 +680,12 @@ class SmsProcessingPipelineTest {
     // Gate 2 — unrepliable sender (case 17)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests Gate 2: alphanumeric senders (e.g. "PROMO") post notifications and log skips without attempting to send an SMS.
+     *
+     * Preconditions: Sender address is alphanumeric "PROMO".
+     * Expected: Disposition is SKIPPED_ALPHANUMERIC, no SMS sent, notification posted, log shows "Reply skipped: alphanumeric sender".
+     */
     @Test
     fun `case 17 - alphanumeric sender notifies and logs but sends nothing`() = runTest {
         val outcome = pipeline().process(ALPHANUMERIC, OPT_OUT_BODY, now)
@@ -517,6 +703,12 @@ class SmsProcessingPipelineTest {
     // Gate 3 — cooldown (case 15)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests Gate 3: a second opt-out message from the same sender within the 24-hour cooldown window suppresses the reply.
+     *
+     * Preconditions: Sender has a recorded reply timestamp 1 hour prior.
+     * Expected: Disposition is SKIPPED_COOLDOWN, no SMS sent, notification posted, log shows "Reply skipped: cooldown".
+     */
     @Test
     fun `case 15 - second message inside the cooldown window sends nothing`() = runTest {
         val hash = SenderHasher().hash(SHORT_CODE)
@@ -533,6 +725,12 @@ class SmsProcessingPipelineTest {
         assertEquals("Reply skipped: cooldown", fakes.logDao.inserted.single().replyStatus)
     }
 
+    /**
+     * Tests that a message arriving just outside the 24-hour cooldown window is permitted to receive a reply.
+     *
+     * Preconditions: Previous reply timestamp is COOLDOWN_WINDOW_MS + 1 ms ago.
+     * Expected: Disposition is SENT and SMS reply is dispatched.
+     */
     @Test
     fun `sender just outside the cooldown window does receive a reply`() = runTest {
         val hash = SenderHasher().hash(SHORT_CODE)
@@ -544,6 +742,12 @@ class SmsProcessingPipelineTest {
         assertEquals(listOf(SHORT_CODE to "stop"), fakes.smsSender.sent)
     }
 
+    /**
+     * Tests that a cooldown timestamp is recorded only after an auto-reply has successfully been dispatched.
+     *
+     * Preconditions: Processing a detectable opt-out message with a successful SMS send.
+     * Expected: Cooldown DAO contains the hashed sender with the current timestamp.
+     */
     @Test
     fun `cooldown row is written only after a successful send`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
@@ -552,6 +756,12 @@ class SmsProcessingPipelineTest {
         assertEquals(now, fakes.cooldownDao.rows[hash])
     }
 
+    /**
+     * Tests that a failed SMS dispatch does not write a cooldown record, allowing future retries.
+     *
+     * Preconditions: FakeSmsSender configured to fail (succeed = false).
+     * Expected: Disposition is SEND_FAILED and cooldown rows remain empty.
+     */
     @Test
     fun `failed send writes no cooldown row so the next message can retry`() = runTest {
         fakes.smsSender.succeed = false
@@ -565,6 +775,12 @@ class SmsProcessingPipelineTest {
         assertTrue("a failed send must not lock out the retry", fakes.cooldownDao.rows.isEmpty())
     }
 
+    /**
+     * Tests that expired cooldown records older than the window are pruned during each pipeline run.
+     *
+     * Preconditions: Cooldown table contains one stale record and one fresh record.
+     * Expected: Stale record is deleted while fresh record is retained.
+     */
     @Test
     fun `stale cooldown rows are pruned on every run`() = runTest {
         fakes.cooldownDao.rows["stale"] = now - AutoReplyCooldownEntity.COOLDOWN_WINDOW_MS - 5_000
@@ -576,6 +792,12 @@ class SmsProcessingPipelineTest {
         assertEquals("fresh row retained", now - 1_000, fakes.cooldownDao.rows["fresh"])
     }
 
+    /**
+     * Tests that ingress deduplication identifies identical messages arriving via formatted RCS after raw SMS.
+     *
+     * Preconditions: First message via SMS from "+12026500977", second identical message 5 seconds later via RCS from "(202) 650-0977".
+     * Expected: First message is Detected; second message is Ignored with detail "duplicate".
+     */
     @Test
     fun `deduplicator ignores identical message arriving via formatted RCS after raw SMS`() = runTest {
         val p = pipeline()
@@ -587,6 +809,12 @@ class SmsProcessingPipelineTest {
         assertEquals("duplicate", (secondOutcome as ProcessingOutcome.Ignored).detail)
     }
 
+    /**
+     * Tests that cooldown properly blocks a formatted RCS sender after a raw SMS reply was already sent to the same number.
+     *
+     * Preconditions: First SMS reply sent to "+12026500977"; distinct message arrives 30 seconds later from "(202) 650-0977" via RCS.
+     * Expected: Second message is detected but disposition is SKIPPED_COOLDOWN.
+     */
     @Test
     fun `cooldown blocks formatted RCS sender after raw SMS reply sent`() = runTest {
         val p = pipeline()
@@ -603,6 +831,12 @@ class SmsProcessingPipelineTest {
     // Sound (cases 11 and 12)
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that the alert sound player is triggered with the configured URI when beepOnOptOut is enabled and a reply is sent.
+     *
+     * Preconditions: beepOnOptOut is true and soundFileUri is "content://alert".
+     * Expected: soundPlayer records "content://alert".
+     */
     @Test
     fun `case 11 - sound plays when enabled and a reply was sent`() = runTest {
         fakes.settings.snapshot = snapshot(beepOnOptOut = true, soundFileUri = "content://alert")
@@ -612,6 +846,12 @@ class SmsProcessingPipelineTest {
         assertEquals(listOf("content://alert"), fakes.soundPlayer.played)
     }
 
+    /**
+     * Tests that no sound plays when beepOnOptOut setting is disabled.
+     *
+     * Preconditions: beepOnOptOut is false.
+     * Expected: soundPlayer played list is empty.
+     */
     @Test
     fun `case 12 - no sound when the beep setting is off`() = runTest {
         fakes.settings.snapshot = snapshot(beepOnOptOut = false)
@@ -621,6 +861,12 @@ class SmsProcessingPipelineTest {
         assertTrue(fakes.soundPlayer.played.isEmpty())
     }
 
+    /**
+     * Tests that no sound plays when an auto-reply is skipped even if beepOnOptOut is enabled.
+     *
+     * Preconditions: autoReplyEnabled is false, beepOnOptOut is true.
+     * Expected: soundPlayer played list is empty.
+     */
     @Test
     fun `no sound when the reply was skipped even if the beep setting is on`() = runTest {
         fakes.settings.snapshot = snapshot(autoReplyEnabled = false, beepOnOptOut = true)
@@ -634,6 +880,12 @@ class SmsProcessingPipelineTest {
     // Notification setting, contacts permission, and privacy
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that disabling opt-out notifications suppresses notifications while still sending the SMS reply.
+     *
+     * Preconditions: optOutNotificationEnabled is false.
+     * Expected: Notification previews list is empty; SMS is still sent.
+     */
     @Test
     fun `notification is suppressed when the setting is off but the reply still sends`() = runTest {
         fakes.settings.snapshot = snapshot(optOutNotificationEnabled = false)
@@ -644,6 +896,12 @@ class SmsProcessingPipelineTest {
         assertEquals(listOf(UNKNOWN_NUMBER to "stop"), fakes.smsSender.sent)
     }
 
+    /**
+     * Tests that when READ_CONTACTS permission is denied (returning NotFound), messages are still processed and replied to.
+     *
+     * Preconditions: ContactSource returns NotFound.
+     * Expected: Outcome is Detected with SENT disposition.
+     */
     @Test
     fun `case 19 - contacts permission denied still processes and replies`() = runTest {
         // ContactRepository reports NotFound when READ_CONTACTS is missing, so the sender is treated
@@ -655,6 +913,12 @@ class SmsProcessingPipelineTest {
         assertEquals(ReplyDisposition.SENT, (outcome as ProcessingOutcome.Detected).disposition)
     }
 
+    /**
+     * Tests that exceptions during contacts lookup do not crash the pipeline and allow detection to proceed.
+     *
+     * Preconditions: ContactSource returns Failed with SecurityException.
+     * Expected: Outcome is [ProcessingOutcome.Detected].
+     */
     @Test
     fun `contacts lookup failure still proceeds to detection`() = runTest {
         fakes.contactSource.outcome = ContactLookupOutcome.Failed("SecurityException")
@@ -664,6 +928,12 @@ class SmsProcessingPipelineTest {
         assertTrue(outcome is ProcessingOutcome.Detected)
     }
 
+    /**
+     * Tests that the sender's address is recorded in the detection log on successful opt-out detection.
+     *
+     * Preconditions: Processing opt-out messages for standard and short code senders.
+     * Expected: Logged rows contain the respective sender addresses.
+     */
     @Test
     fun `detection log records sender address on successful detection`() = runTest {
         val pipeline = pipeline()
@@ -675,6 +945,12 @@ class SmsProcessingPipelineTest {
         assertEquals(SHORT_CODE, fakes.logDao.inserted.last().senderAddress)
     }
 
+    /**
+     * Tests that the sender's address is recorded in the detection log when a message is ignored due to stop list match.
+     *
+     * Preconditions: Stop list contains "promo".
+     * Expected: Logged row has eventType IGNORED and contains sender address.
+     */
     @Test
     fun `detection log records sender address on stop list ignore`() = runTest {
         fakes.stopListDao.keywords = listOf(StopListEntity(id = 1, keyword = "promo"))
@@ -686,6 +962,12 @@ class SmsProcessingPipelineTest {
         assertEquals(UNKNOWN_NUMBER, row.senderAddress)
     }
 
+    /**
+     * Tests that the sender's address is recorded in the detection log when a message is ignored as a known contact.
+     *
+     * Preconditions: ContactSource returns Found.
+     * Expected: Logged row has eventType IGNORED and contains sender address.
+     */
     @Test
     fun `detection log records sender address on known contact ignore`() = runTest {
         fakes.contactSource.outcome = ContactLookupOutcome.Found
@@ -697,6 +979,12 @@ class SmsProcessingPipelineTest {
         assertEquals(UNKNOWN_NUMBER, row.senderAddress)
     }
 
+    /**
+     * Tests that the sender's address is recorded in the detection log when a message has no match.
+     *
+     * Preconditions: Non-matching message body.
+     * Expected: Logged row has eventType NO_MATCH and contains sender address.
+     */
     @Test
     fun `detection log records sender address on no-match event`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, NO_MATCH_BODY, now)
@@ -706,6 +994,12 @@ class SmsProcessingPipelineTest {
         assertEquals(UNKNOWN_NUMBER, row.senderAddress)
     }
 
+    /**
+     * Tests that the alphanumeric sender string is recorded in the detection log when reply is skipped for alphanumeric sender.
+     *
+     * Preconditions: Message from "PROMO".
+     * Expected: Logged row has eventType DETECTION and senderAddress "PROMO".
+     */
     @Test
     fun `detection log records alphanumeric sender on skipped reply`() = runTest {
         pipeline().process(ALPHANUMERIC, OPT_OUT_BODY, now)
@@ -715,6 +1009,12 @@ class SmsProcessingPipelineTest {
         assertEquals(ALPHANUMERIC, row.senderAddress)
     }
 
+    /**
+     * Tests that the message preview stored in the detection log is truncated to PREVIEW_MAX_LENGTH.
+     *
+     * Preconditions: Message body exceeding 500 characters.
+     * Expected: Logged messagePreview length equals [DetectionLogEntity.PREVIEW_MAX_LENGTH].
+     */
     @Test
     fun `message preview is truncated to the documented maximum`() = runTest {
         val longBody = "x".repeat(500) + "\nSTOP"
@@ -731,6 +1031,12 @@ class SmsProcessingPipelineTest {
     // Pattern list is read live, not hardcoded
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that having an empty opt-out pattern database disables detection entirely.
+     *
+     * Preconditions: Pattern DAO returns empty list.
+     * Expected: Outcome is NoOptOutDetected and no SMS is sent.
+     */
     @Test
     fun `deleting every pattern disables detection`() = runTest {
         fakes.patternDao.patterns = emptyList()
@@ -741,6 +1047,12 @@ class SmsProcessingPipelineTest {
         assertTrue(fakes.smsSender.sent.isEmpty())
     }
 
+    /**
+     * Tests that custom user-added patterns in the DAO are matched and replied to accordingly.
+     *
+     * Preconditions: Custom pattern "unsubscribe" with END reply type in ANYWHERE mode.
+     * Expected: Message "Click here to unsubscribe" results in reply "end".
+     */
     @Test
     fun `a user added pattern is honoured`() = runTest {
         fakes.patternDao.patterns = listOf(
@@ -760,6 +1072,12 @@ class SmsProcessingPipelineTest {
     // RCS Direct Reply & Ingress Deduplication
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that providing a direct reply key routes the reply through DirectReplySender instead of cellular SmsSender.
+     *
+     * Preconditions: directReplyKey is "reply-handle-123".
+     * Expected: DirectReplySender records ("reply-handle-123", "stop"), cellular SmsSender is not used, log shows "Reply sent: stop".
+     */
     @Test
     fun `direct reply key routes through DirectReplySender when provided`() = runTest {
         val outcome = pipeline().process(
@@ -775,6 +1093,12 @@ class SmsProcessingPipelineTest {
         assertEquals("Reply sent: stop", fakes.logDao.inserted.single().replyStatus)
     }
 
+    /**
+     * Tests that when directReplyKey is null, cellular SmsSender is used for sending the reply.
+     *
+     * Preconditions: directReplyKey is null.
+     * Expected: SmsSender records the send and DirectReplySender is not used.
+     */
     @Test
     fun `cellular reply routes through SmsSender when direct reply key is null`() = runTest {
         val outcome = pipeline().process(
@@ -789,6 +1113,12 @@ class SmsProcessingPipelineTest {
         assertTrue("direct reply sender should not be used for cellular SMS", fakes.directReplySender.sent.isEmpty())
     }
 
+    /**
+     * Tests that duplicate incoming messages within the deduplication TTL window are suppressed.
+     *
+     * Preconditions: Identical message arrives 5 seconds after the first message.
+     * Expected: Second message outcome is Ignored with detail "duplicate" and only 1 SMS is sent.
+     */
     @Test
     fun `deduplication suppresses duplicate message within window`() = runTest {
         val pipeline = pipeline()
@@ -803,6 +1133,12 @@ class SmsProcessingPipelineTest {
         assertEquals("no second SMS sent", 1, fakes.smsSender.sent.size)
     }
 
+    /**
+     * Tests that messages arriving after the deduplication TTL window and cooldown window have passed are processed.
+     *
+     * Preconditions: Second identical message arrives after deduplication TTL and cooldown window have elapsed.
+     * Expected: Second message is processed with SENT disposition.
+     */
     @Test
     fun `message after deduplication TTL window is not suppressed by deduplicator`() = runTest {
         val pipeline = pipeline()
@@ -823,6 +1159,12 @@ class SmsProcessingPipelineTest {
     // MessageSource designator logging
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that the detection log defaults the message source to SMS when not explicitly specified.
+     *
+     * Preconditions: Processing message without messageSource parameter.
+     * Expected: Logged row has messageSource = [MessageSource.SMS].
+     */
     @Test
     fun `detection log records SMS message source by default`() = runTest {
         pipeline().process(UNKNOWN_NUMBER, OPT_OUT_BODY, now)
@@ -831,6 +1173,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.SMS, row.messageSource)
     }
 
+    /**
+     * Tests that explicitly passing messageSource = SMS is recorded in the detection log.
+     *
+     * Preconditions: messageSource = [MessageSource.SMS].
+     * Expected: Logged row has messageSource = [MessageSource.SMS].
+     */
     @Test
     fun `detection log records explicit SMS message source`() = runTest {
         pipeline().process(
@@ -844,6 +1192,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.SMS, row.messageSource)
     }
 
+    /**
+     * Tests that RCS message sources are recorded in the detection log upon detection.
+     *
+     * Preconditions: messageSource = [MessageSource.RCS] and directReplyKey provided.
+     * Expected: Logged row has messageSource = [MessageSource.RCS].
+     */
     @Test
     fun `detection log records RCS message source on detection`() = runTest {
         pipeline().process(
@@ -858,6 +1212,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.RCS, row.messageSource)
     }
 
+    /**
+     * Tests that RCS message sources are recorded in the detection log when a message is ignored.
+     *
+     * Preconditions: messageSource = [MessageSource.RCS] and sender is a known contact.
+     * Expected: Logged row has eventType IGNORED and messageSource = [MessageSource.RCS].
+     */
     @Test
     fun `detection log records RCS message source on ignored message`() = runTest {
         fakes.contactSource.outcome = ContactLookupOutcome.Found
@@ -874,6 +1234,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.RCS, row.messageSource)
     }
 
+    /**
+     * Tests that RCS message sources are recorded in the detection log for NO_MATCH events.
+     *
+     * Preconditions: messageSource = [MessageSource.RCS] with non-matching body.
+     * Expected: Logged row has eventType NO_MATCH and messageSource = [MessageSource.RCS].
+     */
     @Test
     fun `detection log records RCS message source on no-match event`() = runTest {
         pipeline().process(
@@ -888,6 +1254,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.RCS, row.messageSource)
     }
 
+    /**
+     * Tests that MMS message sources are recorded in the detection log upon detection.
+     *
+     * Preconditions: messageSource = [MessageSource.MMS].
+     * Expected: Logged row has messageSource = [MessageSource.MMS].
+     */
     @Test
     fun `detection log records MMS message source`() = runTest {
         pipeline().process(
@@ -901,6 +1273,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.MMS, row.messageSource)
     }
 
+    /**
+     * Tests that opt-out detections in group threads skip auto-reply with SKIPPED_GROUP_THREAD disposition.
+     *
+     * Preconditions: isGroupThread is true and messageSource is MMS.
+     * Expected: Disposition is SKIPPED_GROUP_THREAD, no SMS or direct replies sent, notification posted, and log shows "Skipped: Group thread".
+     */
     @Test
     fun `detection in group thread logs detection and skips auto reply with SKIPPED_GROUP_THREAD`() = runTest {
         val outcome = pipeline().process(
@@ -925,6 +1303,12 @@ class SmsProcessingPipelineTest {
         assertTrue("no cooldown row for a suppressed reply", fakes.cooldownDao.rows.isEmpty())
     }
 
+    /**
+     * Tests that 1-to-1 MMS message detections send a reply and record MessageSource.MMS in the log.
+     *
+     * Preconditions: isGroupThread is false and messageSource is MMS.
+     * Expected: Disposition is SENT, SMS reply "stop" sent, and log row records MessageSource.MMS.
+     */
     @Test
     fun `1 to 1 MMS message detection sends reply and records MessageSource MMS`() = runTest {
         val outcome = pipeline().process(
@@ -946,6 +1330,12 @@ class SmsProcessingPipelineTest {
         assertEquals(MessageSource.MMS, row.messageSource)
     }
 
+    /**
+     * Tests that MMS ignore (stop list, known contact) and no-match events preserve MessageSource.MMS in the log.
+     *
+     * Preconditions: Processing MMS messages that match stop list, known contacts, and no-match.
+     * Expected: All corresponding log rows retain MessageSource.MMS.
+     */
     @Test
     fun `MMS ignore and no-match preserve MessageSource MMS`() = runTest {
         val p1 = pipeline()

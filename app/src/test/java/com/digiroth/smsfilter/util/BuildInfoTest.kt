@@ -37,9 +37,18 @@ import java.util.Locale
 
 /**
  * Unit tests for [BuildInfo] formatting.
+ *
+ * Verifies that build timestamp and version codes are formatted cleanly with appropriate
+ * timezone designations and locale formatting.
  */
 class BuildInfoTest {
 
+    /**
+     * Tests formatting of a known epoch timestamp in UTC with build number.
+     *
+     * Preconditions: Timestamp 2026-08-19T17:00:17Z, build number 40, UTC zone, US locale.
+     * Expected: Formatted string equals "Build: 19 Aug 2026, 17:00:17 UTC (#40)".
+     */
     @Test
     fun formatsBuildTimeCorrectlyWithTimezone() {
         val epochMillis = Instant.parse("2026-08-19T17:00:17Z").toEpochMilli()
@@ -56,6 +65,12 @@ class BuildInfoTest {
         assertEquals("Build: 19 Aug 2026, 17:00:17 UTC (#40)", formatted)
     }
 
+    /**
+     * Tests formatting of a known epoch timestamp in Pacific Daylight Time (PDT) with build number.
+     *
+     * Preconditions: Timestamp 2026-08-19T17:00:17Z, build number 42, America/Los_Angeles zone, US locale.
+     * Expected: Formatted string equals "Build: 19 Aug 2026, 10:00:17 PDT (#42)".
+     */
     @Test
     fun formatsBuildTimeWithPacificTimezone() {
         val epochMillis = Instant.parse("2026-08-19T17:00:17Z").toEpochMilli()
@@ -72,6 +87,12 @@ class BuildInfoTest {
         assertEquals("Build: 19 Aug 2026, 10:00:17 PDT (#42)", formatted)
     }
 
+    /**
+     * Tests that the default formatBuildTime overload produces a string with the expected prefix and build number pattern.
+     *
+     * Preconditions: Calling formatBuildTime with default arguments.
+     * Expected: Result starts with "Build: " and contains "(#".
+     */
     @Test
     fun defaultBuildTimeContainsPrefixAndYear() {
         val formatted = BuildInfo.formatBuildTime()

@@ -38,6 +38,9 @@ import org.junit.runner.RunWith
 
 /**
  * Instrumented tests for [MmsTextResolver] verifying safe execution against the device content resolver.
+ *
+ * Verifies that querying the Telephony MMS content provider executes without uncaught exceptions
+ * when passed non-existent, null, or attachment-prefixed snippets on a live device or emulator.
  */
 @RunWith(AndroidJUnit4::class)
 class MmsTextResolverTest {
@@ -51,21 +54,45 @@ class MmsTextResolverTest {
         resolver = MmsTextResolver(context)
     }
 
+    /**
+     * Tests that [MmsTextResolver] can be instantiated with an application context.
+     *
+     * Preconditions: ApplicationProvider provides application context.
+     * Expected: [resolver] instance is non-null.
+     */
     @Test
     fun mmsTextResolver_canBeInstantiated() {
         assertNotNull(resolver)
     }
 
+    /**
+     * Tests that querying for a non-existent snippet executes safely without throwing exceptions.
+     *
+     * Preconditions: Non-existent snippet string.
+     * Expected: [MmsTextResolver.resolveFullMmsText] completes safely.
+     */
     @Test
     fun resolveFullMmsText_handlesNonExistentSnippetSafely() {
         resolver.resolveFullMmsText("NonExistentSnippetThatCannotMatch12345")
     }
 
+    /**
+     * Tests that querying with a null snippet executes safely without throwing NullPointerException or SQL syntax errors.
+     *
+     * Preconditions: null snippet.
+     * Expected: [MmsTextResolver.resolveFullMmsText] completes safely.
+     */
     @Test
     fun resolveFullMmsText_handlesNullSnippetSafely() {
         resolver.resolveFullMmsText(null)
     }
 
+    /**
+     * Tests that querying with an attachment-prefixed snippet (e.g. "Image\nSTOP") executes safely against the provider.
+     *
+     * Preconditions: Snippet "Image\nSTOP".
+     * Expected: [MmsTextResolver.resolveFullMmsText] sanitizes and queries safely.
+     */
     @Test
     fun resolveFullMmsText_handlesImagePrefixedSnippetSafely() {
         resolver.resolveFullMmsText("Image\nSTOP")

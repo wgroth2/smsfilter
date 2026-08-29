@@ -125,6 +125,12 @@ class SmsLookupWorkerTest {
         .putLong(SmsLookupWorker.KEY_RECEIVED_AT, now)
         .build()
 
+    /**
+     * Tests end-to-end execution of [SmsLookupWorker] with valid opt-out input, verifying that an auto-reply is sent.
+     *
+     * Preconditions: Worker input containing standard phone number "+16505551234" and body "Hello\nSTOP".
+     * Expected: [SmsLookupWorker.doWork] returns [ListenableWorker.Result.success], SMS is sent to raw address, and reply status is logged.
+     */
     @Test
     fun detectionRunsEndToEndAndRepliesToTheRawAddress() = runBlocking {
         val worker = buildWorker(inputFor(SENDER, "Hello\nSTOP"))
@@ -140,6 +146,12 @@ class SmsLookupWorkerTest {
         assertEquals("Reply sent: stop", fakes.logDao.inserted.single().replyStatus)
     }
 
+    /**
+     * Tests that [SmsLookupWorker] sends the reply to the exact short code address without normalization artifacts.
+     *
+     * Preconditions: Worker input containing short code "89887" and body "Hello\nSTOP".
+     * Expected: Reply is dispatched to "89887".
+     */
     @Test
     fun shortCodeReceivesReplyAtItsExactAddress() = runBlocking {
         // Guards the adapter against any normalization creeping in between Data and the pipeline.
@@ -151,6 +163,12 @@ class SmsLookupWorkerTest {
         assertEquals(listOf(SHORT_CODE to "stop"), fakes.smsSender.sent)
     }
 
+    /**
+     * Tests that non-detectable messages complete successfully via [SmsLookupWorker] without sending an SMS.
+     *
+     * Preconditions: Message body "Your appointment is confirmed".
+     * Expected: [SmsLookupWorker.doWork] returns [ListenableWorker.Result.success] and no SMS is sent.
+     */
     @Test
     fun nonDetectionAlsoSucceedsWithoutSending() = runBlocking {
         val worker = buildWorker(inputFor(SENDER, "Your appointment is confirmed"))
@@ -161,6 +179,12 @@ class SmsLookupWorkerTest {
         assertTrue(fakes.smsSender.sent.isEmpty())
     }
 
+    /**
+     * Tests that the onboarding gate suppresses auto-reply when invoked via [SmsLookupWorker].
+     *
+     * Preconditions: Settings firstRunComplete is false.
+     * Expected: [SmsLookupWorker.doWork] returns [ListenableWorker.Result.success] without sending an SMS or logging.
+     */
     @Test
     fun onboardingGateStillAppliesThroughTheWorker() = runBlocking {
         fakes.settings.snapshot = fakes.settings.snapshot.copy(firstRunComplete = false)
@@ -173,6 +197,12 @@ class SmsLookupWorkerTest {
         assertTrue(fakes.logDao.inserted.isEmpty())
     }
 
+    /**
+     * Tests that known contact ignore rules function correctly when triggered through [SmsLookupWorker].
+     *
+     * Preconditions: ContactSource returns Found for the sender.
+     * Expected: [SmsLookupWorker.doWork] returns [ListenableWorker.Result.success] and no SMS is sent.
+     */
     @Test
     fun knownContactIsIgnoredThroughTheWorker() = runBlocking {
         fakes.contactSource.outcome = ContactLookupOutcome.Found
@@ -184,6 +214,12 @@ class SmsLookupWorkerTest {
         assertTrue(fakes.smsSender.sent.isEmpty())
     }
 
+    /**
+     * Tests that missing sender address input in WorkManager [Data] results in permanent failure rather than retrying.
+     *
+     * Preconditions: Input data without KEY_SENDER_ADDRESS.
+     * Expected: [SmsLookupWorker.doWork] returns [ListenableWorker.Result.failure] and sends no SMS.
+     */
     @Test
     fun missingSenderFailsPermanentlyRatherThanRetrying() = runBlocking {
         // Malformed input can never succeed on retry, so it must not consume the expedited quota.
@@ -198,6 +234,12 @@ class SmsLookupWorkerTest {
         assertTrue(fakes.smsSender.sent.isEmpty())
     }
 
+    /**
+     * Tests that missing message body input in WorkManager [Data] results in permanent failure.
+     *
+     * Preconditions: Input data without KEY_MESSAGE_BODY.
+     * Expected: [SmsLookupWorker.doWork] returns [ListenableWorker.Result.failure].
+     */
     @Test
     fun missingBodyFailsPermanently() = runBlocking {
         val input = Data.Builder()
@@ -208,6 +250,12 @@ class SmsLookupWorkerTest {
         assertEquals(ListenableWorker.Result.failure(), worker.doWork())
     }
 
+    /**
+     * Tests that [SmsLookupWorker.getForegroundInfo] supplies valid foreground notification metadata for expedited worker fallbacks.
+     *
+     * Preconditions: Instantiated worker with valid inputs.
+     * Expected: Returned foreground info notification channel ID is non-empty.
+     */
     @Test
     fun foregroundInfoIsAvailableForTheExpeditedFallback() = runBlocking {
         // Without this override WorkManager raises IllegalStateException when expedited work runs

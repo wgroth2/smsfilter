@@ -32,11 +32,22 @@ import com.digiroth.smsfilter.data.settings.ConnectionStatus
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** JVM unit tests for [ConnectionHealthEvaluator]. */
+/**
+ * JVM unit tests for [ConnectionHealthEvaluator].
+ *
+ * Verifies evaluation of integration health indicators for HubSpot CRM and Google Contacts
+ * based on user toggle states, token presence, and connection status.
+ */
 class ConnectionHealthEvaluatorTest {
 
     private val evaluator = ConnectionHealthEvaluator()
 
+    /**
+     * Tests that a disabled HubSpot integration always evaluates to OFF regardless of token presence or connection status.
+     *
+     * Preconditions: isEnabled=false for every [ConnectionStatus] entry.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.OFF].
+     */
     @Test
     fun `disabled hubspot is off regardless of token or status`() {
         ConnectionStatus.entries.forEach { status ->
@@ -48,6 +59,12 @@ class ConnectionHealthEvaluatorTest {
         }
     }
 
+    /**
+     * Tests that enabling HubSpot without providing an access token evaluates to SETUP_INCOMPLETE.
+     *
+     * Preconditions: isEnabled=true, hasToken=false, lastStatus=UNKNOWN.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.SETUP_INCOMPLETE].
+     */
     @Test
     fun `enabled without a token is setup incomplete`() {
         assertEquals(
@@ -60,6 +77,12 @@ class ConnectionHealthEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that a prior AUTH_ERROR status when no token is present evaluates to SETUP_INCOMPLETE rather than ERROR.
+     *
+     * Preconditions: isEnabled=true, hasToken=false, lastStatus=AUTH_ERROR.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.SETUP_INCOMPLETE].
+     */
     @Test
     fun `stale auth error with no token is setup incomplete not an error`() {
         // Reachable immediately after a failed Connect & Test: testConnection persists AUTH_ERROR
@@ -75,6 +98,12 @@ class ConnectionHealthEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that enabling HubSpot with a token and successful CONNECTED status evaluates to CONNECTED.
+     *
+     * Preconditions: isEnabled=true, hasToken=true, lastStatus=CONNECTED.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.CONNECTED].
+     */
     @Test
     fun `enabled with token and successful check is connected`() {
         assertEquals(
@@ -87,6 +116,12 @@ class ConnectionHealthEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that enabling HubSpot with a saved token and UNKNOWN status evaluates to CONNECTED.
+     *
+     * Preconditions: isEnabled=true, hasToken=true, lastStatus=UNKNOWN.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.CONNECTED].
+     */
     @Test
     fun `enabled with token and unknown status is connected`() {
         // A saved token implies a successful test, because the connect flow only persists on success.
@@ -100,6 +135,12 @@ class ConnectionHealthEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that enabling HubSpot with a token and AUTH_ERROR status evaluates to ERROR.
+     *
+     * Preconditions: isEnabled=true, hasToken=true, lastStatus=AUTH_ERROR.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.ERROR].
+     */
     @Test
     fun `enabled with token and auth error is an error`() {
         assertEquals(
@@ -112,6 +153,12 @@ class ConnectionHealthEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that enabling HubSpot with a token and DISCONNECTED status evaluates to ERROR.
+     *
+     * Preconditions: isEnabled=true, hasToken=true, lastStatus=DISCONNECTED.
+     * Expected: [ConnectionHealthEvaluator.evaluateHubSpot] returns [HubSpotHealth.ERROR].
+     */
     @Test
     fun `enabled with token and disconnected is an error`() {
         assertEquals(
@@ -124,6 +171,12 @@ class ConnectionHealthEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that all four HubSpotHealth enum states (OFF, SETUP_INCOMPLETE, CONNECTED, ERROR) are reachable.
+     *
+     * Preconditions: Testing representative inputs for each state.
+     * Expected: The set of returned states equals all [HubSpotHealth] values.
+     */
     @Test
     fun `all four hubspot states are reachable`() {
         val reached = setOf(
@@ -136,6 +189,12 @@ class ConnectionHealthEvaluatorTest {
         assertEquals(HubSpotHealth.entries.toSet(), reached)
     }
 
+    /**
+     * Tests that Google Contacts health directly reflects whether the READ_CONTACTS permission is granted.
+     *
+     * Preconditions: Evaluating with hasPermission=true and hasPermission=false.
+     * Expected: Returns [GoogleContactsHealth.CONNECTED] and [GoogleContactsHealth.PERMISSION_REQUIRED] respectively.
+     */
     @Test
     fun `google contacts follows the live permission`() {
         assertEquals(

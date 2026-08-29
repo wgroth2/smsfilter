@@ -33,11 +33,22 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** JVM unit tests for [SenderHasher]. */
+/**
+ * JVM unit tests for [SenderHasher].
+ *
+ * Verifies SHA-256 hexadecimal hashing properties, stability across instances,
+ * sensitivity to casing and formatting, and compatibility with standard digests.
+ */
 class SenderHasherTest {
 
     private val hasher = SenderHasher()
 
+    /**
+     * Tests that the generated hash is exactly 64 lowercase hexadecimal characters.
+     *
+     * Preconditions: Standard phone number "+16505551234".
+     * Expected: Output length is 64 and matches regex "[0-9a-f]{64}".
+     */
     @Test
     fun `produces 64 lowercase hex characters`() {
         val hash = hasher.hash("+16505551234")
@@ -46,6 +57,12 @@ class SenderHasherTest {
         assertTrue("must be lowercase hex only", hash.matches(Regex("[0-9a-f]{64}")))
     }
 
+    /**
+     * Tests that hashing the same address multiple times on the same instance yields identical output.
+     *
+     * Preconditions: Address "+16505551234".
+     * Expected: Repeated calls return the same hash.
+     */
     @Test
     fun `is stable across calls`() {
         // The cooldown table is keyed by this value, so an unstable hash would let a sender bypass
@@ -53,16 +70,34 @@ class SenderHasherTest {
         assertEquals(hasher.hash("+16505551234"), hasher.hash("+16505551234"))
     }
 
+    /**
+     * Tests that separate instances of SenderHasher compute identical hashes for the same address.
+     *
+     * Preconditions: Short code "89887" hashed by two distinct SenderHasher instances.
+     * Expected: Both instances produce the exact same hash string.
+     */
     @Test
     fun `is stable across instances`() {
         assertEquals(SenderHasher().hash("89887"), SenderHasher().hash("89887"))
     }
 
+    /**
+     * Tests that different sender addresses result in distinct SHA-256 hashes.
+     *
+     * Preconditions: Two distinct phone numbers differing in the last digit.
+     * Expected: Computed hashes are not equal.
+     */
     @Test
     fun `different addresses produce different hashes`() {
         assertNotEquals(hasher.hash("+16505551234"), hasher.hash("+16505551235"))
     }
 
+    /**
+     * Tests that raw formatted and E.164 normalized representations of the same phone number hash differently.
+     *
+     * Preconditions: Formatted "(650) 555-1234" vs E.164 "+16505551234".
+     * Expected: Hashes are not equal, requiring raw address consistency.
+     */
     @Test
     fun `raw and normalized forms of one number hash differently`() {
         // Documents why the RAW address must be hashed consistently: the two forms are not
@@ -70,6 +105,12 @@ class SenderHasherTest {
         assertNotEquals(hasher.hash("(650) 555-1234"), hasher.hash("+16505551234"))
     }
 
+    /**
+     * Tests that hashing matches an externally computed standard SHA-256 digest of a short code.
+     *
+     * Preconditions: Input string "89887".
+     * Expected: Hash equals "1a6b881b693527081fdf188d8d506819b4e78be64f7b99a8b4ddddc97162cc41".
+     */
     @Test
     fun `matches the known SHA-256 digest of a short code`() {
         // Pins the algorithm and encoding against an externally computed digest
@@ -81,12 +122,24 @@ class SenderHasherTest {
         )
     }
 
+    /**
+     * Tests that alphanumeric strings and empty strings are hashed without throwing exceptions.
+     *
+     * Preconditions: Inputs "VERIZON" and "".
+     * Expected: Returns 64-character hash string for each.
+     */
     @Test
     fun `handles alphanumeric and empty addresses without throwing`() {
         assertEquals(64, hasher.hash("VERIZON").length)
         assertEquals(64, hasher.hash("").length)
     }
 
+    /**
+     * Tests that hashing is case-sensitive.
+     *
+     * Preconditions: Inputs "verizon" vs "VERIZON".
+     * Expected: Resulting hashes are not equal.
+     */
     @Test
     fun `is case sensitive`() {
         assertNotEquals(hasher.hash("verizon"), hasher.hash("VERIZON"))

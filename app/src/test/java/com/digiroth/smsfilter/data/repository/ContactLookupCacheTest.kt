@@ -37,8 +37,8 @@ import org.junit.Test
 /**
  * JVM unit tests for [ContactLookupCache].
  *
- * Time is driven by a mutable fake so expiry is asserted exactly at the boundary rather than by
- * sleeping.
+ * Verifies caching behavior, TTL expiration boundaries, LRU capacity limits,
+ * and cache clearing using a controllable fake time provider.
  */
 class ContactLookupCacheTest {
 
@@ -49,11 +49,23 @@ class ContactLookupCacheTest {
     private val clock = FakeTimeProvider()
     private val cache = ContactLookupCache(clock)
 
+    /**
+     * Tests that querying a phone number or identifier that has not been cached returns false.
+     *
+     * Preconditions: Cache is freshly initialized and empty.
+     * Expected: [ContactLookupCache.isKnownContact] returns false.
+     */
     @Test
     fun `unknown key is not cached`() {
         assertFalse(cache.isKnownContact("+16505551234"))
     }
 
+    /**
+     * Tests that marking a contact as known allows subsequent lookup to return true.
+     *
+     * Preconditions: Phone number is recorded with [ContactLookupCache.markKnownContact].
+     * Expected: [ContactLookupCache.isKnownContact] returns true for the recorded number.
+     */
     @Test
     fun `marked key is reported as known`() {
         cache.markKnownContact("+16505551234")
@@ -61,6 +73,12 @@ class ContactLookupCacheTest {
         assertTrue(cache.isKnownContact("+16505551234"))
     }
 
+    /**
+     * Tests that a cached entry remains valid when checked immediately prior to TTL expiration.
+     *
+     * Preconditions: Phone number is cached at time 0, and clock advances to TTL - 1 ms.
+     * Expected: [ContactLookupCache.isKnownContact] returns true.
+     */
     @Test
     fun `entry survives just before the ttl expires`() {
         cache.markKnownContact("+16505551234")
@@ -69,6 +87,12 @@ class ContactLookupCacheTest {
         assertTrue(cache.isKnownContact("+16505551234"))
     }
 
+    /**
+     * Tests that a cached entry is treated as stale exactly at the TTL expiration boundary.
+     *
+     * Preconditions: Phone number is cached at time 0, and clock advances to exactly TTL ms.
+     * Expected: [ContactLookupCache.isKnownContact] returns false.
+     */
     @Test
     fun `entry expires exactly at the ttl`() {
         cache.markKnownContact("+16505551234")
@@ -77,6 +101,12 @@ class ContactLookupCacheTest {
         assertFalse("an entry at exactly the TTL must be treated as stale", cache.isKnownContact("+16505551234"))
     }
 
+    /**
+     * Tests that reading an expired entry evicts it from the internal cache map.
+     *
+     * Preconditions: Phone number cached at time 0, clock advances to TTL + 1 ms, and lookup is performed.
+     * Expected: Lookup returns false and cache size is reduced to 0.
+     */
     @Test
     fun `expired entry is evicted on read`() {
         cache.markKnownContact("+16505551234")
@@ -87,6 +117,12 @@ class ContactLookupCacheTest {
         assertEquals("a stale key must not linger", 0, cache.size())
     }
 
+    /**
+     * Tests that re-marking an existing key resets its TTL timestamp.
+     *
+     * Preconditions: Phone number cached at time 0, advanced to TTL - 1 ms, re-marked, then advanced another TTL - 1 ms.
+     * Expected: Lookup still returns true because the TTL was refreshed.
+     */
     @Test
     fun `re-marking refreshes the ttl`() {
         cache.markKnownContact("+16505551234")
@@ -97,6 +133,12 @@ class ContactLookupCacheTest {
         assertTrue(cache.isKnownContact("+16505551234"))
     }
 
+    /**
+     * Tests that caching one contact key does not affect lookup results for other keys.
+     *
+     * Preconditions: "+16505551234" is marked as known.
+     * Expected: Lookup for distinct number "+16505559999" returns false.
+     */
     @Test
     fun `keys are independent`() {
         cache.markKnownContact("+16505551234")
@@ -104,6 +146,12 @@ class ContactLookupCacheTest {
         assertFalse(cache.isKnownContact("+16505559999"))
     }
 
+    /**
+     * Tests that calling clear purges all entries from the cache.
+     *
+     * Preconditions: Multiple contact identifiers are marked as known in the cache.
+     * Expected: Cache size becomes 0 and previously marked numbers return false.
+     */
     @Test
     fun `clear removes every entry`() {
         cache.markKnownContact("+16505551234")
@@ -115,6 +163,12 @@ class ContactLookupCacheTest {
         assertFalse(cache.isKnownContact("+16505551234"))
     }
 
+    /**
+     * Tests that inserting more items than MAX_ENTRIES does not allow the cache to exceed its maximum capacity.
+     *
+     * Preconditions: MAX_ENTRIES + 50 distinct contact identifiers are inserted.
+     * Expected: Cache size is capped at [ContactLookupCache.MAX_ENTRIES].
+     */
     @Test
     fun `does not grow beyond the entry cap`() {
         repeat(ContactLookupCache.MAX_ENTRIES + 50) { index ->
@@ -124,6 +178,13 @@ class ContactLookupCacheTest {
         assertEquals(ContactLookupCache.MAX_ENTRIES, cache.size())
     }
 
+    /**
+     * Tests that LRU eviction removes the least recently used entry when capacity is exceeded.
+     *
+     * Preconditions: "oldest" is inserted first, followed by filler entries to reach capacity - 1.
+     * "oldest" is then accessed to update its access order, and a new entry is inserted.
+     * Expected: "oldest" survives eviction and remains present alongside the new entry.
+     */
     @Test
     fun `eviction discards the least recently used entry`() {
         cache.markKnownContact("oldest")

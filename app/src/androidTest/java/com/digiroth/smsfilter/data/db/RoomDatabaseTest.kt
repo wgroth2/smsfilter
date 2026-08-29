@@ -106,6 +106,12 @@ class RoomDatabaseTest {
     // Seeding
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that a newly created database automatically seeds the 10 default opt-out patterns via [AppDatabase.SEED_CALLBACK].
+     *
+     * Preconditions: Fresh in-memory database instance with seed callback attached.
+     * Expected: [OptOutPatternDao.getAll] returns exactly 10 patterns.
+     */
     @Test
     fun freshDatabase_seedsTenDefaultOptOutPatterns() = runBlocking {
         val patterns = optOutPatternDao.getAll()
@@ -113,6 +119,12 @@ class RoomDatabaseTest {
         assertEquals("expected exactly the ten seeded defaults", 10, patterns.size)
     }
 
+    /**
+     * Tests that the seeded opt-out patterns possess the expected match modes and reply types.
+     *
+     * Preconditions: Fresh in-memory database with default seeded patterns.
+     * Expected: Match modes and reply types match the specification (e.g. stop2stop ANYWHERE STOP, bare stop LAST_LINE_EXACT STOP, etc.).
+     */
     @Test
     fun seededPatterns_haveCorrectMatchModeAndReplyType() = runBlocking {
         val patterns = optOutPatternDao.getAll().associateBy { it.pattern to it.matchMode }
@@ -158,6 +170,12 @@ class RoomDatabaseTest {
         assertEquals(ReplyType.STOP, stopEqualsEnd?.replyType)
     }
 
+    /**
+     * Tests that bare keywords "stop" and "end" are never seeded in ANYWHERE mode.
+     *
+     * Preconditions: Inspecting all seeded patterns with [MatchMode.ANYWHERE].
+     * Expected: Neither bare "stop" nor bare "end" are in the ANYWHERE pattern list.
+     */
     @Test
     fun seededPatterns_doNotIncludeBareKeywordsAsAnywhere() = runBlocking {
         // Guards the single most consequential seeding mistake: a bare "stop" matching
@@ -174,11 +192,23 @@ class RoomDatabaseTest {
     // Stop list
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that the stop list table is initially empty in a fresh database.
+     *
+     * Preconditions: Fresh in-memory database.
+     * Expected: [StopListDao.count] returns 0.
+     */
     @Test
     fun stopList_startsEmpty() = runBlocking {
         assertEquals(0, stopListDao.count())
     }
 
+    /**
+     * Tests inserting and retrieving multiple stop list keyword entities.
+     *
+     * Preconditions: Inserting "promo" and "newsletter".
+     * Expected: [StopListDao.getAll] returns both inserted keywords with count = 2.
+     */
     @Test
     fun stopList_insertAndRead() = runBlocking {
         stopListDao.insert(StopListEntity(keyword = "promo"))
@@ -191,6 +221,12 @@ class RoomDatabaseTest {
         assertTrue(keywords.contains("newsletter"))
     }
 
+    /**
+     * Tests that attempting to insert a duplicate stop-list keyword is ignored by SQLite conflict resolution.
+     *
+     * Preconditions: Inserting "promo" twice into StopListDao.
+     * Expected: First insert returns rowId > 0, second returns -1L, total count remains 1.
+     */
     @Test
     fun stopList_duplicateKeywordIsIgnored() = runBlocking {
         val first = stopListDao.insert(StopListEntity(keyword = "promo"))
@@ -201,6 +237,12 @@ class RoomDatabaseTest {
         assertEquals(1, stopListDao.count())
     }
 
+    /**
+     * Tests deleting an existing stop list entry by entity reference.
+     *
+     * Preconditions: Inserting "promo", then deleting the persisted entity.
+     * Expected: [StopListDao.count] becomes 0.
+     */
     @Test
     fun stopList_deleteByEntity() = runBlocking {
         stopListDao.insert(StopListEntity(keyword = "promo"))
@@ -211,6 +253,12 @@ class RoomDatabaseTest {
         assertEquals(0, stopListDao.count())
     }
 
+    /**
+     * Tests that deleting stop list items by keyword is case-insensitive.
+     *
+     * Preconditions: Keyword "Promo" stored in database; deleting using uppercase "PROMO".
+     * Expected: Delete count is 1 and table count becomes 0.
+     */
     @Test
     fun stopList_deleteByKeywordIsCaseInsensitive() = runBlocking {
         stopListDao.insert(StopListEntity(keyword = "Promo"))
@@ -225,6 +273,12 @@ class RoomDatabaseTest {
     // Opt-out patterns
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests inserting a custom opt-out pattern entity into the database.
+     *
+     * Preconditions: Seeding has occurred; inserting custom pattern "unsubscribe".
+     * Expected: [OptOutPatternDao.count] increments by 1.
+     */
     @Test
     fun optOutPattern_insertCustomPattern() = runBlocking {
         val seededCount = optOutPatternDao.count()
@@ -240,6 +294,12 @@ class RoomDatabaseTest {
         assertEquals(seededCount + 1, optOutPatternDao.count())
     }
 
+    /**
+     * Tests that the same pattern string can be inserted multiple times if the match mode differs.
+     *
+     * Preconditions: "stop" is seeded as LAST_LINE_EXACT; inserting "stop" with ANYWHERE mode.
+     * Expected: Insert succeeds (rowId > 0) and total count of "stop" patterns becomes 2.
+     */
     @Test
     fun optOutPattern_samePatternWithDifferentMatchModeIsAllowed() = runBlocking {
         // "stop" is seeded as LAST_LINE_EXACT; adding it as ANYWHERE is a distinct rule and
@@ -256,6 +316,12 @@ class RoomDatabaseTest {
         assertEquals(2, optOutPatternDao.getAll().count { it.pattern == "stop" })
     }
 
+    /**
+     * Tests that attempting to insert an exact duplicate (same pattern and match mode) is ignored.
+     *
+     * Preconditions: Inserting "stop2stop" with ANYWHERE mode when it is already seeded.
+     * Expected: Insert returns -1L and total pattern count remains 10.
+     */
     @Test
     fun optOutPattern_exactDuplicateIsIgnored() = runBlocking {
         val duplicate = optOutPatternDao.insert(
@@ -270,6 +336,12 @@ class RoomDatabaseTest {
         assertEquals(10, optOutPatternDao.count())
     }
 
+    /**
+     * Tests deleting an opt-out pattern entity from the database.
+     *
+     * Preconditions: Seeding completed; deleting "end2end".
+     * Expected: Pattern count becomes 9 and "end2end" is no longer present in getAll.
+     */
     @Test
     fun optOutPattern_delete() = runBlocking {
         val target = optOutPatternDao.getAll().first { it.pattern == "end2end" }
@@ -280,6 +352,12 @@ class RoomDatabaseTest {
         assertTrue(optOutPatternDao.getAll().none { it.pattern == "end2end" })
     }
 
+    /**
+     * Tests updating an existing opt-out pattern entity.
+     *
+     * Preconditions: Updating existing "end2end" entity with new pattern, reply type, and match mode.
+     * Expected: Update returns 1 and retrieved entity contains updated values.
+     */
     @Test
     fun optOutPattern_updatesPatternSuccessfully() = runBlocking {
         val target = optOutPatternDao.getAll().first { it.pattern == "end2end" }
@@ -298,6 +376,12 @@ class RoomDatabaseTest {
         assertEquals(MatchMode.LAST_LINE_EXACT, retrieved.matchMode)
     }
 
+    /**
+     * Tests that ReplyType and MatchMode enums round-trip through Room database converters correctly.
+     *
+     * Preconditions: Inserting pattern with ReplyType.END and MatchMode.LAST_LINE_EXACT.
+     * Expected: Read entity preserves exact enum values.
+     */
     @Test
     fun optOutPattern_enumRoundTripsThroughConverters() = runBlocking {
         optOutPatternDao.insert(
@@ -318,6 +402,12 @@ class RoomDatabaseTest {
     // Detection log
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that detection log entries are retrieved sorted by timestamp in descending order (newest first).
+     *
+     * Preconditions: Inserting entries with timestamps 1000L, 3000L, and 2000L.
+     * Expected: [DetectionLogDao.getRecent] returns entries ordered [3000L, 2000L, 1000L].
+     */
     @Test
     fun detectionLog_insertAndReadNewestFirst() = runBlocking {
         detectionLogDao.insert(detection(timestamp = 1_000L, pattern = "stop2stop"))
@@ -331,6 +421,12 @@ class RoomDatabaseTest {
         assertEquals("oldest entry should sort last", 1_000L, entries.last().timestamp)
     }
 
+    /**
+     * Tests that observeAll emits all log event types (DETECTION, IGNORED, NO_MATCH) ordered newest first.
+     *
+     * Preconditions: Inserting entries across all 3 LogEventType values.
+     * Expected: Emitted list contains 3 entries with descending timestamps.
+     */
     @Test
     fun detectionLog_observeAllEmitsEveryEntryType() = runBlocking {
         detectionLogDao.insert(
@@ -370,6 +466,12 @@ class RoomDatabaseTest {
         assertEquals(1_000L, entries[2].timestamp)
     }
 
+    /**
+     * Tests that DETECTION and IGNORED rows maintain independent field populations (e.g. ignoreReason null on detections).
+     *
+     * Preconditions: Inserting one DETECTION and one IGNORED log entity.
+     * Expected: Detection has matchedPattern and null ignoreReason; Ignored has ignoreReason and null matchedPattern.
+     */
     @Test
     fun detectionLog_storesDetectionAndIgnoredFieldsIndependently() = runBlocking {
         detectionLogDao.insert(
@@ -403,6 +505,12 @@ class RoomDatabaseTest {
         assertNull("an ignored event carries no reply status", ignored.replyStatus)
     }
 
+    /**
+     * Tests that query limits in [DetectionLogDao.getRecent] are respected.
+     *
+     * Preconditions: 10 log entries inserted; querying with limit = 4.
+     * Expected: Returns 4 rows containing the newest timestamps.
+     */
     @Test
     fun detectionLog_respectsQueryLimit() = runBlocking {
         repeat(10) { index ->
@@ -415,6 +523,12 @@ class RoomDatabaseTest {
         assertEquals("limit should keep the newest rows", 9L, entries.first().timestamp)
     }
 
+    /**
+     * Tests that clear deletes all rows from the detection log table.
+     *
+     * Preconditions: 2 log entries inserted.
+     * Expected: [DetectionLogDao.clear] returns 2 and count becomes 0.
+     */
     @Test
     fun detectionLog_clearRemovesEveryEntry() = runBlocking {
         detectionLogDao.insert(detection(timestamp = 1_000L))
@@ -426,6 +540,12 @@ class RoomDatabaseTest {
         assertEquals(0, detectionLogDao.count())
     }
 
+    /**
+     * Tests persisting and retrieving a non-null sender address in detection log entries.
+     *
+     * Preconditions: Inserting log entity with senderAddress="+16505551234".
+     * Expected: Retrieved entry has senderAddress="+16505551234".
+     */
     @Test
     fun detectionLog_persistsAndRetrievesSenderAddress() = runBlocking {
         detectionLogDao.insert(
@@ -444,6 +564,12 @@ class RoomDatabaseTest {
         assertEquals("+16505551234", retrieved.senderAddress)
     }
 
+    /**
+     * Tests that null sender addresses are handled gracefully by Room when reading and writing.
+     *
+     * Preconditions: Inserting log entity with null senderAddress.
+     * Expected: Retrieved entry has null senderAddress.
+     */
     @Test
     fun detectionLog_handlesNullSenderAddressGracefully() = runBlocking {
         detectionLogDao.insert(
@@ -462,6 +588,12 @@ class RoomDatabaseTest {
         assertNull(retrieved.senderAddress)
     }
 
+    /**
+     * Tests persisting and retrieving all MessageSource enum variants (SMS, RCS, MMS).
+     *
+     * Preconditions: Inserting 3 log entities with SMS, RCS, and MMS message sources respectively.
+     * Expected: Retrieved entries preserve their respective MessageSource values.
+     */
     @Test
     fun detectionLog_persistsAndRetrievesMessageSource() = runBlocking {
         detectionLogDao.insert(
@@ -501,6 +633,12 @@ class RoomDatabaseTest {
         assertEquals(MessageSource.MMS, entries[3_000L]?.messageSource)
     }
 
+    /**
+     * Tests that the MessageSource property defaults to SMS when unspecified.
+     *
+     * Preconditions: Inserting log entity using default messageSource parameter.
+     * Expected: Retrieved entry has messageSource = [MessageSource.SMS].
+     */
     @Test
     fun detectionLog_defaultsMessageSourceToSms() = runBlocking {
         detectionLogDao.insert(
@@ -522,6 +660,12 @@ class RoomDatabaseTest {
     // Auto-reply cooldown
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests inserting and finding a cooldown entity by its SHA-256 hash.
+     *
+     * Preconditions: Upserting cooldown record for SENDER_HASH with timestamp 5000L.
+     * Expected: [AutoReplyCooldownDao.findByHash] returns entity with lastReplyTimestamp = 5000L.
+     */
     @Test
     fun cooldown_upsertAndFind() = runBlocking {
         cooldownDao.upsert(AutoReplyCooldownEntity(SENDER_HASH, lastReplyTimestamp = 5_000L))
@@ -532,6 +676,12 @@ class RoomDatabaseTest {
         assertEquals(5_000L, stored?.lastReplyTimestamp)
     }
 
+    /**
+     * Tests that upsert replaces the timestamp for an existing sender hash without creating duplicate rows.
+     *
+     * Preconditions: Upserting timestamp 5000L then 9000L for the same SENDER_HASH.
+     * Expected: Cooldown row count is 1 and timestamp is updated to 9000L.
+     */
     @Test
     fun cooldown_upsertReplacesExistingTimestamp() = runBlocking {
         cooldownDao.upsert(AutoReplyCooldownEntity(SENDER_HASH, lastReplyTimestamp = 5_000L))
@@ -541,11 +691,23 @@ class RoomDatabaseTest {
         assertEquals(9_000L, cooldownDao.findByHash(SENDER_HASH)?.lastReplyTimestamp)
     }
 
+    /**
+     * Tests that findByHash returns null for an unrecorded sender hash.
+     *
+     * Preconditions: Querying an unknown 64-character hash string.
+     * Expected: Returns null.
+     */
     @Test
     fun cooldown_findByHashReturnsNullForUnknownSender() = runBlocking {
         assertNull(cooldownDao.findByHash("0".repeat(64)))
     }
 
+    /**
+     * Tests that a sender with a recent reply is identified as being in cooldown.
+     *
+     * Preconditions: Reply timestamp was 1 hour ago (within the 24-hour window).
+     * Expected: [AutoReplyCooldownDao.isInCooldown] returns true.
+     */
     @Test
     fun cooldown_recentReplyIsInsideWindow() = runBlocking {
         val now = 100_000_000L
@@ -560,6 +722,12 @@ class RoomDatabaseTest {
         assertTrue("a reply one hour ago is still inside the 24-hour window", inCooldown)
     }
 
+    /**
+     * Tests that a sender with an old reply outside the 24-hour window is not in cooldown.
+     *
+     * Preconditions: Reply timestamp was 2 days ago.
+     * Expected: [AutoReplyCooldownDao.isInCooldown] returns false.
+     */
     @Test
     fun cooldown_oldReplyIsOutsideWindow() = runBlocking {
         val now = 100_000_000L
@@ -574,6 +742,12 @@ class RoomDatabaseTest {
         assertFalse("a reply two days ago must not block a new reply", inCooldown)
     }
 
+    /**
+     * Tests that deleteOlderThan deletes only entries with timestamps older than the cutoff.
+     *
+     * Preconditions: One stale entry older than cutoff and one fresh entry at now.
+     * Expected: Stale row is deleted (delete count = 1) and fresh row survives.
+     */
     @Test
     fun cooldown_deleteOlderThanPrunesOnlyStaleRows() = runBlocking {
         val now = 100_000_000L
@@ -592,6 +766,12 @@ class RoomDatabaseTest {
     // Migration
     // ---------------------------------------------------------------------
 
+    /**
+     * Tests that Database Migration 3->4 seeds the new opt-out patterns without overwriting or duplicating existing ones.
+     *
+     * Preconditions: SQLite database initialized at version 3 with previous pattern set and one overlapping v4 pattern.
+     * Expected: After running [AppDatabase.MIGRATION_3_4], total pattern count is 10 and contains all newly added v4 patterns.
+     */
     @Test
     fun migration3To4_seedsNewPatternsWithoutOverwritingExisting() {
         val helper = FrameworkSQLiteOpenHelperFactory().create(

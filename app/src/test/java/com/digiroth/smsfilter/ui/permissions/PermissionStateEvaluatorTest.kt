@@ -36,16 +36,19 @@ import org.junit.Test
 /**
  * JVM unit tests for [PermissionStateEvaluator].
  *
- * The case that matters most is `freshInstall...`: `shouldShowRequestPermissionRationale` is `false`
- * on a fresh install exactly as it is after a permanent denial, so an evaluator that trusts that
- * flag alone would tell every first-time user they had blocked the permission. That failure is
- * invisible to a compile check and only reproducible by uninstalling the app, which makes it worth
- * pinning here.
+ * Verifies permission state evaluation across all combinations of runtime grant status,
+ * previous request history, and system rationale visibility.
  */
 class PermissionStateEvaluatorTest {
 
     private val evaluator = PermissionStateEvaluator()
 
+    /**
+     * Tests that an already-granted permission is evaluated as Granted.
+     *
+     * Preconditions: isGranted=true, hasBeenRequested=true, shouldShowRationale=false.
+     * Expected: [PermissionStateEvaluator.evaluate] returns [PermissionState.Granted].
+     */
     @Test
     fun `granted permission is Granted`() {
         val state = evaluator.evaluate(
@@ -57,6 +60,12 @@ class PermissionStateEvaluatorTest {
         assertEquals(PermissionState.Granted, state)
     }
 
+    /**
+     * Tests that a granted permission evaluates to Granted even if the app has not explicitly prompted yet in this session.
+     *
+     * Preconditions: isGranted=true, hasBeenRequested=false, shouldShowRationale=false.
+     * Expected: [PermissionStateEvaluator.evaluate] returns [PermissionState.Granted].
+     */
     @Test
     fun `granted permission is Granted even before any request`() {
         // Possible when the permission was granted in a previous install or by the system.
@@ -69,6 +78,12 @@ class PermissionStateEvaluatorTest {
         assertEquals(PermissionState.Granted, state)
     }
 
+    /**
+     * Tests that a fresh install without prior requests is evaluated as NotRequested rather than DeniedPermanently.
+     *
+     * Preconditions: isGranted=false, hasBeenRequested=false, shouldShowRationale=false.
+     * Expected: [PermissionStateEvaluator.evaluate] returns [PermissionState.NotRequested].
+     */
     @Test
     fun `fresh install with no rationale is NotRequested not DeniedPermanently`() {
         val state = evaluator.evaluate(
@@ -84,6 +99,12 @@ class PermissionStateEvaluatorTest {
         )
     }
 
+    /**
+     * Tests that an unrequested permission remains NotRequested regardless of the rationale flag value.
+     *
+     * Preconditions: isGranted=false, hasBeenRequested=false, shouldShowRationale=true.
+     * Expected: [PermissionStateEvaluator.evaluate] returns [PermissionState.NotRequested].
+     */
     @Test
     fun `not yet requested is NotRequested regardless of the rationale flag`() {
         val state = evaluator.evaluate(
@@ -95,6 +116,12 @@ class PermissionStateEvaluatorTest {
         assertEquals(PermissionState.NotRequested, state)
     }
 
+    /**
+     * Tests that a permission denied with rationale available evaluates to DeniedCanRetry.
+     *
+     * Preconditions: isGranted=false, hasBeenRequested=true, shouldShowRationale=true.
+     * Expected: [PermissionStateEvaluator.evaluate] returns [PermissionState.DeniedCanRetry].
+     */
     @Test
     fun `denied once with rationale available can be retried`() {
         val state = evaluator.evaluate(
@@ -106,6 +133,12 @@ class PermissionStateEvaluatorTest {
         assertEquals(PermissionState.DeniedCanRetry, state)
     }
 
+    /**
+     * Tests that a previously requested permission denied with no rationale available evaluates to DeniedPermanently.
+     *
+     * Preconditions: isGranted=false, hasBeenRequested=true, shouldShowRationale=false.
+     * Expected: [PermissionStateEvaluator.evaluate] returns [PermissionState.DeniedPermanently].
+     */
     @Test
     fun `denied with no rationale available is DeniedPermanently`() {
         val state = evaluator.evaluate(
@@ -117,6 +150,12 @@ class PermissionStateEvaluatorTest {
         assertEquals(PermissionState.DeniedPermanently, state)
     }
 
+    /**
+     * Tests that only the Granted state allows advancing through permission gates.
+     *
+     * Preconditions: Evaluating allowsAdvance for Granted, NotRequested, DeniedCanRetry, and DeniedPermanently.
+     * Expected: Returns true only for [PermissionState.Granted] and false for all other states.
+     */
     @Test
     fun `only Granted allows advancing past a blocking permission`() {
         assertTrue(evaluator.allowsAdvance(PermissionState.Granted))
@@ -125,6 +164,12 @@ class PermissionStateEvaluatorTest {
         assertFalse(evaluator.allowsAdvance(PermissionState.DeniedPermanently))
     }
 
+    /**
+     * Tests that all 8 boolean permutations produce one of the four defined permission states.
+     *
+     * Preconditions: Iterating through all permutations of isGranted, hasBeenRequested, and shouldShowRationale.
+     * Expected: Total 8 evaluations covering all 4 enum values without exceptions or unhandled states.
+     */
     @Test
     fun `every input combination yields exactly one state`() {
         // Guards against a future edit leaving a gap in the when-expression.

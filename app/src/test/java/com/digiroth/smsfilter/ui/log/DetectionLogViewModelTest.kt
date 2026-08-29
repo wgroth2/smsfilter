@@ -52,6 +52,9 @@ import org.junit.Test
 
 /**
  * JVM unit tests for [DetectionLogViewModel], verifying filter state and DAO emission queries.
+ *
+ * Verifies that switching UI log filters queries the appropriate DAO flow (all events vs. specific
+ * event types) and that clearing logs delegates to the DAO.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetectionLogViewModelTest {
@@ -70,12 +73,24 @@ class DetectionLogViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /**
+     * Tests that a newly created ViewModel defaults to the ALL filter.
+     *
+     * Preconditions: Newly initialized [DetectionLogViewModel].
+     * Expected: [DetectionLogViewModel.filter] StateFlow emits [LogFilter.ALL].
+     */
     @Test
     fun defaultFilter_isAll() {
         val viewModel = DetectionLogViewModel(fakeDao)
         assertEquals(LogFilter.ALL, viewModel.filter.value)
     }
 
+    /**
+     * Tests that setFilter updates the ViewModel's filter StateFlow for all filter options.
+     *
+     * Preconditions: Calling setFilter with DETECTIONS, IGNORED, NO_MATCH, and ALL sequentially.
+     * Expected: Filter StateFlow value matches the newly applied filter at each step.
+     */
     @Test
     fun setFilter_updatesFilterState() {
         val viewModel = DetectionLogViewModel(fakeDao)
@@ -93,6 +108,12 @@ class DetectionLogViewModelTest {
         assertEquals(LogFilter.ALL, viewModel.filter.value)
     }
 
+    /**
+     * Tests that the ALL filter collects entries from observeAll on the DAO.
+     *
+     * Preconditions: DAO populated with 3 entries across DETECTION, IGNORED, and NO_MATCH.
+     * Expected: ViewModel entries StateFlow receives all 3 items and observeAll is called on the DAO.
+     */
     @Test
     fun filterAll_observesAllDaoEntries() = runTest(testDispatcher) {
         val detection = DetectionLogEntity(id = 1, timestamp = 100L, eventType = LogEventType.DETECTION, messagePreview = "msg1")
@@ -111,6 +132,12 @@ class DetectionLogViewModelTest {
         collectJob.cancel()
     }
 
+    /**
+     * Tests that selecting the DETECTIONS filter queries the DAO specifically for DETECTION events.
+     *
+     * Preconditions: Filter set to [LogFilter.DETECTIONS] and DAO byTypeFlow populated with a detection event.
+     * Expected: DAO queried for [LogEventType.DETECTION] and ViewModel contains only the detection entry.
+     */
     @Test
     fun filterDetections_observesDetectionsOnly() = runTest(testDispatcher) {
         val detection = DetectionLogEntity(id = 1, timestamp = 100L, eventType = LogEventType.DETECTION, messagePreview = "msg1")
@@ -130,6 +157,12 @@ class DetectionLogViewModelTest {
         collectJob.cancel()
     }
 
+    /**
+     * Tests that selecting the IGNORED filter queries the DAO specifically for IGNORED events.
+     *
+     * Preconditions: Filter set to [LogFilter.IGNORED] and DAO byTypeFlow populated with an ignored event.
+     * Expected: DAO queried for [LogEventType.IGNORED] and ViewModel contains only the ignored entry.
+     */
     @Test
     fun filterIgnored_observesIgnoredOnly() = runTest(testDispatcher) {
         val ignored = DetectionLogEntity(id = 2, timestamp = 200L, eventType = LogEventType.IGNORED, messagePreview = "msg2")
@@ -149,6 +182,12 @@ class DetectionLogViewModelTest {
         collectJob.cancel()
     }
 
+    /**
+     * Tests that selecting the NO_MATCH filter queries the DAO specifically for NO_MATCH events.
+     *
+     * Preconditions: Filter set to [LogFilter.NO_MATCH] and DAO byTypeFlow populated with a no-match event.
+     * Expected: DAO queried for [LogEventType.NO_MATCH] and ViewModel contains only the no-match entry.
+     */
     @Test
     fun filterNoMatch_observesNoMatchOnly() = runTest(testDispatcher) {
         val noMatch = DetectionLogEntity(id = 3, timestamp = 300L, eventType = LogEventType.NO_MATCH, messagePreview = "msg3")
@@ -168,6 +207,12 @@ class DetectionLogViewModelTest {
         collectJob.cancel()
     }
 
+    /**
+     * Tests that clearLog delegates deletion to the DAO clear method.
+     *
+     * Preconditions: [DetectionLogViewModel.clearLog] called.
+     * Expected: DAO clear method is invoked.
+     */
     @Test
     fun clearLog_callsDaoClear() = runTest(testDispatcher) {
         val viewModel = DetectionLogViewModel(fakeDao)
