@@ -1,246 +1,263 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 1200" width="100%" height="100%" style="background-color: #1e1e2e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1480" width="1000" height="1480" style="background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <defs>
-    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3b82f6"/>
-      <stop offset="100%" stop-color="#1d4ed8"/>
+    <!-- Background Gradient for Start Node -->
+    <linearGradient id="startGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
     </linearGradient>
+
+    <!-- Decision Diamonds Gradient -->
     <linearGradient id="decisionGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#6d28d9"/>
+      <stop offset="0%" stop-color="#f5f3ff"/>
+      <stop offset="100%" stop-color="#ede9fe"/>
     </linearGradient>
+
+    <!-- Ignore / Block Nodes Gradient -->
     <linearGradient id="ignoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ef4444"/>
-      <stop offset="100%" stop-color="#b91c1c"/>
+      <stop offset="0%" stop-color="#fef2f2"/>
+      <stop offset="100%" stop-color="#fee2e2"/>
     </linearGradient>
-    <linearGradient id="successGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="100%" stop-color="#047857"/>
-    </linearGradient>
+
+    <!-- Skip / Gate Nodes Gradient -->
     <linearGradient id="skipGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#b45309"/>
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="100%" stop-color="#fef3c7"/>
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+
+    <!-- Success Reply Gradient -->
+    <linearGradient id="successGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecfdf5"/>
+      <stop offset="100%" stop-color="#d1fae5"/>
+    </linearGradient>
+
+    <!-- Soft Card Shadow -->
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#64748b" flood-opacity="0.15"/>
     </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#94a3b8"/>
+
+    <!-- Arrows -->
+    <marker id="arrow-neutral" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569"/>
     </marker>
-    <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981"/>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669"/>
     </marker>
-    <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#d97706"/>
     </marker>
   </defs>
 
-  <!-- Title -->
-  <text x="440" y="45" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="700" letter-spacing="0.5">SMS Filter — Message Processing Pipeline</text>
+  <!-- Title Header -->
+  <rect x="0" y="0" width="1000" height="70" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="500" y="44" text-anchor="middle" fill="#0f172a" font-size="24" font-weight="800" letter-spacing="-0.3">SMS Filter — Message Processing Pipeline</text>
 
   <!-- Node A: Message Received -->
-  <g filter="url(#shadow)">
-    <rect x="280" y="70" width="320" height="54" rx="10" fill="url(#primaryGrad)" stroke="#60a5fa" stroke-width="1.5"/>
-    <text x="440" y="93" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="600">Message Received</text>
-    <text x="440" y="111" text-anchor="middle" fill="#bfdbfe" font-size="12">(Cellular SMS, MMS, or RCS Chat)</text>
+  <g filter="url(#cardShadow)">
+    <rect x="300" y="95" width="400" height="66" rx="12" fill="url(#startGrad)" stroke="#2563eb" stroke-width="2.5"/>
+    <text x="500" y="123" text-anchor="middle" fill="#1e3a8a" font-size="18" font-weight="700">Message Received</text>
+    <text x="500" y="145" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="500">(Cellular SMS, MMS, or RCS Chat)</text>
   </g>
 
   <!-- Line A -> B -->
-  <line x1="440" y1="124" x2="440" y2="155" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="500" y1="161" x2="500" y2="198" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow-neutral)"/>
 
   <!-- Node B: Setup Finished? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,155 580,195 440,235 300,195" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="199" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">Setup Finished?</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,198 670,244 500,290 330,244" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="249" text-anchor="middle" fill="#4c1d95" font-size="16" font-weight="700">Setup Finished?</text>
   </g>
 
   <!-- Line B -> Z1 (No) -->
-  <line x1="580" y1="195" x2="680" y2="195" stroke="#f87171" stroke-width="2" marker-end="url(#arrow-red)"/>
-  <text x="625" y="187" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">No</text>
+  <line x1="670" y1="244" x2="770" y2="244" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+  <text x="715" y="235" text-anchor="middle" fill="#dc2626" font-size="14" font-weight="700">No</text>
   <!-- Node Z1: Drop Silently -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="170" width="170" height="50" rx="8" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
-    <text x="765" y="192" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">Drop Silently</text>
-    <text x="765" y="208" text-anchor="middle" fill="#94a3b8" font-size="10">(No log, no reply)</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="215" width="200" height="58" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+    <text x="870" y="241" text-anchor="middle" fill="#1e293b" font-size="15" font-weight="700">Drop Silently</text>
+    <text x="870" y="259" text-anchor="middle" fill="#64748b" font-size="12">(No log, no reply)</text>
   </g>
 
   <!-- Line B -> C (Yes) -->
-  <line x1="440" y1="235" x2="440" y2="265" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="455" y="253" fill="#10b981" font-size="11" font-weight="600">Yes</text>
+  <line x1="500" y1="290" x2="500" y2="328" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="520" y="313" fill="#059669" font-size="14" font-weight="700">Yes</text>
 
   <!-- Node C: Stop List Match? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,265 590,305 440,345 290,305" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="301" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">Contains Stop-List Word?</text>
-    <text x="440" y="316" text-anchor="middle" fill="#ddd6fe" font-size="10">(e.g. 'dyson', 'promo')</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,328 680,376 500,424 320,376" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="371" text-anchor="middle" fill="#4c1d95" font-size="16" font-weight="700">Contains Stop-List Word?</text>
+    <text x="500" y="391" text-anchor="middle" fill="#6d28d9" font-size="13">(e.g. 'dyson', 'promo', brand keywords)</text>
   </g>
 
   <!-- Line C -> Z2 (Yes -> Ignore) -->
-  <line x1="590" y1="305" x2="680" y2="305" stroke="#f87171" stroke-width="2" marker-end="url(#arrow-red)"/>
-  <text x="630" y="297" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">Yes</text>
+  <line x1="680" y1="376" x2="770" y2="376" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+  <text x="720" y="367" text-anchor="middle" fill="#dc2626" font-size="14" font-weight="700">Yes</text>
   <!-- Node Z2: Ignore Stop List -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="280" width="170" height="50" rx="8" fill="url(#ignoreGrad)" stroke="#f87171" stroke-width="1.5"/>
-    <text x="765" y="302" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Ignore Message</text>
-    <text x="765" y="318" text-anchor="middle" fill="#fecaca" font-size="10">Logged: Matched Stop List</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="347" width="200" height="58" rx="10" fill="url(#ignoreGrad)" stroke="#ef4444" stroke-width="2"/>
+    <text x="870" y="373" text-anchor="middle" fill="#991b1b" font-size="15" font-weight="700">Ignore Message</text>
+    <text x="870" y="391" text-anchor="middle" fill="#b91c1c" font-size="12">Logged: Matched Stop List</text>
   </g>
 
   <!-- Line C -> D (No) -->
-  <line x1="440" y1="345" x2="440" y2="375" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="455" y="363" fill="#94a3b8" font-size="11" font-weight="600">No</text>
+  <line x1="500" y1="424" x2="500" y2="462" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow-neutral)"/>
+  <text x="520" y="447" fill="#475569" font-size="14" font-weight="700">No</text>
 
   <!-- Node D: Google Contacts? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,375 590,415 440,455 290,415" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="411" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">In Google Contacts?</text>
-    <text x="440" y="426" text-anchor="middle" fill="#ddd6fe" font-size="10">(Local real-time check)</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,462 680,510 500,558 320,510" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="505" text-anchor="middle" fill="#4c1d95" font-size="16" font-weight="700">In Google Contacts?</text>
+    <text x="500" y="525" text-anchor="middle" fill="#6d28d9" font-size="13">(Local real-time check on device)</text>
   </g>
 
   <!-- Line D -> Z3 (Yes -> Ignore) -->
-  <line x1="590" y1="415" x2="680" y2="415" stroke="#f87171" stroke-width="2" marker-end="url(#arrow-red)"/>
-  <text x="630" y="407" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">Yes</text>
+  <line x1="680" y1="510" x2="770" y2="510" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+  <text x="720" y="501" text-anchor="middle" fill="#dc2626" font-size="14" font-weight="700">Yes</text>
   <!-- Node Z3: Ignore Google Contact -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="390" width="170" height="50" rx="8" fill="url(#ignoreGrad)" stroke="#f87171" stroke-width="1.5"/>
-    <text x="765" y="412" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Ignore Message</text>
-    <text x="765" y="428" text-anchor="middle" fill="#fecaca" font-size="10">Logged: Known Contact</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="481" width="200" height="58" rx="10" fill="url(#ignoreGrad)" stroke="#ef4444" stroke-width="2"/>
+    <text x="870" y="507" text-anchor="middle" fill="#991b1b" font-size="15" font-weight="700">Ignore Message</text>
+    <text x="870" y="525" text-anchor="middle" fill="#b91c1c" font-size="12">Logged: Known Contact</text>
   </g>
 
   <!-- Line D -> E (No) -->
-  <line x1="440" y1="455" x2="440" y2="485" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="455" y="473" fill="#94a3b8" font-size="11" font-weight="600">No</text>
+  <line x1="500" y1="558" x2="500" y2="596" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow-neutral)"/>
+  <text x="520" y="581" fill="#475569" font-size="14" font-weight="700">No</text>
 
   <!-- Node E: HubSpot Contact? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,485 590,525 440,565 290,525" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="521" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">In HubSpot CRM?</text>
-    <text x="440" y="536" text-anchor="middle" fill="#ddd6fe" font-size="10">(If enabled in settings)</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,596 680,644 500,692 320,644" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="639" text-anchor="middle" fill="#4c1d95" font-size="16" font-weight="700">In HubSpot CRM?</text>
+    <text x="500" y="659" text-anchor="middle" fill="#6d28d9" font-size="13">(If enabled in settings)</text>
   </g>
 
   <!-- Line E -> Z4 (Yes -> Ignore) -->
-  <line x1="590" y1="525" x2="680" y2="525" stroke="#f87171" stroke-width="2" marker-end="url(#arrow-red)"/>
-  <text x="630" y="517" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">Yes</text>
+  <line x1="680" y1="644" x2="770" y2="644" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+  <text x="720" y="635" text-anchor="middle" fill="#dc2626" font-size="14" font-weight="700">Yes</text>
   <!-- Node Z4: Ignore HubSpot -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="500" width="170" height="50" rx="8" fill="url(#ignoreGrad)" stroke="#f87171" stroke-width="1.5"/>
-    <text x="765" y="522" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Ignore Message</text>
-    <text x="765" y="538" text-anchor="middle" fill="#fecaca" font-size="10">Logged: Known HubSpot</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="615" width="200" height="58" rx="10" fill="url(#ignoreGrad)" stroke="#ef4444" stroke-width="2"/>
+    <text x="870" y="641" text-anchor="middle" fill="#991b1b" font-size="15" font-weight="700">Ignore Message</text>
+    <text x="870" y="659" text-anchor="middle" fill="#b91c1c" font-size="12">Logged: Known HubSpot</text>
   </g>
 
   <!-- Line E -> F (No) -->
-  <line x1="440" y1="565" x2="440" y2="595" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="455" y="583" fill="#94a3b8" font-size="11" font-weight="600">No</text>
+  <line x1="500" y1="692" x2="500" y2="730" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow-neutral)"/>
+  <text x="520" y="715" fill="#475569" font-size="14" font-weight="700">No</text>
 
-  <!-- Node F: Opt-Out Pattern Detected? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,595 600,635 440,675 280,635" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="631" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">Matches Opt-Out Pattern?</text>
-    <text x="440" y="646" text-anchor="middle" fill="#ddd6fe" font-size="10">(e.g. 'STOP', 'stop to cancel', 'end2end')</text>
+  <!-- Node F: Matches Pattern? -->
+  <g filter="url(#cardShadow)">
+    <polygon points="500,730 690,778 500,826 310,778" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="773" text-anchor="middle" fill="#4c1d95" font-size="16" font-weight="700">Matches Opt-Out Pattern?</text>
+    <text x="500" y="793" text-anchor="middle" fill="#6d28d9" font-size="13">(e.g. 'STOP', 'stop to cancel', 'end2end')</text>
   </g>
 
   <!-- Line F -> Z5 (No -> Log No Match) -->
-  <line x1="600" y1="635" x2="680" y2="635" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="635" y="627" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">No</text>
+  <line x1="690" y1="778" x2="770" y2="778" stroke="#64748b" stroke-width="2.5" marker-end="url(#arrow-neutral)"/>
+  <text x="725" y="769" text-anchor="middle" fill="#64748b" font-size="14" font-weight="700">No</text>
   <!-- Node Z5: Log No Match -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="610" width="170" height="50" rx="8" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
-    <text x="765" y="632" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">No Action</text>
-    <text x="765" y="648" text-anchor="middle" fill="#94a3b8" font-size="10">Logged: NO_MATCH</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="749" width="200" height="58" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+    <text x="870" y="775" text-anchor="middle" fill="#334155" font-size="15" font-weight="700">No Action</text>
+    <text x="870" y="793" text-anchor="middle" fill="#64748b" font-size="12">Logged: NO_MATCH</text>
   </g>
 
   <!-- Line F -> G (Yes -> Detection) -->
-  <line x1="440" y1="675" x2="440" y2="705" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="455" y="693" fill="#10b981" font-size="11" font-weight="600">Yes</text>
+  <line x1="500" y1="826" x2="500" y2="864" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="520" y="849" fill="#059669" font-size="14" font-weight="700">Yes</text>
 
-  <!-- Node G: Notify User -->
-  <g filter="url(#shadow)">
-    <rect x="290" y="705" width="300" height="46" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
-    <text x="440" y="728" text-anchor="middle" fill="#38bdf8" font-size="13" font-weight="600">🔔 Post Notification to User</text>
-    <text x="440" y="743" text-anchor="middle" fill="#94a3b8" font-size="10">("Opt-out request detected")</text>
+  <!-- Node G: Post Notification -->
+  <g filter="url(#cardShadow)">
+    <rect x="300" y="864" width="400" height="54" rx="10" fill="#f0f9ff" stroke="#0284c7" stroke-width="2.5"/>
+    <text x="500" y="888" text-anchor="middle" fill="#0369a1" font-size="16" font-weight="700">🔔 Post System Notification to User</text>
+    <text x="500" y="907" text-anchor="middle" fill="#0284c7" font-size="13">("Opt-out request detected")</text>
   </g>
 
   <!-- Line G -> H (Gate 1) -->
-  <line x1="440" y1="751" x2="440" y2="780" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="500" y1="918" x2="500" y2="950" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow-neutral)"/>
 
   <!-- Node H: Gate 1 - Auto-Reply Enabled? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,780 580,815 440,850 300,815" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="819" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Gate 1: Auto-Reply Enabled?</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,950 670,990 500,1030 330,990" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="995" text-anchor="middle" fill="#4c1d95" font-size="15" font-weight="700">Gate 1: Auto-Reply Enabled?</text>
   </g>
 
   <!-- Line H -> Y1 (No -> Dry Run) -->
-  <line x1="580" y1="815" x2="680" y2="815" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="625" y="807" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">No</text>
+  <line x1="670" y1="990" x2="770" y2="990" stroke="#d97706" stroke-width="2.5" marker-end="url(#arrow-amber)"/>
+  <text x="715" y="981" text-anchor="middle" fill="#d97706" font-size="14" font-weight="700">No</text>
   <!-- Node Y1: Skipped Dry Run -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="795" width="170" height="42" rx="8" fill="url(#skipGrad)" stroke="#fbbf24" stroke-width="1.5"/>
-    <text x="765" y="821" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">Skipped: Dry Run</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="966" width="200" height="48" rx="8" fill="url(#skipGrad)" stroke="#d97706" stroke-width="2"/>
+    <text x="870" y="995" text-anchor="middle" fill="#92400e" font-size="14" font-weight="700">Skipped: Dry Run</text>
   </g>
 
   <!-- Line H -> I (Gate 2) -->
-  <line x1="440" y1="850" x2="440" y2="875" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="455" y="865" fill="#10b981" font-size="11" font-weight="600">Yes</text>
+  <line x1="500" y1="1030" x2="500" y2="1060" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="520" y="1049" fill="#059669" font-size="14" font-weight="700">Yes</text>
 
   <!-- Node I: Gate 2 - Group MMS? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,875 580,910 440,945 300,910" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="914" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Gate 2: Group Conversation?</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,1060 670,1100 500,1140 330,1100" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="1105" text-anchor="middle" fill="#4c1d95" font-size="15" font-weight="700">Gate 2: Group Conversation?</text>
   </g>
 
   <!-- Line I -> Y2 (Yes -> Skip Group) -->
-  <line x1="580" y1="910" x2="680" y2="910" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="625" y="902" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">Yes</text>
+  <line x1="670" y1="1100" x2="770" y2="1100" stroke="#d97706" stroke-width="2.5" marker-end="url(#arrow-amber)"/>
+  <text x="715" y="1091" text-anchor="middle" fill="#d97706" font-size="14" font-weight="700">Yes</text>
   <!-- Node Y2: Skipped Group -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="890" width="170" height="42" rx="8" fill="url(#skipGrad)" stroke="#fbbf24" stroke-width="1.5"/>
-    <text x="765" y="916" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">Skipped: Group Thread</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="1076" width="200" height="48" rx="8" fill="url(#skipGrad)" stroke="#d97706" stroke-width="2"/>
+    <text x="870" y="1105" text-anchor="middle" fill="#92400e" font-size="14" font-weight="700">Skipped: Group Thread</text>
   </g>
 
   <!-- Line I -> J (Gate 3) -->
-  <line x1="440" y1="945" x2="440" y2="970" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="455" y="960" fill="#10b981" font-size="11" font-weight="600">No</text>
+  <line x1="500" y1="1140" x2="500" y2="1170" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="520" y="1159" fill="#059669" font-size="14" font-weight="700">No</text>
 
   <!-- Node J: Gate 3 - Repliable Sender? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,970 580,1005 440,1040 300,1005" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="1009" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Gate 3: Can Receive SMS?</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,1170 670,1210 500,1250 330,1210" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="1215" text-anchor="middle" fill="#4c1d95" font-size="15" font-weight="700">Gate 3: Can Receive SMS?</text>
   </g>
 
   <!-- Line J -> Y3 (No -> Alphanumeric) -->
-  <line x1="580" y1="1005" x2="680" y2="1005" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="625" y="997" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">No</text>
+  <line x1="670" y1="1210" x2="770" y2="1210" stroke="#d97706" stroke-width="2.5" marker-end="url(#arrow-amber)"/>
+  <text x="715" y="1201" text-anchor="middle" fill="#d97706" font-size="14" font-weight="700">No</text>
   <!-- Node Y3: Skipped Alphanumeric -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="985" width="170" height="42" rx="8" fill="url(#skipGrad)" stroke="#fbbf24" stroke-width="1.5"/>
-    <text x="765" y="1011" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">Skipped: Alphanumeric</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="1186" width="200" height="48" rx="8" fill="url(#skipGrad)" stroke="#d97706" stroke-width="2"/>
+    <text x="870" y="1215" text-anchor="middle" fill="#92400e" font-size="14" font-weight="700">Skipped: Alphanumeric</text>
   </g>
 
   <!-- Line J -> K (Gate 4) -->
-  <line x1="440" y1="1040" x2="440" y2="1065" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="455" y="1055" fill="#10b981" font-size="11" font-weight="600">Yes</text>
+  <line x1="500" y1="1250" x2="500" y2="1280" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="520" y="1269" fill="#059669" font-size="14" font-weight="700">Yes</text>
 
   <!-- Node K: Gate 4 - 24h Cooldown? -->
-  <g filter="url(#shadow)">
-    <polygon points="440,1065 580,1100 440,1135 300,1100" fill="url(#decisionGrad)" stroke="#a78bfa" stroke-width="1.5"/>
-    <text x="440" y="1104" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">Gate 4: Replied in last 24h?</text>
+  <g filter="url(#cardShadow)">
+    <polygon points="500,1280 670,1320 500,1360 330,1320" fill="url(#decisionGrad)" stroke="#7c3aed" stroke-width="2.5"/>
+    <text x="500" y="1325" text-anchor="middle" fill="#4c1d95" font-size="15" font-weight="700">Gate 4: Replied in Last 24h?</text>
   </g>
 
   <!-- Line K -> Y4 (Yes -> Cooldown) -->
-  <line x1="580" y1="1100" x2="680" y2="1100" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="625" y="1092" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">Yes</text>
+  <line x1="670" y1="1320" x2="770" y2="1320" stroke="#d97706" stroke-width="2.5" marker-end="url(#arrow-amber)"/>
+  <text x="715" y="1311" text-anchor="middle" fill="#d97706" font-size="14" font-weight="700">Yes</text>
   <!-- Node Y4: Skipped Cooldown -->
-  <g filter="url(#shadow)">
-    <rect x="680" y="1080" width="170" height="42" rx="8" fill="url(#skipGrad)" stroke="#fbbf24" stroke-width="1.5"/>
-    <text x="765" y="1106" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">Skipped: Cooldown</text>
+  <g filter="url(#cardShadow)">
+    <rect x="770" y="1296" width="200" height="48" rx="8" fill="url(#skipGrad)" stroke="#d97706" stroke-width="2"/>
+    <text x="870" y="1325" text-anchor="middle" fill="#92400e" font-size="14" font-weight="700">Skipped: 24h Cooldown</text>
   </g>
 
   <!-- Line K -> L (All Pass) -->
-  <line x1="440" y1="1135" x2="440" y2="1160" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)"/>
-  <text x="455" y="1150" fill="#10b981" font-size="11" font-weight="600">No</text>
+  <line x1="500" y1="1360" x2="500" y2="1395" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="520" y="1380" fill="#059669" font-size="14" font-weight="700">No</text>
 
   <!-- Node L: Send Reply -->
-  <g filter="url(#shadow)">
-    <rect x="260" y="1160" width="360" height="48" rx="10" fill="url(#successGrad)" stroke="#34d399" stroke-width="1.5"/>
-    <text x="440" y="1182" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">🚀 Send 'stop' or 'end' Reply</text>
-    <text x="440" y="1198" text-anchor="middle" fill="#d1fae5" font-size="11">Play audio alert + Record 24h cooldown</text>
+  <g filter="url(#cardShadow)">
+    <rect x="290" y="1395" width="420" height="60" rx="12" fill="url(#successGrad)" stroke="#059669" stroke-width="2.5"/>
+    <text x="500" y="1421" text-anchor="middle" fill="#065f46" font-size="17" font-weight="800">🚀 Send 'stop' or 'end' Reply</text>
+    <text x="500" y="1442" text-anchor="middle" fill="#047857" font-size="13" font-weight="600">Play audio alert + Record 24h cooldown</text>
   </g>
 </svg>
