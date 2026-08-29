@@ -113,7 +113,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  */
 @Singleton
 class SettingsDataStore @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) {
 
     private val dataStore: DataStore<Preferences> = context.settingsDataStore

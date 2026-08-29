@@ -61,7 +61,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class SecureTokenStore @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) {
 
     /**

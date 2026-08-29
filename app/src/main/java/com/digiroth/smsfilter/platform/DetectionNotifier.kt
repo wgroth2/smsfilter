@@ -88,7 +88,7 @@ fun interface DetectionNotifier {
  */
 @Singleton
 class AndroidDetectionNotifier @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) : DetectionNotifier {
 
     // Guarded by hasPostPermission() check above, but lint cannot infer the runtime permission check.
