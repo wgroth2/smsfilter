@@ -12,7 +12,7 @@ Marketing and automated SMS/RCS messages often carry an opt-out instruction, but
 
 An incoming message is evaluated in a fixed order, and the order is load-bearing:
 
-![SMS Filter Architecture Pipeline](pipeline_flow.png)
+<img src="pipeline_flow.png" alt="SMS Filter Architecture Pipeline" width="100%" />
 
 <details>
 <summary>View Diagram Definition</summary>
