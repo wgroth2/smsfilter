@@ -70,7 +70,7 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
         DetectionLogEntity::class,
         AutoReplyCooldownEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -114,6 +114,10 @@ abstract class AppDatabase : RoomDatabase() {
             OptOutPatternEntity(pattern = "stop to end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop to quit", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop=end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to unsubscribe", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to optout", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop2quit", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "end to end", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
         )
 
         /**
@@ -149,6 +153,29 @@ abstract class AppDatabase : RoomDatabase() {
                     Triple("stop to end", "STOP", "ANYWHERE"),
                     Triple("stop to quit", "STOP", "ANYWHERE"),
                     Triple("stop=end", "STOP", "ANYWHERE"),
+                )
+                newPatterns.forEach { (pattern, replyType, matchMode) ->
+                    db.execSQL(
+                        "INSERT OR IGNORE INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) " +
+                            "SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM ${OptOutPatternEntity.TABLE_NAME} WHERE pattern = ?)",
+                        arrayOf(pattern, replyType, matchMode, pattern),
+                    )
+                }
+            }
+        }
+
+        /**
+         * Migrates the database from version 4 to version 5 by inserting newly added default opt-out
+         * patterns (`stop to unsubscribe`, `stop to optout`, `stop2quit`, `end to end`) into the
+         * opt-out patterns table if they do not already exist.
+         */
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val newPatterns = listOf(
+                    Triple("stop to unsubscribe", "STOP", "ANYWHERE"),
+                    Triple("stop to optout", "STOP", "ANYWHERE"),
+                    Triple("stop2quit", "STOP", "ANYWHERE"),
+                    Triple("end to end", "END", "ANYWHERE"),
                 )
                 newPatterns.forEach { (pattern, replyType, matchMode) ->
                     db.execSQL(

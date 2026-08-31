@@ -70,6 +70,10 @@ class OptOutDetectorTest {
         pattern("stop to end", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("stop to quit", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("stop=end", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to unsubscribe", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to optout", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop2quit", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("end to end", ReplyType.END, MatchMode.ANYWHERE),
     )
 
     // ---------------------------------------------------------------------
@@ -221,6 +225,66 @@ class OptOutDetectorTest {
         assertEquals("stop", result?.replyKeyword)
     }
 
+    /**
+     * Tests detection of "stop to unsubscribe" phrase mid-message using ANYWHERE mode.
+     *
+     * Preconditions: Message "Weekly alerts. Reply STOP to unsubscribe.".
+     * Expected: [OptOutDetector.detect] returns matched pattern "stop to unsubscribe" with reply type STOP.
+     */
+    @Test
+    fun `detects stop to unsubscribe mid message`() {
+        val result = detector.detect("Weekly alerts. Reply STOP to unsubscribe.", defaultPatterns)
+
+        assertEquals("stop to unsubscribe", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    /**
+     * Tests detection of "stop to optout" unhyphenated phrase mid-message using ANYWHERE mode.
+     *
+     * Preconditions: Message "Deals: text STOP to optout today".
+     * Expected: [OptOutDetector.detect] returns matched pattern "stop to optout" with reply type STOP.
+     */
+    @Test
+    fun `detects stop to optout mid message`() {
+        val result = detector.detect("Deals: text STOP to optout today", defaultPatterns)
+
+        assertEquals("stop to optout", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    /**
+     * Tests detection of "stop2quit" pattern mid-message using ANYWHERE mode.
+     *
+     * Preconditions: Message "Campaign update. Stop2Quit".
+     * Expected: [OptOutDetector.detect] returns matched pattern "stop2quit" with reply type STOP.
+     */
+    @Test
+    fun `detects stop2quit mid message`() {
+        val result = detector.detect("Campaign update. Stop2Quit", defaultPatterns)
+
+        assertEquals("stop2quit", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    /**
+     * Tests detection of "end to end" phrase mid-message using ANYWHERE mode.
+     *
+     * Preconditions: Message "Notifications active. Reply end to end to stop.".
+     * Expected: [OptOutDetector.detect] returns matched pattern "end to end" with reply type END.
+     */
+    @Test
+    fun `detects end to end mid message`() {
+        val result = detector.detect("Notifications active. Reply end to end to stop.", defaultPatterns)
+
+        assertEquals("end to end", result?.pattern)
+        assertEquals(ReplyType.END, result?.replyType)
+        assertEquals("end", result?.replyKeyword)
+    }
+
     // ---------------------------------------------------------------------
     // LAST_LINE_CONTAINS matching
     //
@@ -232,16 +296,17 @@ class OptOutDetectorTest {
     /**
      * Tests that LAST_LINE_CONTAINS matches whole-word "stop" in a footer phrase that LAST_LINE_EXACT misses.
      *
-     * Preconditions: Footer ending in "STOP to unsubscribe".
-     * Expected: Default patterns return null; LAST_LINE_CONTAINS pattern returns matched pattern "stop".
+     * Preconditions: Footer ending in "STOP to quit".
+     * Expected: LAST_LINE_EXACT pattern returns null; LAST_LINE_CONTAINS pattern returns matched pattern "stop".
      */
     @Test
-    fun `matches the reply stop to unsubscribe footer that last-line-exact misses`() {
+    fun `matches the reply stop to quit footer that last-line-exact misses`() {
         val body = "San Jose Clin Trials: Join a research study. Text \"YES\" to learn more " +
-            "or contact us at 408-443-3542 Reply YES to learn more, STOP to unsubscribe"
+            "or contact us at 408-443-3542 Reply YES to learn more, STOP to quit"
+        val exact = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_EXACT))
         val contains = listOf(pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_CONTAINS))
 
-        assertNull("the seeded exact rule cannot see this", detector.detect(body, defaultPatterns))
+        assertNull("the exact rule cannot see this", detector.detect(body, exact))
         assertEquals("stop", detector.detect(body, contains)?.pattern)
     }
 
@@ -436,14 +501,14 @@ class OptOutDetectorTest {
     /**
      * Tests that LAST_LINE_EXACT ignores single-line messages where "STOP" is embedded in copy.
      *
-     * Preconditions: Message "Hello, reply STOP to unsubscribe".
+     * Preconditions: Message "Hello, please stop by our store today".
      * Expected: [OptOutDetector.detect] returns null.
      */
     @Test
     fun `ignores stop embedded in marketing copy on a single line`() {
-        // The whole reason bare keywords are last-line-exact: this phrasing appears in a large
-        // share of legitimate marketing SMS and must never trigger a reply.
-        assertNull(detector.detect("Hello, reply STOP to unsubscribe", defaultPatterns))
+        // The whole reason bare keywords are last-line-exact: this phrasing appears in ordinary
+        // marketing copy and must never trigger a reply.
+        assertNull(detector.detect("Hello, please stop by our store today", defaultPatterns))
     }
 
     /**

@@ -32,7 +32,7 @@ captures/
 .externalNativeBuild/
 .cxx/
 cmake-build-*/
-
+code-review/
 # IDE project files. The whole .idea directory is ignored: this is a solo repository,
 # and most of its contents (deployment target, open tabs, window layout) change on every
 # debug session without carrying any information worth versioning.

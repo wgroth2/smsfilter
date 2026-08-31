@@ -131,6 +131,10 @@ graph TD
 | `stop to end` | Anywhere in the message | `stop` |
 | `stop to quit` | Anywhere in the message | `stop` |
 | `stop=end` | Anywhere in the message | `stop` |
+| `stop to unsubscribe` | Anywhere in the message | `stop` |
+| `stop to optout` | Anywhere in the message | `stop` |
+| `stop2quit` | Anywhere in the message | `stop` |
+| `end to end` | Anywhere in the message | `end` |
 
 The last-line-exact restriction on bare `stop` and `end` is the most consequential rule in
 the detector. Matching `stop` anywhere would fire on ordinary marketing copy such as
