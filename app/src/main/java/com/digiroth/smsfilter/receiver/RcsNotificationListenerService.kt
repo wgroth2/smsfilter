@@ -138,9 +138,18 @@ class RcsNotificationListenerService : NotificationListenerService() {
         serviceScope.launch {
             runCatching {
                 var messageBody = body
-                if ((messageData.messageSource == MessageSource.MMS) || messageBody.startsWith("Image") || messageBody.startsWith("Photo")) {
+                if ((messageData.messageSource == MessageSource.MMS) ||
+                    messageBody.startsWith("Image") ||
+                    messageBody.startsWith("Photo") ||
+                    messageBody.endsWith("…") ||
+                    messageBody.endsWith("...")
+                ) {
                     val resolvedFullText = mmsTextResolver.resolveFullMmsTextWithRetry(messageBody)
-                    if ((resolvedFullText != null) && ((resolvedFullText.length > messageBody.length) || messageBody.startsWith("Image") || messageBody.startsWith("Photo"))) {
+                    if ((resolvedFullText != null) &&
+                        ((resolvedFullText.length > messageBody.length) ||
+                            messageBody.startsWith("Image") ||
+                            messageBody.startsWith("Photo"))
+                    ) {
                         messageBody = resolvedFullText
                         Log.d(TAG, "Resolved full MMS body from telephony provider (${messageBody.length} chars)")
                     }

@@ -63,14 +63,14 @@ open class MmsTextResolver @Inject constructor(
      * suspends for [delayMillis] and retries up to [maxAttempts] total attempts.
      *
      * @param prefixSnippet The initial snippet or truncated notification body to match against, or `null`.
-     * @param maxAttempts Maximum number of query attempts before giving up. Defaults to 3.
-     * @param delayMillis Suspension duration between retry attempts in milliseconds. Defaults to 350ms.
+     * @param maxAttempts Maximum number of query attempts before giving up. Defaults to 6.
+     * @param delayMillis Suspension duration between retry attempts in milliseconds. Defaults to 750ms.
      * @return The resolved full MMS body text, or `null` if resolution failed across all attempts.
      */
     suspend fun resolveFullMmsTextWithRetry(
         prefixSnippet: String? = null,
-        maxAttempts: Int = 3,
-        delayMillis: Long = 350L,
+        maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
+        delayMillis: Long = DEFAULT_DELAY_MILLIS,
     ): String? {
         for (attempt in 1..maxAttempts) {
             val resolved = resolveFullMmsText(prefixSnippet)
@@ -113,6 +113,7 @@ open class MmsTextResolver @Inject constructor(
             selectionArgs,
             sortOrder,
         )?.use { cursor ->
+            val idColumnIndex = cursor.getColumnIndex(COLUMN_ID)
             val textColumnIndex = cursor.getColumnIndex(COLUMN_TEXT)
             if (textColumnIndex == -1) {
                 Log.w(TAG, "MMS part cursor missing '$COLUMN_TEXT' column")
@@ -124,7 +125,14 @@ open class MmsTextResolver @Inject constructor(
 
             while (cursor.moveToNext() && (recordsChecked < MAX_RECORDS_TO_CHECK)) {
                 recordsChecked++
-                val text = cursor.getString(textColumnIndex)
+                var text = cursor.getString(textColumnIndex)
+
+                // If the text column is null or empty, attempt to read from the part stream
+                if (text.isNullOrBlank() && (idColumnIndex != -1)) {
+                    val partId = cursor.getLong(idColumnIndex)
+                    text = readTextFromPartStream(partId)
+                }
+
                 if (text.isNullOrBlank()) continue
 
                 if (fallbackFirstText == null) {
@@ -132,9 +140,13 @@ open class MmsTextResolver @Inject constructor(
                 }
 
                 if (searchPrefix != null) {
-                    if (text.startsWith(searchPrefix, ignoreCase = true) ||
-                        text.contains(searchPrefix, ignoreCase = true) ||
-                        cleanSnippet.startsWith(text.take(cleanSnippet.length.coerceAtMost(text.length)), ignoreCase = true)
+                    val normalizedPart = text.replace('\u00A0', ' ')
+                    val normalizedPrefix = searchPrefix.replace('\u00A0', ' ')
+                    val normalizedSnippet = cleanSnippet.replace('\u00A0', ' ')
+
+                    if (normalizedPart.startsWith(normalizedPrefix, ignoreCase = true) ||
+                        normalizedPart.contains(normalizedPrefix, ignoreCase = true) ||
+                        normalizedSnippet.startsWith(normalizedPart.take(normalizedSnippet.length.coerceAtMost(normalizedPart.length)), ignoreCase = true)
                     ) {
                         Log.d(TAG, "Matched full MMS text ($recordsChecked records examined)")
                         return@runCatching text
@@ -152,6 +164,19 @@ open class MmsTextResolver @Inject constructor(
         }
     }.onFailure { error ->
         Log.e(TAG, "Failed to resolve full MMS text from telephony provider", error)
+    }.getOrNull()
+
+    /**
+     * Reads text content from a telephony MMS part input stream when the database text column is null.
+     *
+     * @param partId The telephony MMS part row ID.
+     * @return The read text body, or `null` if unable to open or read the stream.
+     */
+    private fun readTextFromPartStream(partId: Long): String? = runCatching {
+        val partUri = Uri.withAppendedPath(MMS_PART_URI, partId.toString())
+        context.contentResolver.openInputStream(partUri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+            reader.readText().takeIf { it.isNotBlank() }
+        }
     }.getOrNull()
 
     /**
@@ -177,6 +202,12 @@ open class MmsTextResolver @Inject constructor(
     companion object {
         /** Tag for logcat output. */
         private const val TAG: String = "MmsTextResolver"
+
+        /** Default maximum number of retry attempts when polling for MMS text parts. */
+        const val DEFAULT_MAX_ATTEMPTS: Int = 6
+
+        /** Default suspension delay between polling attempts in milliseconds. */
+        const val DEFAULT_DELAY_MILLIS: Long = 750L
 
         /** Maximum number of recent MMS part records to scan. */
         const val MAX_RECORDS_TO_CHECK: Int = 100
