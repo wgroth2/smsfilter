@@ -85,7 +85,10 @@ enum class ReplyDisposition {
     /** The message was received in a group conversation thread; replies are suppressed. */
     SKIPPED_GROUP_THREAD,
 
-    /** The sender is an alphanumeric ID and cannot receive an SMS at all. */
+    /**
+     * The sender is an alphanumeric ID and cannot receive an SMS, and no direct reply handle was
+     * available. A notification-backed message from the same sender is still answerable.
+     */
     SKIPPED_ALPHANUMERIC,
 
     /** A reply already went to this sender inside the 24-hour window. */
@@ -349,8 +352,12 @@ class SmsProcessingPipeline @Inject constructor(
         // Group thread protection gate — auto-replies must not be broadcast to group conversations.
         if (isGroupThread) return ReplyDisposition.SKIPPED_GROUP_THREAD
 
-        // Gate 2 — reliable sender. An alphanumeric ID cannot receive an SMS at all.
-        if (!sender.isRepliable) return ReplyDisposition.SKIPPED_ALPHANUMERIC
+        // Gate 2 — reliable sender, cellular path only. An alphanumeric ID cannot receive an SMS,
+        // but a direct reply never addresses the sender by number: it fires the notification's own
+        // PendingIntent with a RemoteInput bundle. Applying this gate unconditionally silently
+        // refused to answer brand RCS senders shown by name ("Acme Rewards") — exactly the
+        // marketing senders this app exists to opt out of — despite holding a working handle.
+        if ((directReplyKey == null) && !sender.isRepliable) return ReplyDisposition.SKIPPED_ALPHANUMERIC
 
         // Gate 3 — cooldown. Prevents an SMS ping-pong loop with an automated responder whose
         // confirmation text itself trips a pattern. Uses normalized primary lookup value so

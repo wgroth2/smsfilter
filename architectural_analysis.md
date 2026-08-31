@@ -48,7 +48,7 @@ Below are the identified architectural risks, platform constraints (for Target S
 ### Resolution:
 * A fixed **24-hour per-sender cooldown** is now mandatory: the worker checks `AutoReplyCooldownEntity` before sending and upserts it after a successful send.
 * The entity stores a **SHA-256 `senderHash`** rather than the raw phone number (an improvement over the original recommendation), preserving the no-phone-numbers-on-disk privacy rule while still preventing reply loops.
-* A master **Auto-Reply toggle** (off = detection-only dry run) was also added as a kill switch, and alphanumeric senders are never replied to.
+* A master **Auto-Reply toggle** (off = detection-only dry run) was also added as a kill switch. Alphanumeric senders are never replied to *by SMS*; since the 31 Aug 2026 review they are answered when an RCS notification supplied a direct-reply handle, which addresses the sender through the notification rather than by number.
 
 ---
 

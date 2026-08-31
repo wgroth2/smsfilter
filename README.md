@@ -52,7 +52,7 @@ graph TD
 |---|---|
 | Master switch | Auto-reply is off — the app detects, notifies, and logs, but never sends |
 | Group thread | The message is a group MMS conversation — logs detection but suppresses auto-reply to prevent blasting "STOP" to all participants |
-| Repliable sender | The sender is an alphanumeric ID like `VERIZON`, which cannot receive SMS |
+| Repliable sender | The sender is an alphanumeric ID like `VERIZON`, which cannot receive SMS. Cellular messages only — an RCS message carrying a direct-reply handle is answered through the notification, which needs no dialable address |
 | 24-hour cooldown | A reply already went to this sender, preventing SMS ping-pong with automated responders |
 
 When a gate blocks a reply, the detection is still logged with the reason and the notification still fires.

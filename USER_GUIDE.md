@@ -105,9 +105,11 @@ graph TD
     H -- No --> Y1["Log: skipped: dry run"]
     H -- Yes --> I{"Group MMS<br/>conversation?"}
     I -- Yes --> Y2["Log: skipped: group thread"]
-    I -- No --> J{"Sender can<br/>receive reply?"}
-    J -- No, alphanumeric ID --> Y3["Log: skipped: alphanumeric"]
+    I -- No --> J{"Direct reply handle<br/>from RCS notification?"}
     J -- Yes --> K{"Replied to them<br/>in last 24h?"}
+    J -- No --> J2{"Sender can<br/>receive SMS?"}
+    J2 -- No, alphanumeric ID --> Y3["Log: skipped: alphanumeric"]
+    J2 -- Yes --> K
     K -- Yes --> Y4["Log: skipped: cooldown"]
     K -- No --> L["Send stop or end"]
     L --> M["Play sound<br/>Log: Reply sent"]

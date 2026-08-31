@@ -1113,6 +1113,157 @@ class SmsProcessingPipelineTest {
         assertTrue("direct reply sender should not be used for cellular SMS", fakes.directReplySender.sent.isEmpty())
     }
 
+    // ---------------------------------------------------------------------
+    // Gate 2 is cellular-only: an alphanumeric sender is still answerable by direct reply
+    // ---------------------------------------------------------------------
+
+    /**
+     * Tests that an alphanumeric sender carrying a direct reply handle is answered rather than skipped.
+     *
+     * A brand RCS sender surfaces by display name ("PROMO"), which classifies as ALPHANUMERIC and
+     * cannot receive a cellular SMS. The direct reply path does not address the sender by number at
+     * all, so the gate must not apply to it.
+     *
+     * Preconditions: Alphanumeric sender with directReplyKey "rcs-handle-1".
+     * Expected: Disposition is SENT via DirectReplySender, no cellular SMS, log shows "Reply sent: stop".
+     */
+    @Test
+    fun `alphanumeric sender with a direct reply key is answered`() = runTest {
+        val outcome = pipeline().process(
+            senderAddress = ALPHANUMERIC,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "rcs-handle-1",
+        )
+
+        assertEquals(ReplyDisposition.SENT, (outcome as ProcessingOutcome.Detected).disposition)
+        assertEquals(listOf("rcs-handle-1" to "stop"), fakes.directReplySender.sent)
+        assertTrue("an alphanumeric ID still cannot receive cellular SMS", fakes.smsSender.sent.isEmpty())
+        assertEquals("Reply sent: stop", fakes.logDao.inserted.single().replyStatus)
+    }
+
+    /**
+     * Tests that the group-thread gate still blocks an alphanumeric sender holding a direct reply handle.
+     *
+     * Preconditions: Alphanumeric sender, directReplyKey present, isGroupThread true.
+     * Expected: Disposition is SKIPPED_GROUP_THREAD and nothing is sent by either route.
+     */
+    @Test
+    fun `alphanumeric sender with a direct reply key is still blocked in a group thread`() = runTest {
+        val outcome = pipeline().process(
+            senderAddress = ALPHANUMERIC,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "rcs-handle-2",
+            isGroupThread = true,
+        )
+
+        assertEquals(
+            ReplyDisposition.SKIPPED_GROUP_THREAD,
+            (outcome as ProcessingOutcome.Detected).disposition,
+        )
+        assertTrue("group threads are never auto-replied to", fakes.directReplySender.sent.isEmpty())
+        assertTrue(fakes.smsSender.sent.isEmpty())
+    }
+
+    /**
+     * Tests that the 24-hour cooldown still blocks an alphanumeric sender holding a direct reply handle.
+     *
+     * Preconditions: Cooldown row recorded one hour ago for the alphanumeric sender's hash.
+     * Expected: Disposition is SKIPPED_COOLDOWN and no direct reply is dispatched.
+     */
+    @Test
+    fun `alphanumeric sender with a direct reply key still honours the cooldown`() = runTest {
+        fakes.cooldownDao.rows[SenderHasher().hash(ALPHANUMERIC)] = now - (60L * 60L * 1000L)
+
+        val outcome = pipeline().process(
+            senderAddress = ALPHANUMERIC,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "rcs-handle-3",
+        )
+
+        assertEquals(
+            ReplyDisposition.SKIPPED_COOLDOWN,
+            (outcome as ProcessingOutcome.Detected).disposition,
+        )
+        assertTrue("cooldown applies to the direct reply path too", fakes.directReplySender.sent.isEmpty())
+    }
+
+    /**
+     * Tests that detection-only (dry run) mode still blocks an alphanumeric sender holding a direct reply handle.
+     *
+     * Preconditions: autoReplyEnabled is false; alphanumeric sender with a directReplyKey.
+     * Expected: Disposition is SKIPPED_DRY_RUN, nothing sent, detection still notified and logged.
+     */
+    @Test
+    fun `alphanumeric sender with a direct reply key is still blocked in dry run`() = runTest {
+        fakes.settings.snapshot = snapshot(autoReplyEnabled = false)
+
+        val outcome = pipeline().process(
+            senderAddress = ALPHANUMERIC,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "rcs-handle-4",
+        )
+
+        assertEquals(
+            ReplyDisposition.SKIPPED_DRY_RUN,
+            (outcome as ProcessingOutcome.Detected).disposition,
+        )
+        assertTrue("the master switch outranks every other gate", fakes.directReplySender.sent.isEmpty())
+        assertEquals(1, fakes.notifier.previews.size)
+    }
+
+    /**
+     * Tests that a failed direct reply to an alphanumeric sender records no cooldown, leaving a retry possible.
+     *
+     * Preconditions: DirectReplySender configured to fail; alphanumeric sender with a directReplyKey.
+     * Expected: Disposition is SEND_FAILED and the cooldown table stays empty.
+     */
+    @Test
+    fun `failed direct reply to an alphanumeric sender writes no cooldown row`() = runTest {
+        fakes.directReplySender.succeed = false
+
+        val outcome = pipeline().process(
+            senderAddress = ALPHANUMERIC,
+            messageBody = OPT_OUT_BODY,
+            receivedAtMillis = now,
+            directReplyKey = "rcs-handle-5",
+        )
+
+        assertEquals(
+            ReplyDisposition.SEND_FAILED,
+            (outcome as ProcessingOutcome.Detected).disposition,
+        )
+        assertTrue("a failed send must not lock out the retry", fakes.cooldownDao.rows.isEmpty())
+        assertEquals("Reply skipped: send failed", fakes.logDao.inserted.single().replyStatus)
+    }
+
+    /**
+     * Characterizes a known limitation: the cooldown is keyed on the address as received, so one
+     * brand reaching the user both by display name and by number holds two independent records and
+     * can be replied to twice inside the 24-hour window.
+     *
+     * This is documented rather than fixed because the two forms are genuinely indistinguishable to
+     * the pipeline. Change this test deliberately, not incidentally.
+     *
+     * Preconditions: Two messages, one from an alphanumeric display name and one from a number.
+     * Expected: Both are answered and two separate cooldown rows exist.
+     */
+    @Test
+    fun `named and numeric forms of one sender hold separate cooldown records`() = runTest {
+        val pipeline = pipeline()
+
+        pipeline.process(ALPHANUMERIC, OPT_OUT_BODY, now, directReplyKey = "rcs-handle-6")
+        pipeline.process(UNKNOWN_NUMBER, OPT_OUT_BODY, now, directReplyKey = "rcs-handle-7")
+
+        assertEquals(2, fakes.directReplySender.sent.size)
+        assertEquals(2, fakes.cooldownDao.rows.size)
+        assertTrue(fakes.cooldownDao.rows.containsKey(SenderHasher().hash(ALPHANUMERIC)))
+        assertTrue(fakes.cooldownDao.rows.containsKey(SenderHasher().hash(UNKNOWN_NUMBER)))
+    }
+
     /**
      * Tests that duplicate incoming messages within the deduplication TTL window are suppressed.
      *
