@@ -88,18 +88,21 @@ open class MmsTextResolver @Inject constructor(
      * Resolves the full text body of a recently received MMS message from the telephony provider.
      *
      * Queries `content://mms/part` for parts with content type `text/plain`, sorted by `_id DESC`,
-     * checking up to the newest 100 records. If [prefixSnippet] is provided, attempts to find a record
-     * whose text starts with or contains the sanitized search prefix (first 40 characters, stripping
-     * leading attachment labels such as "Image\n" and trailing ellipsis). If [prefixSnippet] is null
-     * or blank, returns the most recent plain text part.
+     * collecting up to the newest [MAX_RECORDS_TO_CHECK] records and handing them to
+     * [selectMatchingPart], which owns the decision of which one the notification is about.
+     *
+     * A `null` or blank [prefixSnippet] resolves to `null`. There is deliberately **no** "return
+     * the newest part" fallback: the query above filters on content type alone, so it spans every
+     * conversation in the MMS store in both directions, and the newest part bears no necessary
+     * relation to the message being resolved. Returning it allowed an unrelated message — including
+     * one the user themselves sent — to be processed as the incoming body and auto-replied to.
+     * Resolving nothing is the safe failure, because the caller then keeps the notification's own
+     * text.
      *
      * @param prefixSnippet The initial snippet or truncated notification body to match against, or `null`.
      * @return The full MMS message text body if resolved, or `null` if not found or on error.
      */
     open fun resolveFullMmsText(prefixSnippet: String? = null): String? = runCatching {
-        val cleanSnippet = prefixSnippet?.let(::sanitizeSnippet)?.takeIf { it.isNotBlank() }
-        val searchPrefix = cleanSnippet?.take(SEARCH_PREFIX_LENGTH)?.trim()?.takeIf { it.isNotBlank() }
-
         val uri = MMS_PART_URI
         val projection = arrayOf(COLUMN_ID, COLUMN_TEXT)
         val selection = "$COLUMN_CONTENT_TYPE = ?"
@@ -120,8 +123,8 @@ open class MmsTextResolver @Inject constructor(
                 return@runCatching null
             }
 
+            val partTexts = mutableListOf<String>()
             var recordsChecked = 0
-            var fallbackFirstText: String? = null
 
             while (cursor.moveToNext() && (recordsChecked < MAX_RECORDS_TO_CHECK)) {
                 recordsChecked++
@@ -133,38 +136,66 @@ open class MmsTextResolver @Inject constructor(
                     text = readTextFromPartStream(partId)
                 }
 
-                if (text.isNullOrBlank()) continue
-
-                if (fallbackFirstText == null) {
-                    fallbackFirstText = text
-                }
-
-                if (searchPrefix != null) {
-                    val normalizedPart = text.replace('\u00A0', ' ')
-                    val normalizedPrefix = searchPrefix.replace('\u00A0', ' ')
-                    val normalizedSnippet = cleanSnippet.replace('\u00A0', ' ')
-
-                    if (normalizedPart.startsWith(normalizedPrefix, ignoreCase = true) ||
-                        normalizedPart.contains(normalizedPrefix, ignoreCase = true) ||
-                        normalizedSnippet.startsWith(normalizedPart.take(normalizedSnippet.length.coerceAtMost(normalizedPart.length)), ignoreCase = true)
-                    ) {
-                        Log.d(TAG, "Matched full MMS text ($recordsChecked records examined)")
-                        return@runCatching text
-                    }
+                if (!text.isNullOrBlank()) {
+                    partTexts.add(text)
                 }
             }
 
-            // If no specific prefix was requested and we found a recent text part, return it
-            if ((cleanSnippet == null) && (fallbackFirstText != null)) {
-                Log.d(TAG, "Retrieved latest MMS text from provider")
-                return@runCatching fallbackFirstText
+            selectMatchingPart(partTexts, prefixSnippet)?.also {
+                Log.d(TAG, "Matched full MMS text ($recordsChecked records examined)")
             }
-
-            null
         }
     }.onFailure { error ->
         Log.e(TAG, "Failed to resolve full MMS text from telephony provider", error)
     }.getOrNull()
+
+    /**
+     * Chooses which candidate MMS text part corresponds to [prefixSnippet].
+     *
+     * Pure by design — no `android.*` types and no I/O — so the rule that decides which stored
+     * text a notification is actually about can be unit-tested on the JVM. [resolveFullMmsText]
+     * supplies the candidates it read from the telephony provider; this function makes the choice.
+     *
+     * A snippet that carries no usable text after sanitizing returns `null` rather than falling back
+     * to the newest part. That fallback used to exist and was the cause of a real defect: a
+     * caption-less "Image" notification sanitizes to blank, so every such message resolved to
+     * whatever text part happened to be newest on the device, which could belong to any
+     * conversation. See [resolveFullMmsText].
+     *
+     * @param partTexts Candidate part bodies in newest-first order, already stripped of blanks.
+     * @param prefixSnippet The notification snippet to match against, or `null`.
+     * @return The first part matching the snippet, or `null` when nothing matches or the snippet
+     *   carries no usable text.
+     */
+    internal fun selectMatchingPart(partTexts: List<String>, prefixSnippet: String?): String? {
+        val cleanSnippet = prefixSnippet
+            ?.let(::sanitizeSnippet)
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+
+        val searchPrefix = cleanSnippet
+            .take(SEARCH_PREFIX_LENGTH)
+            .trim()
+            .takeIf { it.isNotBlank() }
+            ?: return null
+
+        // Non-breaking spaces are common in marketing MMS and do not survive the notification
+        // round-trip identically, so both sides are normalized before any comparison.
+        val normalizedPrefix = searchPrefix.replace(NBSP, ' ')
+        val normalizedSnippet = cleanSnippet.replace(NBSP, ' ')
+
+        return partTexts.firstOrNull { part ->
+            val normalizedPart = part.replace(NBSP, ' ')
+            // `contains` subsumes a startsWith test. The second clause catches truncation in either
+            // direction: the stored part may extend the notification snippet, or the snippet may
+            // extend a part that was itself stored truncated.
+            normalizedPart.contains(normalizedPrefix, ignoreCase = true) ||
+                normalizedSnippet.startsWith(
+                    normalizedPart.take(normalizedSnippet.length.coerceAtMost(normalizedPart.length)),
+                    ignoreCase = true,
+                )
+        }
+    }
 
     /**
      * Reads text content from a telephony MMS part input stream when the database text column is null.
@@ -214,6 +245,9 @@ open class MmsTextResolver @Inject constructor(
 
         /** Number of characters from the snippet prefix used for robust database text search. */
         const val SEARCH_PREFIX_LENGTH: Int = 40
+
+        /** Non-breaking space, normalized to a plain space on both sides of every comparison. */
+        private const val NBSP: Char = '\u00A0'
 
         /** Telephony MMS part content URI string. */
         const val MMS_PART_URI_STRING: String = "content://mms/part"

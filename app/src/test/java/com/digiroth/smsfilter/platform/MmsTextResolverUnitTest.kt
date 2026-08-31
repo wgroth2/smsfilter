@@ -181,4 +181,108 @@ class MmsTextResolverUnitTest {
         assertNull(result)
         assertEquals(3, failingResolver.callCount)
     }
+
+    // ---------------------------------------------------------------------
+    // Part selection — which stored MMS text a notification is actually about
+    // ---------------------------------------------------------------------
+
+    /**
+     * Tests that a snippet carrying no usable text resolves to nothing rather than to the newest part.
+     *
+     * This is the regression guard for the defect where a caption-less image notification adopted
+     * whatever text part happened to be newest on the device, from any conversation.
+     *
+     * Preconditions: Candidate parts exist; snippet is null.
+     * Expected: Returns null.
+     */
+    @Test
+    fun selectMatchingPart_returnsNullForNullSnippet() {
+        val parts = listOf("An unrelated message from someone else", "Older still")
+        assertNull(resolver.selectMatchingPart(parts, null))
+    }
+
+    /**
+     * Tests that a snippet of exactly "Image" resolves to nothing.
+     *
+     * Preconditions: Candidate parts exist; snippet sanitizes to the empty string.
+     * Expected: Returns null.
+     */
+    @Test
+    fun selectMatchingPart_returnsNullWhenSnippetSanitizesToBlank() {
+        val parts = listOf("An unrelated message from someone else")
+        assertNull(resolver.selectMatchingPart(parts, "Image"))
+    }
+
+    /**
+     * Tests that the part matching the snippet is returned rather than the newest part.
+     *
+     * Preconditions: Newest part is unrelated; a later entry matches the snippet.
+     * Expected: Returns the matching entry.
+     */
+    @Test
+    fun selectMatchingPart_prefersTheMatchOverTheNewestPart() {
+        val parts = listOf(
+            "Dinner at seven?",
+            "Flash sale ends tonight. Reply STOP to unsubscribe",
+        )
+        val result = resolver.selectMatchingPart(parts, "Flash sale ends tonight")
+        assertEquals("Flash sale ends tonight. Reply STOP to unsubscribe", result)
+    }
+
+    /**
+     * Tests that a match deeper in the list is found once nearer non-matching parts are skipped.
+     *
+     * Preconditions: Three newer unrelated parts precede the match.
+     * Expected: Returns the matching entry.
+     */
+    @Test
+    fun selectMatchingPart_scansPastNonMatchingParts() {
+        val parts = listOf(
+            "Unrelated one",
+            "Unrelated two",
+            "Unrelated three",
+            "Your order shipped. Reply STOP to opt out",
+        )
+        val result = resolver.selectMatchingPart(parts, "Your order shipped")
+        assertEquals("Your order shipped. Reply STOP to opt out", result)
+    }
+
+    /**
+     * Tests that a snippet matching nothing resolves to null even when parts are present.
+     *
+     * Preconditions: Non-empty part list, none related to the snippet.
+     * Expected: Returns null.
+     */
+    @Test
+    fun selectMatchingPart_returnsNullWhenNothingMatches() {
+        val parts = listOf("Dinner at seven?", "Running late")
+        assertNull(resolver.selectMatchingPart(parts, "Flash sale ends tonight"))
+    }
+
+    /**
+     * Tests that a non-breaking space in the stored part still matches a plain space in the snippet.
+     *
+     * Marketing MMS routinely contain U+00A0, which does not survive the notification round-trip
+     * identically; without normalization the real message would fail to resolve.
+     *
+     * Preconditions: Stored part uses U+00A0 where the snippet uses a plain space.
+     * Expected: Returns the stored part.
+     */
+    @Test
+    fun selectMatchingPart_matchesAcrossNonBreakingSpaces() {
+        val stored = "Flash\u00A0sale ends tonight. Reply STOP to unsubscribe"
+        val result = resolver.selectMatchingPart(listOf(stored), "Flash sale ends tonight")
+        assertEquals(stored, result)
+    }
+
+    /**
+     * Tests that an empty candidate list resolves to null.
+     *
+     * Preconditions: No parts were read from the provider; snippet is usable.
+     * Expected: Returns null.
+     */
+    @Test
+    fun selectMatchingPart_returnsNullForEmptyPartList() {
+        assertNull(resolver.selectMatchingPart(emptyList(), "Flash sale ends tonight"))
+    }
 }
