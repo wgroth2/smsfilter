@@ -86,6 +86,10 @@ class RcsNotificationListenerService : NotificationListenerService() {
     @Inject
     lateinit var mmsTextResolver: MmsTextResolver
 
+    /** Decides which of a notification's text sources is the message that just arrived. */
+    @Inject
+    lateinit var bodyAssembler: NotificationBodyAssembler
+
     /** Coroutine scope bound to the service lifecycle for asynchronous message processing. */
     private val serviceScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -185,8 +189,19 @@ class RcsNotificationListenerService : NotificationListenerService() {
         val rawMessages: Array<Parcelable>? = notification.extras.getParcelableArray(Notification.EXTRA_MESSAGES)
             ?: notification.extras.getParcelableArray("android.messages")
 
+        // Identifies the user's own entries so neither the sender nor the body is taken from a
+        // message they sent themselves.
+        val selfKey: String? = messagingStyle?.user?.key
+
         val sender: String? = run {
-            val stylePerson = messagingStyle?.messages?.lastOrNull()?.person
+            // The last message with an author, not simply the last message: the newest entry may
+            // be one the user sent, whose person is absent or is the style's own user.
+            val stylePerson = messagingStyle?.messages
+                ?.lastOrNull { message ->
+                    val person = message.person
+                    (person != null) && ((selfKey == null) || (person.key != selfKey))
+                }
+                ?.person
             val styleKey = stylePerson?.key?.removePrefix(TEL_PREFIX)
             val styleName = stylePerson?.name?.toString()
             if (!styleKey.isNullOrBlank() || !styleName.isNullOrBlank()) {
@@ -206,24 +221,39 @@ class RcsNotificationListenerService : NotificationListenerService() {
             return null
         }
 
-        // Collect message text fragments across all notification structures
-        val messageFragments = mutableListOf<String>()
+        // Collect fragments with their authorship. Only the newest incoming one is the message
+        // that just arrived — see NotificationBodyAssembler for why joining them all was wrong.
+        val messageFragments = mutableListOf<NotificationFragment>()
 
-        messagingStyle?.messages?.forEach { msg ->
-            msg.text?.toString()?.trim()?.takeIf(String::isNotEmpty)?.let {
-                if (it !in messageFragments) messageFragments.add(it)
+        messagingStyle?.messages?.forEach { message ->
+            val fragmentText = message.text?.toString()?.trim()
+            if (!fragmentText.isNullOrEmpty() && messageFragments.none { it.text == fragmentText }) {
+                // MessagingStyle marks the user's own messages either by omitting the person or by
+                // naming the style's own user.
+                val person = message.person
+                val isFromSelf = (person == null) || ((selfKey != null) && (person.key == selfKey))
+                messageFragments.add(NotificationFragment(text = fragmentText, isFromSelf = isFromSelf))
             }
         }
 
-        rawMessages?.forEach { item ->
-            if (item is Bundle) {
-                item.getCharSequence("text")?.toString()?.trim()?.takeIf(String::isNotEmpty)?.let {
-                    if (it !in messageFragments) messageFragments.add(it)
+        // The raw bundle array is consulted only when MessagingStyle yielded nothing. Appending it
+        // to fragments already collected would interleave two orderings, and the assembler depends
+        // on the last incoming fragment genuinely being the newest.
+        if (messageFragments.isEmpty()) {
+            rawMessages?.forEach { item ->
+                if (item is Bundle) {
+                    val fragmentText = item.getCharSequence("text")?.toString()?.trim()
+                    if (!fragmentText.isNullOrEmpty() && messageFragments.none { it.text == fragmentText }) {
+                        // A raw message bundle with no "sender" entry is one the user sent.
+                        val isFromSelf = item.getCharSequence("sender") == null
+                        messageFragments.add(
+                            NotificationFragment(text = fragmentText, isFromSelf = isFromSelf),
+                        )
+                    }
                 }
             }
         }
 
-        val joinedFragments = messageFragments.joinToString("\n").ifEmpty { null }
         val bigText = notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()?.ifEmpty { null }
         val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()?.ifEmpty { null }
         val textLines = notification.extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
@@ -233,8 +263,12 @@ class RcsNotificationListenerService : NotificationListenerService() {
             ?.joinToString("\n")
             ?.ifEmpty { null }
 
-        val candidates = listOfNotNull(joinedFragments, bigText, text, textLines)
-        val body = candidates.maxByOrNull { it.length } ?: return null
+        val body = bodyAssembler.assemble(
+            fragments = messageFragments,
+            bigText = bigText,
+            text = text,
+            textLines = textLines,
+        ) ?: return null
         if (body.isBlank()) {
             return null
         }
