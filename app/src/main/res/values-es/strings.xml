@@ -148,6 +148,11 @@
     <string name="log_filter_ignored">Solo ignorados</string>
     <string name="log_filter_no_match">Sin coincidencia</string>
     <string name="log_no_match_label">No se detectó ninguna solicitud de baja</string>
+    <string name="log_ignored_stop_list_title">Ignorado: Lista de exclusión</string>
+    <string name="log_ignored_stop_list_detail">Coincide con palabra \'%1$s\' — baja omitida</string>
+    <string name="log_ignored_contact_google">Remitente en Contactos de Google — baja omitida</string>
+    <string name="log_ignored_contact_hubspot">Remitente en HubSpot CRM — baja omitida</string>
+    <string name="log_ignored_contact_cached">Contacto en caché — baja omitida</string>
     <string name="log_clear">Borrar registro</string>
     <string name="log_empty">Aún no se ha registrado ninguna actividad.</string>
     <string name="log_back">Atrás</string>

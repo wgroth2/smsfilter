@@ -162,6 +162,11 @@
     <string name="log_filter_ignored">Ignored Only</string>
     <string name="log_filter_no_match">Not Matched</string>
     <string name="log_no_match_label">No opt-out detected</string>
+    <string name="log_ignored_stop_list_title">Ignored: Matched Stop List</string>
+    <string name="log_ignored_stop_list_detail">Matched word \'%1$s\' — opt-out avoided</string>
+    <string name="log_ignored_contact_google">Sender in Google Contacts — opt-out avoided</string>
+    <string name="log_ignored_contact_hubspot">Sender in HubSpot CRM — opt-out avoided</string>
+    <string name="log_ignored_contact_cached">Cached contact match — opt-out avoided</string>
     <string name="log_clear">Clear Log</string>
     <string name="log_empty">No activity recorded yet.</string>
     <string name="log_back">Back</string>

@@ -255,7 +255,48 @@ private fun LogRow(entry: DetectionLogEntity) {
 
                 LogEventType.IGNORED -> {
                     entry.ignoreReason?.let { reason ->
-                        Text(reason, style = MaterialTheme.typography.titleSmall)
+                        val stopListRegex = Regex("""Ignored: Matched Stop List word '(.+)'""")
+                        val match = stopListRegex.matchEntire(reason)
+                        if (match != null) {
+                            val matchedWord = match.groupValues[1]
+                            Text(
+                                text = stringResource(R.string.log_ignored_stop_list_title),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                text = stringResource(R.string.log_ignored_stop_list_detail, matchedWord),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else when (reason) {
+                            "Ignored: Known Google Contact" -> {
+                                Text(reason, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    text = stringResource(R.string.log_ignored_contact_google),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            "Ignored: Known HubSpot Contact" -> {
+                                Text(reason, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    text = stringResource(R.string.log_ignored_contact_hubspot),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            "Ignored: Known contact (cached)" -> {
+                                Text(reason, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    text = stringResource(R.string.log_ignored_contact_cached),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            else -> {
+                                Text(reason, style = MaterialTheme.typography.titleSmall)
+                            }
+                        }
                     }
                 }
 
