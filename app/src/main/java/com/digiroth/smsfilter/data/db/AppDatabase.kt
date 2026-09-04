@@ -104,20 +104,22 @@ abstract class AppDatabase : RoomDatabase() {
          * as "reply STOP to unsubscribe", producing a false positive on nearly every message.
          */
         val DEFAULT_PATTERNS: List<OptOutPatternEntity> = listOf(
-            OptOutPatternEntity(pattern = "stop2stop", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
-            OptOutPatternEntity(pattern = "end2end", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
-            OptOutPatternEntity(pattern = "stop", replyType = ReplyType.STOP, matchMode = MatchMode.LAST_LINE_EXACT),
-            OptOutPatternEntity(pattern = "end", replyType = ReplyType.END, matchMode = MatchMode.LAST_LINE_EXACT),
-            OptOutPatternEntity(pattern = "stop to cancel", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
-            OptOutPatternEntity(pattern = "stop to opt-out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
-            OptOutPatternEntity(pattern = "stop to opt out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
-            OptOutPatternEntity(pattern = "stop to end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop to quit", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
-            OptOutPatternEntity(pattern = "stop=end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to opt out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to opt-out", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop to cancel", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop to unsubscribe", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop to optout", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop2stop", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "stop2quit", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop2end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop=end", replyType = ReplyType.STOP, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "end2end", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
             OptOutPatternEntity(pattern = "end to end", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "end2stop", replyType = ReplyType.END, matchMode = MatchMode.ANYWHERE),
+            OptOutPatternEntity(pattern = "stop", replyType = ReplyType.STOP, matchMode = MatchMode.LAST_LINE_EXACT),
+            OptOutPatternEntity(pattern = "end", replyType = ReplyType.END, matchMode = MatchMode.LAST_LINE_EXACT),
         )
 
         /**
@@ -175,7 +177,9 @@ abstract class AppDatabase : RoomDatabase() {
                     Triple("stop to unsubscribe", "STOP", "ANYWHERE"),
                     Triple("stop to optout", "STOP", "ANYWHERE"),
                     Triple("stop2quit", "STOP", "ANYWHERE"),
+                    Triple("stop2end", "STOP", "ANYWHERE"),
                     Triple("end to end", "END", "ANYWHERE"),
+                    Triple("end2stop", "END", "ANYWHERE"),
                 )
                 newPatterns.forEach { (pattern, replyType, matchMode) ->
                     db.execSQL(

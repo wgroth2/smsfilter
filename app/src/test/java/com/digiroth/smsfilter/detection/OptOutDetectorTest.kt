@@ -60,20 +60,22 @@ class OptOutDetectorTest {
 
     /** The default patterns the database seeds on first creation. */
     private val defaultPatterns: List<OptOutPatternEntity> = listOf(
-        pattern("stop2stop", ReplyType.STOP, MatchMode.ANYWHERE),
-        pattern("end2end", ReplyType.END, MatchMode.ANYWHERE),
-        pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_EXACT),
-        pattern("end", ReplyType.END, MatchMode.LAST_LINE_EXACT),
-        pattern("stop to cancel", ReplyType.STOP, MatchMode.ANYWHERE),
-        pattern("stop to opt-out", ReplyType.STOP, MatchMode.ANYWHERE),
-        pattern("stop to opt out", ReplyType.STOP, MatchMode.ANYWHERE),
-        pattern("stop to end", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("stop to quit", ReplyType.STOP, MatchMode.ANYWHERE),
-        pattern("stop=end", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to end", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to opt out", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to opt-out", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop to cancel", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("stop to unsubscribe", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("stop to optout", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop2stop", ReplyType.STOP, MatchMode.ANYWHERE),
         pattern("stop2quit", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop2end", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("stop=end", ReplyType.STOP, MatchMode.ANYWHERE),
+        pattern("end2end", ReplyType.END, MatchMode.ANYWHERE),
         pattern("end to end", ReplyType.END, MatchMode.ANYWHERE),
+        pattern("end2stop", ReplyType.END, MatchMode.ANYWHERE),
+        pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_EXACT),
+        pattern("end", ReplyType.END, MatchMode.LAST_LINE_EXACT),
     )
 
     // ---------------------------------------------------------------------
@@ -268,6 +270,36 @@ class OptOutDetectorTest {
         assertEquals("stop2quit", result?.pattern)
         assertEquals(ReplyType.STOP, result?.replyType)
         assertEquals("stop", result?.replyKeyword)
+    }
+
+    /**
+     * Tests detection of "stop2end" pattern mid-message using ANYWHERE mode.
+     *
+     * Preconditions: Message "Election alerts. Stop2End".
+     * Expected: [OptOutDetector.detect] returns matched pattern "stop2end" with reply type STOP.
+     */
+    @Test
+    fun `detects stop2end mid message`() {
+        val result = detector.detect("Election alerts. Stop2End", defaultPatterns)
+
+        assertEquals("stop2end", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    /**
+     * Tests detection of "end2stop" pattern mid-message using ANYWHERE mode.
+     *
+     * Preconditions: Message "Daily newsletter. end2stop".
+     * Expected: [OptOutDetector.detect] returns matched pattern "end2stop" with reply type END.
+     */
+    @Test
+    fun `detects end2stop mid message`() {
+        val result = detector.detect("Daily newsletter. end2stop", defaultPatterns)
+
+        assertEquals("end2stop", result?.pattern)
+        assertEquals(ReplyType.END, result?.replyType)
+        assertEquals("end", result?.replyKeyword)
     }
 
     /**

@@ -121,20 +121,22 @@ graph TD
 
 | Pattern | Match mode | Reply sent |
 |---|---|---|
-| `stop2stop` | Anywhere in the message | `stop` |
-| `end2end` | Anywhere in the message | `end` |
-| `stop` | Last line, exact match only | `stop` |
-| `end` | Last line, exact match only | `end` |
-| `stop to cancel` | Anywhere in the message | `stop` |
-| `stop to opt-out` | Anywhere in the message | `stop` |
-| `stop to opt out` | Anywhere in the message | `stop` |
-| `stop to end` | Anywhere in the message | `stop` |
 | `stop to quit` | Anywhere in the message | `stop` |
-| `stop=end` | Anywhere in the message | `stop` |
+| `stop to end` | Anywhere in the message | `stop` |
+| `stop to opt out` | Anywhere in the message | `stop` |
+| `stop to opt-out` | Anywhere in the message | `stop` |
+| `stop to cancel` | Anywhere in the message | `stop` |
 | `stop to unsubscribe` | Anywhere in the message | `stop` |
 | `stop to optout` | Anywhere in the message | `stop` |
+| `stop2stop` | Anywhere in the message | `stop` |
 | `stop2quit` | Anywhere in the message | `stop` |
+| `stop2end` | Anywhere in the message | `stop` |
+| `stop=end` | Anywhere in the message | `stop` |
+| `end2end` | Anywhere in the message | `end` |
 | `end to end` | Anywhere in the message | `end` |
+| `end2stop` | Anywhere in the message | `end` |
+| `stop` | Last line, exact match only | `stop` |
+| `end` | Last line, exact match only | `end` |
 
 The last-line-exact restriction on bare `stop` and `end` is the most consequential rule in
 the detector. Matching `stop` anywhere would fire on ordinary marketing copy such as
