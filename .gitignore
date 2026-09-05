@@ -33,6 +33,7 @@ captures/
 .cxx/
 cmake-build-*/
 code-review/
+private-docs/
 opt_out_histogram_analysis.md
 # IDE project files. The whole .idea directory is ignored: this is a solo repository,
 # and most of its contents (deployment target, open tabs, window layout) change on every
