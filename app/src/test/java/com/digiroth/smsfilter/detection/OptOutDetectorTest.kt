@@ -288,6 +288,60 @@ class OptOutDetectorTest {
     }
 
     /**
+     * Regression test for a real message that went unanswered in the field.
+     *
+     * A political campaign sent a multi-line RCS message whose final line was the single token
+     * "Stop2End". No reply was sent, because the only patterns installed at the time were bare
+     * "stop" (last-line-exact, so "Stop2End" is not an exact match) and bare "end"
+     * (last-line-contains, which treats digits as word characters, so "Stop2End" is one token and
+     * not the word "end"). Neither rule was wrong; the phrasing simply had no pattern.
+     *
+     * Preconditions: The full original message body, ending in "Stop2End".
+     * Expected: [OptOutDetector.detect] matches "stop2end" and yields the "stop" reply keyword.
+     */
+    @Test
+    fun `detects stop2end as the last line of a real campaign message`() {
+        val body = """
+            re: Donald J. Trump's crimes
+
+            Should Congress invoke the 25th Amendment and REMOVE Trump from office?
+
+            Respond YES or NO: dem-action.org/l/vMm6je
+
+            DAC
+            Stop2End
+        """.trimIndent()
+
+        val result = detector.detect(body, defaultPatterns)
+
+        assertEquals("stop2end", result?.pattern)
+        assertEquals(ReplyType.STOP, result?.replyType)
+        assertEquals("stop", result?.replyKeyword)
+    }
+
+    /**
+     * Tests that bare "stop" and bare "end" alone cannot rescue a "Stop2End" sign-off.
+     *
+     * This is the exact pattern set that was live on the device when the message above was missed,
+     * and it pins down *why* it was missed — so that if someone later loosens the boundary rules,
+     * this test explains what the old behaviour was rather than silently flipping.
+     *
+     * Preconditions: Only the two bare keyword patterns, applied to a body ending in "Stop2End".
+     * Expected: [OptOutDetector.detect] returns `null`.
+     */
+    @Test
+    fun `bare stop and end patterns do not match a Stop2End sign-off`() {
+        val bareOnly = listOf(
+            pattern("stop", ReplyType.STOP, MatchMode.LAST_LINE_EXACT),
+            pattern("end", ReplyType.END, MatchMode.LAST_LINE_CONTAINS),
+        )
+
+        val result = detector.detect("DAC\nStop2End", bareOnly)
+
+        assertNull("digits bind the token together, so neither bare keyword applies", result)
+    }
+
+    /**
      * Tests detection of "end2stop" pattern mid-message using ANYWHERE mode.
      *
      * Preconditions: Message "Daily newsletter. end2stop".

@@ -107,16 +107,47 @@ class RoomDatabaseTest {
     // ---------------------------------------------------------------------
 
     /**
-     * Tests that a newly created database automatically seeds the 10 default opt-out patterns via [AppDatabase.SEED_CALLBACK].
+     * Tests that a newly created database seeds every entry of [AppDatabase.DEFAULT_PATTERNS] via
+     * [AppDatabase.SEED_CALLBACK].
+     *
+     * The expected size is read from [AppDatabase.DEFAULT_PATTERNS] rather than hardcoded. A literal
+     * count silently rots every time a pattern is added — these are instrumented tests, so a stale
+     * literal does not surface in the JVM unit-test run that gates most commits.
      *
      * Preconditions: Fresh in-memory database instance with seed callback attached.
-     * Expected: [OptOutPatternDao.getAll] returns exactly 10 patterns.
+     * Expected: [OptOutPatternDao.getAll] returns exactly [AppDatabase.DEFAULT_PATTERNS] entries.
      */
     @Test
-    fun freshDatabase_seedsTenDefaultOptOutPatterns() = runBlocking {
+    fun freshDatabase_seedsAllDefaultOptOutPatterns() = runBlocking {
         val patterns = optOutPatternDao.getAll()
 
-        assertEquals("expected exactly the ten seeded defaults", 10, patterns.size)
+        assertEquals(
+            "expected exactly the seeded defaults",
+            AppDatabase.DEFAULT_PATTERNS.size,
+            patterns.size,
+        )
+    }
+
+    /**
+     * Tests that every pattern declared in [AppDatabase.DEFAULT_PATTERNS] is actually present in a
+     * freshly seeded database with its declared reply type and match mode.
+     *
+     * Preconditions: Fresh in-memory database with the seed callback attached.
+     * Expected: Each declared default is found, matched on `(pattern, matchMode)`.
+     */
+    @Test
+    fun freshDatabase_seedsEveryDeclaredDefaultVerbatim() = runBlocking {
+        val seeded = optOutPatternDao.getAll().associateBy { it.pattern to it.matchMode }
+
+        AppDatabase.DEFAULT_PATTERNS.forEach { expected ->
+            val actual = seeded[expected.pattern to expected.matchMode]
+            assertNotNull("'${expected.pattern}' (${expected.matchMode}) should be seeded", actual)
+            assertEquals(
+                "'${expected.pattern}' seeded with the wrong reply type",
+                expected.replyType,
+                actual?.replyType,
+            )
+        }
     }
 
     /**
@@ -168,6 +199,30 @@ class RoomDatabaseTest {
         val stopEqualsEnd = patterns["stop=end" to MatchMode.ANYWHERE]
         assertNotNull("stop=end should be seeded as ANYWHERE", stopEqualsEnd)
         assertEquals(ReplyType.STOP, stopEqualsEnd?.replyType)
+
+        val stop2end = patterns["stop2end" to MatchMode.ANYWHERE]
+        assertNotNull("stop2end should be seeded as ANYWHERE", stop2end)
+        assertEquals(ReplyType.STOP, stop2end?.replyType)
+
+        val stop2quit = patterns["stop2quit" to MatchMode.ANYWHERE]
+        assertNotNull("stop2quit should be seeded as ANYWHERE", stop2quit)
+        assertEquals(ReplyType.STOP, stop2quit?.replyType)
+
+        val stopToUnsubscribe = patterns["stop to unsubscribe" to MatchMode.ANYWHERE]
+        assertNotNull("stop to unsubscribe should be seeded as ANYWHERE", stopToUnsubscribe)
+        assertEquals(ReplyType.STOP, stopToUnsubscribe?.replyType)
+
+        val stopToOptout = patterns["stop to optout" to MatchMode.ANYWHERE]
+        assertNotNull("stop to optout should be seeded as ANYWHERE", stopToOptout)
+        assertEquals(ReplyType.STOP, stopToOptout?.replyType)
+
+        val endToEnd = patterns["end to end" to MatchMode.ANYWHERE]
+        assertNotNull("end to end should be seeded as ANYWHERE", endToEnd)
+        assertEquals(ReplyType.END, endToEnd?.replyType)
+
+        val end2stop = patterns["end2stop" to MatchMode.ANYWHERE]
+        assertNotNull("end2stop should be seeded as ANYWHERE", end2stop)
+        assertEquals(ReplyType.END, end2stop?.replyType)
     }
 
     /**
@@ -320,7 +375,7 @@ class RoomDatabaseTest {
      * Tests that attempting to insert an exact duplicate (same pattern and match mode) is ignored.
      *
      * Preconditions: Inserting "stop2stop" with ANYWHERE mode when it is already seeded.
-     * Expected: Insert returns -1L and total pattern count remains 10.
+     * Expected: Insert returns -1L and the pattern count is unchanged from the seeded defaults.
      */
     @Test
     fun optOutPattern_exactDuplicateIsIgnored() = runBlocking {
@@ -333,14 +388,14 @@ class RoomDatabaseTest {
         )
 
         assertEquals("exact duplicate should be ignored", -1L, duplicate)
-        assertEquals(10, optOutPatternDao.count())
+        assertEquals(AppDatabase.DEFAULT_PATTERNS.size, optOutPatternDao.count())
     }
 
     /**
      * Tests deleting an opt-out pattern entity from the database.
      *
      * Preconditions: Seeding completed; deleting "end2end".
-     * Expected: Pattern count becomes 9 and "end2end" is no longer present in getAll.
+     * Expected: Pattern count drops by exactly one and "end2end" is no longer present in getAll.
      */
     @Test
     fun optOutPattern_delete() = runBlocking {
@@ -348,7 +403,7 @@ class RoomDatabaseTest {
 
         optOutPatternDao.delete(target)
 
-        assertEquals(9, optOutPatternDao.count())
+        assertEquals(AppDatabase.DEFAULT_PATTERNS.size - 1, optOutPatternDao.count())
         assertTrue(optOutPatternDao.getAll().none { it.pattern == "end2end" })
     }
 
@@ -825,6 +880,156 @@ class RoomDatabaseTest {
         }
     }
 
+    /**
+     * Tests that [AppDatabase.MIGRATION_4_5] adds the v5 opt-out patterns to an existing install
+     * without disturbing patterns the user already has.
+     *
+     * This is the migration every already-installed copy of the app actually runs, and it is what
+     * delivers `stop2end` — a real message ending in "Stop2End" went unanswered in the field
+     * precisely because that pattern was absent before v5.
+     *
+     * Preconditions: A v4 database holding the ten v4 defaults plus one user-authored custom row.
+     * Expected: All six v5 additions are present, the custom row survives untouched, and the total
+     *   is the v4 set plus the custom row plus the six additions.
+     */
+    @Test
+    fun migration4To5_addsNewPatternsAndPreservesUserPatterns() {
+        openV4Database().writableDatabase.use { db ->
+            AppDatabase.MIGRATION_4_5.migrate(db)
+
+            val patterns = readPatterns(db)
+
+            assertTrue("stop2end must be added", patterns.contains(Triple("stop2end", "STOP", "ANYWHERE")))
+            assertTrue("stop2quit must be added", patterns.contains(Triple("stop2quit", "STOP", "ANYWHERE")))
+            assertTrue("stop to unsubscribe must be added", patterns.contains(Triple("stop to unsubscribe", "STOP", "ANYWHERE")))
+            assertTrue("stop to optout must be added", patterns.contains(Triple("stop to optout", "STOP", "ANYWHERE")))
+            assertTrue("end to end must be added", patterns.contains(Triple("end to end", "END", "ANYWHERE")))
+            assertTrue("end2stop must be added", patterns.contains(Triple("end2stop", "END", "ANYWHERE")))
+
+            assertTrue(
+                "a user's own pattern must survive the migration",
+                patterns.contains(Triple("my custom optout", "STOP", "ANYWHERE")),
+            )
+
+            // 10 v4 defaults + 1 custom + 6 additions.
+            assertEquals(17, patterns.size)
+        }
+    }
+
+    /**
+     * Tests that running [AppDatabase.MIGRATION_4_5] twice produces no duplicate rows.
+     *
+     * The migration guards each insert with `WHERE NOT EXISTS`, so a re-run must be a no-op. Room
+     * will not normally invoke a migration twice, but the guard is what makes the same statements
+     * safe for a user who already added one of these patterns by hand.
+     *
+     * Preconditions: A v4 database that has already had the migration applied once.
+     * Expected: The second run leaves the pattern count unchanged.
+     */
+    @Test
+    fun migration4To5_isIdempotent() {
+        openV4Database().writableDatabase.use { db ->
+            AppDatabase.MIGRATION_4_5.migrate(db)
+            val afterFirstRun = readPatterns(db)
+
+            AppDatabase.MIGRATION_4_5.migrate(db)
+            val afterSecondRun = readPatterns(db)
+
+            assertEquals(
+                "re-running the migration must not duplicate rows",
+                afterFirstRun.size,
+                afterSecondRun.size,
+            )
+        }
+    }
+
+    /**
+     * Tests that [AppDatabase.MIGRATION_4_5] does not insert a second copy of a pattern the user
+     * had already created themselves.
+     *
+     * Preconditions: A v4 database in which the user has already added `stop2end` by hand.
+     * Expected: Exactly one `stop2end` row exists after the migration.
+     */
+    @Test
+    fun migration4To5_doesNotDuplicateAPatternTheUserAlreadyAdded() {
+        openV4Database(
+            extraSeed = { db ->
+                db.execSQL(
+                    "INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) " +
+                        "VALUES ('stop2end', 'STOP', 'ANYWHERE')",
+                )
+            },
+        ).writableDatabase.use { db ->
+            AppDatabase.MIGRATION_4_5.migrate(db)
+
+            val stop2endRows = readPatterns(db).count { it.first == "stop2end" }
+            assertEquals("stop2end must not be duplicated", 1, stop2endRows)
+        }
+    }
+
+    /**
+     * Builds an in-memory database at schema version 4, seeded with the ten v4 default patterns and
+     * one user-authored custom pattern.
+     *
+     * @param extraSeed Optional additional rows to insert during `onCreate`, for tests that need a
+     *   pattern to already exist before the migration runs.
+     * @return An open helper positioned at version 4, ready for a migration to be applied.
+     */
+    private fun openV4Database(
+        extraSeed: (SupportSQLiteDatabase) -> Unit = {},
+    ): SupportSQLiteOpenHelper = FrameworkSQLiteOpenHelperFactory().create(
+        SupportSQLiteOpenHelper.Configuration.builder(ApplicationProvider.getApplicationContext())
+            .name(null)
+            .callback(
+                object : SupportSQLiteOpenHelper.Callback(4) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        db.execSQL(
+                            "CREATE TABLE IF NOT EXISTS `${OptOutPatternEntity.TABLE_NAME}` (" +
+                                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                                "`pattern` TEXT NOT NULL, " +
+                                "`reply_type` TEXT NOT NULL, " +
+                                "`match_mode` TEXT NOT NULL)",
+                        )
+                        db.execSQL(
+                            "CREATE UNIQUE INDEX IF NOT EXISTS `index_opt_out_patterns_pattern_match_mode` " +
+                                "ON `${OptOutPatternEntity.TABLE_NAME}` (`pattern`, `match_mode`)",
+                        )
+                        V4_PATTERNS.forEach { (pattern, replyType, matchMode) ->
+                            db.execSQL(
+                                "INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) " +
+                                    "VALUES ('$pattern', '$replyType', '$matchMode')",
+                            )
+                        }
+                        // A pattern the user added themselves; the migration must leave it alone.
+                        db.execSQL(
+                            "INSERT INTO ${OptOutPatternEntity.TABLE_NAME} (pattern, reply_type, match_mode) " +
+                                "VALUES ('my custom optout', 'STOP', 'ANYWHERE')",
+                        )
+                        extraSeed(db)
+                    }
+
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+                },
+            )
+            .build(),
+    )
+
+    /**
+     * Reads every opt-out pattern row as a `(pattern, replyType, matchMode)` triple.
+     *
+     * @param db The database to read from.
+     * @return All rows in the opt-out pattern table.
+     */
+    private fun readPatterns(db: SupportSQLiteDatabase): List<Triple<String, String, String>> {
+        val rows = mutableListOf<Triple<String, String, String>>()
+        db.query("SELECT pattern, reply_type, match_mode FROM ${OptOutPatternEntity.TABLE_NAME}").use { cursor ->
+            while (cursor.moveToNext()) {
+                rows.add(Triple(cursor.getString(0), cursor.getString(1), cursor.getString(2)))
+            }
+        }
+        return rows
+    }
+
     private fun detection(
         timestamp: Long,
         pattern: String = "stop2stop",
@@ -839,5 +1044,26 @@ class RoomDatabaseTest {
     private companion object {
         /** A representative lowercase-hex SHA-256 hash; contents are arbitrary for these tests. */
         const val SENDER_HASH = "3b1f8c2d4e5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e"
+
+        /**
+         * The ten opt-out patterns a schema-version-4 database contains, as `(pattern, replyType,
+         * matchMode)` triples.
+         *
+         * Written out literally rather than derived from [AppDatabase.DEFAULT_PATTERNS]: this is a
+         * historical snapshot of what shipped in v4, and it must not move when the current defaults
+         * change, or the migration test would stop testing the upgrade real users perform.
+         */
+        val V4_PATTERNS: List<Triple<String, String, String>> = listOf(
+            Triple("stop2stop", "STOP", "ANYWHERE"),
+            Triple("end2end", "END", "ANYWHERE"),
+            Triple("stop", "STOP", "LAST_LINE_EXACT"),
+            Triple("end", "END", "LAST_LINE_EXACT"),
+            Triple("stop to cancel", "STOP", "ANYWHERE"),
+            Triple("stop to opt-out", "STOP", "ANYWHERE"),
+            Triple("stop to opt out", "STOP", "ANYWHERE"),
+            Triple("stop to end", "STOP", "ANYWHERE"),
+            Triple("stop to quit", "STOP", "ANYWHERE"),
+            Triple("stop=end", "STOP", "ANYWHERE"),
+        )
     }
 }
