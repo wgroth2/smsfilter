@@ -298,6 +298,19 @@ private fun ConnectionTestStep(
             )
         }
 
+        Spacer(Modifier.height(16.dp))
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_rcs_mms_notice),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(12.dp),
+            )
+        }
+
         Spacer(Modifier.height(32.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),

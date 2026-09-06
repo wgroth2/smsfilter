@@ -28,6 +28,7 @@
 
 package com.digiroth.smsfilter.ui.settings
 
+import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
 import android.content.ContextWrapper
@@ -107,7 +108,8 @@ class SettingsViewModelTest {
         tempDir.deleteRecursively()
     }
 
-    private fun createViewModel(): SettingsViewModel {
+    private fun createViewModel(grantedPermissions: Set<String> = emptySet()): SettingsViewModel {
+        (fakeContext as TestContext).grantedPermissions = grantedPermissions
         val vm = SettingsViewModel(
             context = fakeContext,
             settingsDataStore = settingsDataStore,
@@ -253,13 +255,46 @@ class SettingsViewModelTest {
         override suspend fun testConnection(): ContactLookupOutcome = ContactLookupOutcome.NotFound
     }
 
-    private class TestContext(private val baseDir: File) : ContextWrapper(null) {
+    private class TestContext(
+        private val baseDir: File,
+        var grantedPermissions: Set<String> = emptySet(),
+    ) : ContextWrapper(null) {
         override fun getApplicationContext(): Context = this
         override fun getPackageName(): String = "com.digiroth.smsfilter"
         override fun getFilesDir(): File = baseDir
         override fun getDataDir(): File = baseDir
-        override fun checkPermission(permission: String, pid: Int, uid: Int): Int = PackageManager.PERMISSION_DENIED
-        override fun checkCallingOrSelfPermission(permission: String): Int = PackageManager.PERMISSION_DENIED
+        override fun checkPermission(permission: String, pid: Int, uid: Int): Int =
+            if (permission in grantedPermissions) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+        override fun checkCallingOrSelfPermission(permission: String): Int =
+            if (permission in grantedPermissions) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
         override fun getContentResolver(): ContentResolver? = null
+    }
+
+    /**
+     * Tests that refreshHealth evaluates message intake as DISABLED when RECEIVE_SMS permission is not held.
+     *
+     * Preconditions: RECEIVE_SMS permission is denied.
+     * Expected: [SettingsUiState.messageIntakeHealth] is [MessageIntakeHealth.DISABLED].
+     */
+    @Test
+    fun `refreshHealth evaluates message intake as disabled when sms permission is missing`() = runTest(testDispatcher) {
+        val viewModel = createViewModel(grantedPermissions = emptySet())
+        advanceUntilIdle()
+
+        assertEquals(MessageIntakeHealth.DISABLED, viewModel.uiState.value.messageIntakeHealth)
+    }
+
+    /**
+     * Tests that refreshHealth evaluates message intake as PARTIAL_SMS_ONLY when RECEIVE_SMS is held but notification access is missing.
+     *
+     * Preconditions: RECEIVE_SMS permission is granted; notification access is not granted.
+     * Expected: [SettingsUiState.messageIntakeHealth] is [MessageIntakeHealth.PARTIAL_SMS_ONLY].
+     */
+    @Test
+    fun `refreshHealth evaluates message intake as partial when sms held but notification access missing`() = runTest(testDispatcher) {
+        val viewModel = createViewModel(grantedPermissions = setOf(Manifest.permission.RECEIVE_SMS))
+        advanceUntilIdle()
+
+        assertEquals(MessageIntakeHealth.PARTIAL_SMS_ONLY, viewModel.uiState.value.messageIntakeHealth)
     }
 }

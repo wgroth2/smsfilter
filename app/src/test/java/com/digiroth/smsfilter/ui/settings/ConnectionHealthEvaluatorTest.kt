@@ -206,4 +206,91 @@ class ConnectionHealthEvaluatorTest {
             evaluator.evaluateGoogleContacts(hasPermission = false),
         )
     }
+
+    /**
+     * Tests that message intake evaluates to FULL when both SMS permission and Notification Access are granted.
+     *
+     * Preconditions: hasReceiveSmsPermission=true, isNotificationAccessGranted=true.
+     * Expected: [ConnectionHealthEvaluator.evaluateMessageIntake] returns [MessageIntakeHealth.FULL].
+     */
+    @Test
+    fun `message intake is full when both sms permission and notification access are held`() {
+        assertEquals(
+            MessageIntakeHealth.FULL,
+            evaluator.evaluateMessageIntake(
+                hasReceiveSmsPermission = true,
+                isNotificationAccessGranted = true,
+            ),
+        )
+    }
+
+    /**
+     * Tests that message intake evaluates to PARTIAL_SMS_ONLY when SMS permission is granted but Notification Access is missing.
+     *
+     * Preconditions: hasReceiveSmsPermission=true, isNotificationAccessGranted=false.
+     * Expected: [ConnectionHealthEvaluator.evaluateMessageIntake] returns [MessageIntakeHealth.PARTIAL_SMS_ONLY].
+     */
+    @Test
+    fun `message intake is partial when notification access is missing`() {
+        assertEquals(
+            MessageIntakeHealth.PARTIAL_SMS_ONLY,
+            evaluator.evaluateMessageIntake(
+                hasReceiveSmsPermission = true,
+                isNotificationAccessGranted = false,
+            ),
+        )
+    }
+
+    /**
+     * Tests that message intake evaluates to DISABLED when RECEIVE_SMS is missing regardless of notification access.
+     *
+     * Preconditions: hasReceiveSmsPermission=false with isNotificationAccessGranted=true and false.
+     * Expected: [ConnectionHealthEvaluator.evaluateMessageIntake] returns [MessageIntakeHealth.DISABLED].
+     */
+    @Test
+    fun `message intake is disabled when sms permission is missing`() {
+        assertEquals(
+            MessageIntakeHealth.DISABLED,
+            evaluator.evaluateMessageIntake(
+                hasReceiveSmsPermission = false,
+                isNotificationAccessGranted = true,
+            ),
+        )
+        assertEquals(
+            MessageIntakeHealth.DISABLED,
+            evaluator.evaluateMessageIntake(
+                hasReceiveSmsPermission = false,
+                isNotificationAccessGranted = false,
+            ),
+        )
+    }
+
+    /**
+     * Tests that all three [MessageIntakeHealth] states are reachable.
+     *
+     * Preconditions: Evaluating the 3 representative configurations.
+     * Expected: The returned states equal all [MessageIntakeHealth] values.
+     */
+    @Test
+    fun `all three message intake states are reachable`() {
+        val reached = setOf(
+            evaluator.evaluateMessageIntake(hasReceiveSmsPermission = true, isNotificationAccessGranted = true),
+            evaluator.evaluateMessageIntake(hasReceiveSmsPermission = true, isNotificationAccessGranted = false),
+            evaluator.evaluateMessageIntake(hasReceiveSmsPermission = false, isNotificationAccessGranted = false),
+        )
+        assertEquals(MessageIntakeHealth.entries.toSet(), reached)
+    }
+
+    /**
+     * Tests that shouldWarnIncompleteMessageIntake flags incomplete states.
+     *
+     * Preconditions: Testing FULL, PARTIAL_SMS_ONLY, and DISABLED.
+     * Expected: Returns false for FULL, true for PARTIAL_SMS_ONLY and DISABLED.
+     */
+    @Test
+    fun `shouldWarnIncompleteMessageIntake returns true for incomplete states`() {
+        assertEquals(false, evaluator.shouldWarnIncompleteMessageIntake(MessageIntakeHealth.FULL))
+        assertEquals(true, evaluator.shouldWarnIncompleteMessageIntake(MessageIntakeHealth.PARTIAL_SMS_ONLY))
+        assertEquals(true, evaluator.shouldWarnIncompleteMessageIntake(MessageIntakeHealth.DISABLED))
+    }
 }

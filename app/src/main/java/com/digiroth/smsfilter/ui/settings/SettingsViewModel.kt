@@ -28,9 +28,12 @@
 
 package com.digiroth.smsfilter.ui.settings
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.digiroth.smsfilter.data.db.dao.OptOutPatternDao
@@ -118,6 +121,7 @@ sealed interface HubSpotCheck {
  * @property useHubSpot Whether HubSpot lookups are enabled.
  * @property hasHubSpotToken Whether a token is stored.
  * @property isNotificationAccessGranted Whether Notification Access is enabled for RCS messages.
+ * @property messageIntakeHealth Evaluated intake health indicator for SMS, MMS, and RCS.
  * @property hubSpotHealth Derived HubSpot indicator.
  * @property googleContactsHealth Derived Google Contacts indicator.
  * @property contactsCheck Result of the Google Contacts diagnostic.
@@ -135,6 +139,7 @@ data class SettingsUiState(
     val useHubSpot: Boolean = false,
     val hasHubSpotToken: Boolean = false,
     val isNotificationAccessGranted: Boolean = false,
+    val messageIntakeHealth: MessageIntakeHealth = MessageIntakeHealth.FULL,
     val hubSpotHealth: HubSpotHealth = HubSpotHealth.OFF,
     val googleContactsHealth: GoogleContactsHealth = GoogleContactsHealth.PERMISSION_REQUIRED,
     val contactsCheck: ContactsCheck = ContactsCheck.NotRun,
@@ -206,6 +211,7 @@ class SettingsViewModel @Inject constructor(
             lastHubSpotStatus = status
             refreshHealth()
         }
+        refreshHealth()
     }
 
     /**
@@ -219,19 +225,26 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Recomputes both health indicators and notification access state.
+     * Recomputes health indicators, message intake health, and notification access state.
      *
-     * Called on resume as well as on settings changes, because contacts access can be revoked from
-     * system settings while the app is backgrounded and the indicator must reflect that immediately.
+     * Called on resume as well as on settings changes, because contacts access or notification
+     * access can be modified from system settings while the app is backgrounded and the indicators
+     * must reflect that immediately.
      */
     fun refreshHealth() {
         val hasToken = secureTokenStore.hasAccessToken()
         val hasContacts = contactRepository.hasReadContactsPermission()
         val isNotificationAccessGranted = isNotificationListenerEnabled(context)
+        val hasReceiveSms = hasReceiveSmsPermission(context)
+        val messageIntakeHealth = healthEvaluator.evaluateMessageIntake(
+            hasReceiveSmsPermission = hasReceiveSms,
+            isNotificationAccessGranted = isNotificationAccessGranted,
+        )
         _uiState.update { state ->
             state.copy(
                 hasHubSpotToken = hasToken,
                 isNotificationAccessGranted = isNotificationAccessGranted,
+                messageIntakeHealth = messageIntakeHealth,
                 googleContactsHealth = healthEvaluator.evaluateGoogleContacts(hasContacts),
                 hubSpotHealth = healthEvaluator.evaluateHubSpot(
                     isEnabled = state.useHubSpot,
@@ -241,6 +254,16 @@ class SettingsViewModel @Inject constructor(
             )
         }
     }
+
+    /**
+     * Checks whether the RECEIVE_SMS runtime permission is currently held.
+     *
+     * @param context Context used to check permission.
+     * @return `true` if RECEIVE_SMS is granted, `false` otherwise.
+     */
+    fun hasReceiveSmsPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) ==
+            PackageManager.PERMISSION_GRANTED
 
     /**
      * Checks whether Notification Access is granted to this app.

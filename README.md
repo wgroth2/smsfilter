@@ -42,7 +42,9 @@ graph TD
 **Multi-protocol ingress.** The app supports three distinct message types, visible via badges in the Activity Log:
 - **`[SMS]`**: Standard cellular SMS reassembled directly from broadcast PDUs (`SmsReceiver`).
 - **`[RCS]`**: Rich Communication Services chat messages intercepted in real time via `NotificationListenerService` with inline direct reply capability (`RemoteInput`).
-- **`[MMS]`**: Multimedia messages (picture attachments, long multimedia texts, and group threads) classified via `MessagingStyle` and native `android.messages` extras.
+- **`[MMS]`**: Multimedia messages (picture attachments, long multimedia texts, and group threads) intercepted via `NotificationListenerService` and resolved via telephony MMS storage (`MmsTextResolver`).
+
+> **Note on Permissions:** Cellular SMS uses standard runtime permissions (`RECEIVE_SMS`, `SEND_SMS`). Because Android does not deliver MMS broadcasts to non-default messaging apps, **MMS and RCS interception requires Notification Access** (`Settings > Apps > Special app access > Device & app notifications`). The app monitors this and warns you on the Settings screen if Notification Access is not yet enabled.
 
 **Detection is two-tiered.** A user-defined *stop list* ignores a message outright if it contains any listed keyword — checked first, so an ignored message costs no lookups. Anything surviving that is tested against *opt-out patterns*, each carrying its own match mode: `ANYWHERE` matches as a substring, while `LAST_LINE_EXACT` matches only when the final non-empty line is exactly the pattern word.
 

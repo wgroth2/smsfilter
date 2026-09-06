@@ -140,9 +140,19 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
+            if (state.messageIntakeHealth != MessageIntakeHealth.FULL) {
+                IncompletePermissionsWarningCard(
+                    health = state.messageIntakeHealth,
+                    onOpenNotificationListenerSettings = { openNotificationListenerSettings(context) },
+                    onOpenAppSettings = { openAppSettings(context) },
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+
             ConnectionHealthSection(
                 googleHealth = state.googleContactsHealth,
                 hubSpotHealth = state.hubSpotHealth,
+                messageIntakeHealth = state.messageIntakeHealth,
             )
             SectionDivider()
 
@@ -254,15 +264,92 @@ private fun SectionTitle(text: String) {
 }
 
 /**
+ * Displays a prominent warning card when permissions or notification access are incomplete,
+ * alerting the user that incoming messages may be missed.
+ *
+ * @param health The evaluated message intake health.
+ * @param onOpenNotificationListenerSettings Launches notification access settings.
+ * @param onOpenAppSettings Launches application details settings.
+ */
+@Composable
+private fun IncompletePermissionsWarningCard(
+    health: MessageIntakeHealth,
+    onOpenNotificationListenerSettings: () -> Unit,
+    onOpenAppSettings: () -> Unit,
+) {
+    val isSmsDisabled = health == MessageIntakeHealth.DISABLED
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSmsDisabled) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.tertiaryContainer
+            },
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(
+                    if (isSmsDisabled) {
+                        R.string.settings_intake_warning_title_sms
+                    } else {
+                        R.string.settings_intake_warning_title_rcs_mms
+                    },
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                color = if (isSmsDisabled) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                },
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(
+                    if (isSmsDisabled) {
+                        R.string.settings_intake_warning_body_sms
+                    } else {
+                        R.string.settings_intake_warning_body_rcs_mms
+                    },
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isSmsDisabled) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                },
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = if (isSmsDisabled) onOpenAppSettings else onOpenNotificationListenerSettings,
+            ) {
+                Text(
+                    text = stringResource(
+                        if (isSmsDisabled) {
+                            R.string.permission_action_open_settings
+                        } else {
+                            R.string.settings_rcs_action_enable
+                        },
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/**
  * Renders the Connection Health Summary section with color-coded status dots for Google Contacts and HubSpot.
  *
  * @param googleHealth The evaluated Google Contacts connection health.
  * @param hubSpotHealth The evaluated HubSpot integration health.
+ * @param messageIntakeHealth The evaluated message intake health across SMS, MMS, and RCS.
  */
 @Composable
 private fun ConnectionHealthSection(
     googleHealth: GoogleContactsHealth,
     hubSpotHealth: HubSpotHealth,
+    messageIntakeHealth: MessageIntakeHealth,
 ) {
     // Session-only dismissal: there is no preference key for this and adding one is out of scope,
     // so the card reappearing after a cold start is the accepted trade-off.
@@ -270,6 +357,22 @@ private fun ConnectionHealthSection(
 
     SectionTitle(stringResource(R.string.settings_health_title))
 
+    HealthRow(
+        label = stringResource(R.string.health_message_intake),
+        color = when (messageIntakeHealth) {
+            MessageIntakeHealth.FULL -> HealthColors.GREEN
+            MessageIntakeHealth.PARTIAL_SMS_ONLY -> HealthColors.AMBER
+            MessageIntakeHealth.DISABLED -> HealthColors.RED
+        },
+        status = stringResource(
+            when (messageIntakeHealth) {
+                MessageIntakeHealth.FULL -> R.string.health_intake_full
+                MessageIntakeHealth.PARTIAL_SMS_ONLY -> R.string.health_intake_partial
+                MessageIntakeHealth.DISABLED -> R.string.health_intake_disabled
+            },
+        ),
+    )
+    Spacer(Modifier.height(8.dp))
     HealthRow(
         label = stringResource(R.string.health_google_contacts),
         color = when (googleHealth) {

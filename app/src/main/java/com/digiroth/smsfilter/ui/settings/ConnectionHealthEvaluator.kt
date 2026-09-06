@@ -55,6 +55,18 @@ enum class GoogleContactsHealth {
     PERMISSION_REQUIRED,
 }
 
+/** How the message intake health (SMS, MMS, RCS) should render in the Connection Health Summary. */
+enum class MessageIntakeHealth {
+    /** Green. All intake paths (cellular SMS and notification-based MMS/RCS) are operational. */
+    FULL,
+
+    /** Amber. Cellular SMS is active, but Notification Access is missing, so MMS and RCS messages cannot be received. */
+    PARTIAL_SMS_ONLY,
+
+    /** Red. Basic RECEIVE_SMS permission is missing, so no incoming messages can be received. */
+    DISABLED,
+}
+
 /**
  * Derives the Connection Health Summary indicators.
  *
@@ -105,4 +117,30 @@ class ConnectionHealthEvaluator @Inject constructor() {
      */
     fun evaluateGoogleContacts(hasPermission: Boolean): GoogleContactsHealth =
         if (hasPermission) GoogleContactsHealth.CONNECTED else GoogleContactsHealth.PERMISSION_REQUIRED
+
+    /**
+     * Evaluates message intake health across cellular SMS and notification-based MMS/RCS intake.
+     *
+     * @param hasReceiveSmsPermission Whether `RECEIVE_SMS` runtime permission is granted.
+     * @param isNotificationAccessGranted Whether system Notification Access is active for RCS/MMS.
+     * @return [MessageIntakeHealth.FULL] if both are active, [MessageIntakeHealth.PARTIAL_SMS_ONLY] if
+     *   only SMS is active, or [MessageIntakeHealth.DISABLED] if SMS permission is missing.
+     */
+    fun evaluateMessageIntake(
+        hasReceiveSmsPermission: Boolean,
+        isNotificationAccessGranted: Boolean,
+    ): MessageIntakeHealth = when {
+        !hasReceiveSmsPermission -> MessageIntakeHealth.DISABLED
+        !isNotificationAccessGranted -> MessageIntakeHealth.PARTIAL_SMS_ONLY
+        else -> MessageIntakeHealth.FULL
+    }
+
+    /**
+     * Whether a warning should be displayed to the user alerting them that messages may be missed.
+     *
+     * @param health The evaluated message intake health.
+     * @return `true` if the intake health is not [MessageIntakeHealth.FULL].
+     */
+    fun shouldWarnIncompleteMessageIntake(health: MessageIntakeHealth): Boolean =
+        health != MessageIntakeHealth.FULL
 }

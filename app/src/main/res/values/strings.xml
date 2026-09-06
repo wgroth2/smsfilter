@@ -81,6 +81,15 @@
     <string name="common_test_connection">Test Connection</string>
 
     <string name="settings_health_title">Connection Health</string>
+    <string name="health_message_intake">Message Intake</string>
+    <string name="health_intake_full">Full (SMS, MMS, RCS)</string>
+    <string name="health_intake_partial">SMS only (Incomplete)</string>
+    <string name="health_intake_disabled">Disabled (Permission required)</string>
+    <string name="settings_intake_warning_title_rcs_mms">Warning: You won\'t receive all messages</string>
+    <string name="settings_intake_warning_body_rcs_mms">Notification Access is not granted. SMS Filter can only see standard cellular SMS. MMS messages (messages with pictures or flyers) and RCS chat messages will NOT be detected or opted out of unless Notification Access is enabled.</string>
+    <string name="settings_intake_warning_title_sms">Receive SMS permission required</string>
+    <string name="settings_intake_warning_body_sms">Receive SMS permission is missing. SMS Filter cannot detect or filter any incoming messages.</string>
+    <string name="onboarding_rcs_mms_notice">MMS &amp; RCS messages: Messages containing pictures or sent via RCS require Notification Access. You can enable this in Settings once setup completes to ensure all messages are filtered.</string>
     <string name="health_google_contacts">Google Contacts</string>
     <string name="health_hubspot">HubSpot CRM</string>
     <string name="health_connected">Connected</string>

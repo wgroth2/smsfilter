@@ -65,7 +65,7 @@ fun interface AlertSoundPlayer {
  */
 @Singleton
 class AndroidAlertSoundPlayer @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) : AlertSoundPlayer {
 
     override fun playOptOutAlert(soundFileUri: String?) {

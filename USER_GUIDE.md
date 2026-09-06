@@ -31,9 +31,11 @@ copied or uploaded, and every check happens on the phone in real time.
 
 ### Step 2 — Permissions
 
+The wizard requests the core runtime permissions needed for cellular SMS filtering:
+
 | Permission | Required | Why |
 |---|---|---|
-| Receive SMS | Yes | See incoming messages. Without it the app cannot function. |
+| Receive SMS | Yes | See incoming cellular messages. Without it the app cannot function. |
 | Send SMS | Yes | Send the one-word `stop` or `end` reply on your behalf. |
 | Notifications | Yes | Tell you when an opt-out has been detected. |
 | Read Contacts | No | Recognise people you know so the app never replies to them. |
@@ -47,10 +49,33 @@ the system prompt and offers an **Open App Settings** button instead. Permission
 re-read every time the screen resumes, so returning from system settings updates the
 wizard without any further tap.
 
+#### Additional Permission Needed: Notification Access (for MMS & RCS)
+
+Standard Android SMS permissions (`RECEIVE_SMS`, `SEND_SMS`) receive cellular SMS only.
+They **do not** receive:
+- **MMS messages** (marketing texts with picture attachments, flyers, or images)
+- **RCS chat messages** (Rich Communication Services sent via Google Messages or Samsung Messages)
+
+On Android, third-party apps that are not set as the default SMS app cannot receive MMS
+broadcasts directly over cellular. Instead, SMS Filter intercepts MMS and RCS messages
+when your messaging app posts an incoming notification, and then resolves the full text
+from the system MMS store.
+
+For this to work, you must grant **Notification Access** (Special App Access):
+1. Finish the onboarding wizard.
+2. Once setup is complete, the **Settings** screen displays an **Incomplete Setup Warning**
+   noting that MMS and RCS messages cannot be filtered without Notification Access.
+3. Tap **Grant Notification Access** (or navigate to Android **Settings → Apps → Special app access → Device & app notifications**).
+4. Enable **SMS Filter**.
+
+Without Notification Access, messages that contain images (such as political campaign flyers
+ending in `End2End`) or messages arriving via RCS will **not** be seen or opted out of.
+
 ### Step 3 — Connection test
 
 Counts how many of your contacts have phone numbers and reports the result, for example
-`Google Contacts: Accessible (247 contacts found)`.
+`Google Contacts: Accessible (247 contacts found)`. It also reminds you that Notification
+Access is required for full MMS and RCS coverage.
 
 This step also carries the consent disclosure:
 
@@ -167,7 +192,9 @@ Launching the app after setup lands on Settings.
 
 | Section | What it controls |
 |---|---|
-| Connection Health | Status indicators for Google Contacts and HubSpot, re-checked on every resume so revoking contacts access is reflected rather than leaving a stale result. |
+| Incomplete Setup Warning | Appears automatically when Notification Access or SMS permissions are missing, warning that MMS and RCS messages will be missed and providing a direct button to enable access. |
+| Connection Health | Status indicators for Message Intake (`Full (SMS, MMS, RCS)` vs `SMS only`), Google Contacts, and HubSpot, re-checked on every resume so revoking contacts access or notification access is reflected rather than leaving a stale result. |
+| RCS Chat Messages | Displays Notification Access grant status and offers a direct shortcut to system settings to enable it. |
 | Auto-Reply | Master on/off, plus a note explaining the 24-hour cooldown. Off means detect and notify only. |
 | Stop List | Keywords marking messages the app should never touch. Coarse substring match, so `promo` also matches `promotional`. Over-matching is safe: it only means a message is left alone. |
 | Opt-Out Patterns | Add, edit, and remove detection rules. Tapping any pattern row opens an edit dialog allowing you to change its keyword, reply type (`stop` or `end`), and match mode. User-added patterns behave identically to the seeded defaults. |
@@ -175,6 +202,21 @@ Launching the app after setup lands on Settings.
 | Sound | On/off and a ringtone picker. Falls back to the system notification sound. |
 | Language | English or Spanish. |
 | Activity & Detection Log | Opens the log screen. |
+
+### Incomplete permissions warning
+
+Once setup is complete, SMS Filter actively checks whether all message intake channels can function.
+If Notification Access has not been granted, a prominent warning card is displayed at the top of
+the screen:
+
+> **Warning: You won't receive all messages**
+> Notification Access is not granted. SMS Filter can only see standard cellular SMS. MMS messages
+> (messages with pictures or flyers) and RCS chat messages will NOT be detected or opted out of
+> unless Notification Access is enabled.
+
+Tapping **Grant Notification Access** takes you directly to Android's Notification Access screen
+where you can enable SMS Filter with a single toggle. Once enabled, returning to the app immediately
+clears the warning and updates the Message Intake indicator to **Full (SMS, MMS, RCS)**.
 
 ## The detection log
 

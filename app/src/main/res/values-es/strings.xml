@@ -67,6 +67,15 @@
     <string name="common_test_connection">Probar conexión</string>
 
     <string name="settings_health_title">Estado de la conexión</string>
+    <string name="health_message_intake">Recepción de mensajes</string>
+    <string name="health_intake_full">Completa (SMS, MMS, RCS)</string>
+    <string name="health_intake_partial">Solo SMS (Incompleta)</string>
+    <string name="health_intake_disabled">Desactivada (Permiso necesario)</string>
+    <string name="settings_intake_warning_title_rcs_mms">Aviso: No recibirás todos los mensajes</string>
+    <string name="settings_intake_warning_body_rcs_mms">El acceso a notificaciones no está concedido. SMS Filter solo puede ver SMS móviles estándar. Los mensajes MMS (con imágenes o archivos) y chats RCS NO se detectarán ni cancelarán a menos que se active el acceso a notificaciones.</string>
+    <string name="settings_intake_warning_title_sms">Permiso para recibir SMS necesario</string>
+    <string name="settings_intake_warning_body_sms">Falta el permiso para recibir SMS. SMS Filter no puede detectar ni filtrar ningún mensaje entrante.</string>
+    <string name="onboarding_rcs_mms_notice">Mensajes MMS y RCS: Los mensajes con imágenes o enviados por RCS requieren acceso a notificaciones. Puedes activarlo en Ajustes una vez finalizada la configuración para asegurar el filtrado de todos los mensajes.</string>
     <string name="health_google_contacts">Google Contacts</string>
     <string name="health_hubspot">HubSpot CRM</string>
     <string name="health_connected">Conectado</string>

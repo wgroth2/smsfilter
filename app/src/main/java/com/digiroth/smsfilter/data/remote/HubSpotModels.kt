@@ -52,9 +52,9 @@ import com.squareup.moshi.JsonClass
  */
 @JsonClass(generateAdapter = true)
 data class HubSpotFilter(
-    @Json(name = "propertyName") val propertyName: String,
-    @Json(name = "operator") val operator: String,
-    @Json(name = "value") val value: String,
+    @property:Json(name = "propertyName") val propertyName: String,
+    @property:Json(name = "operator") val operator: String,
+    @property:Json(name = "value") val value: String,
 )
 
 /**
@@ -64,7 +64,7 @@ data class HubSpotFilter(
  */
 @JsonClass(generateAdapter = true)
 data class HubSpotFilterGroup(
-    @Json(name = "filters") val filters: List<HubSpotFilter>,
+    @property:Json(name = "filters") val filters: List<HubSpotFilter>,
 )
 
 /**
@@ -77,9 +77,9 @@ data class HubSpotFilterGroup(
  */
 @JsonClass(generateAdapter = true)
 data class HubSpotSearchRequest(
-    @Json(name = "filterGroups") val filterGroups: List<HubSpotFilterGroup>,
-    @Json(name = "properties") val properties: List<String> = emptyList(),
-    @Json(name = "limit") val limit: Int = 1,
+    @property:Json(name = "filterGroups") val filterGroups: List<HubSpotFilterGroup>,
+    @property:Json(name = "properties") val properties: List<String> = emptyList(),
+    @property:Json(name = "limit") val limit: Int = 1,
 )
 
 /**
@@ -90,8 +90,8 @@ data class HubSpotSearchRequest(
  */
 @JsonClass(generateAdapter = true)
 data class HubSpotContact(
-    @Json(name = "id") val id: String? = null,
-    @Json(name = "properties") val properties: Map<String, String?> = emptyMap(),
+    @property:Json(name = "id") val id: String? = null,
+    @property:Json(name = "properties") val properties: Map<String, String?> = emptyMap(),
 )
 
 /**
@@ -105,12 +105,12 @@ data class HubSpotContact(
  */
 @JsonClass(generateAdapter = true)
 data class HubSpotSearchResponse(
-    @Json(name = "total") val total: Int = 0,
-    @Json(name = "results") val results: List<HubSpotContact> = emptyList(),
+    @property:Json(name = "total") val total: Int = 0,
+    @property:Json(name = "results") val results: List<HubSpotContact> = emptyList(),
 ) {
     /** Whether this response indicates at least one matching contact. */
     val hasMatch: Boolean
-        get() = total > 0 || results.isNotEmpty()
+        get() = (total > 0) || results.isNotEmpty()
 }
 
 /**
@@ -120,5 +120,5 @@ data class HubSpotSearchResponse(
  */
 @JsonClass(generateAdapter = true)
 data class HubSpotAccountInfo(
-    @Json(name = "portalId") val portalId: Long? = null,
+    @property:Json(name = "portalId") val portalId: Long? = null,
 )
