@@ -29,15 +29,14 @@
 package com.digiroth.smsfilter.ui.settings
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -82,19 +81,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.digiroth.smsfilter.BuildConfig
 import com.digiroth.smsfilter.R
 import com.digiroth.smsfilter.data.db.entity.MatchMode
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
@@ -105,6 +109,8 @@ import com.digiroth.smsfilter.util.BuildInfo
 import android.provider.Settings as AndroidSettings
 import com.digiroth.smsfilter.ui.components.SectionDivider
 import com.digiroth.smsfilter.ui.components.SectionTitle
+import com.digiroth.smsfilter.ui.util.DOCUMENTATION_URL
+import com.digiroth.smsfilter.ui.util.GITHUB_REPO_URL
 import com.digiroth.smsfilter.ui.util.openUrl
 
 /**
@@ -142,6 +148,8 @@ fun SettingsScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
+    var showAboutDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -195,12 +203,19 @@ fun SettingsScreen(
                 onTestAll = viewModel::testAllConnections,
             )
             SectionDivider()
-
-
-
-
+            AboutSection(
+                onOpenAbout = { showAboutDialog = true },
+            )
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showAboutDialog) {
+        AboutDialog(
+            onDismiss = { showAboutDialog = false },
+            onOpenGitHub = { openUrl(context, GITHUB_REPO_URL) },
+            onOpenDocumentation = { openUrl(context, DOCUMENTATION_URL) },
+        )
     }
 
     if (state.showHubSpotPrompt) {
@@ -559,11 +574,164 @@ private const val DEFAULT_LANGUAGE = "en"
 /** URL to HubSpot Private Apps developer documentation. */
 private const val HUBSPOT_PRIVATE_APPS_URL = "https://developers.hubspot.com/docs/api/private-apps"
 
+/** Pixel dimensions the app launcher icon is rasterized to for display in the About dialog. */
+private const val ABOUT_ICON_SIZE_PX = 192
+
 /** Supported application locales mapped to their display name string resource IDs. */
 private val LANGUAGES = listOf(
     "en" to R.string.settings_language_english,
     "es" to R.string.settings_language_spanish,
 )
+
+/**
+ * Renders the About section at the foot of settings, displaying application identity,
+ * developer attribution, version name, and an affordance to view detailed build and repository info.
+ *
+ * @param onOpenAbout Callback to display the About dialog.
+ */
+@Composable
+private fun AboutSection(onOpenAbout: () -> Unit) {
+    SectionTitle(stringResource(R.string.settings_about_section_title))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_about_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        R.string.settings_about_subtitle,
+                        BuildConfig.VERSION_NAME,
+                        stringResource(R.string.settings_about_author),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // The only clickable surface in this row — the Card itself is deliberately not
+            // clickable, so there is exactly one ripple and one TalkBack focus stop for this action.
+            OutlinedButton(onClick = onOpenAbout) {
+                Text(stringResource(R.string.settings_about_section_title))
+            }
+        }
+    }
+}
+
+/**
+ * Material 3 dialog presenting developer attribution, build metadata, and links to the open
+ * source repository and the published documentation.
+ *
+ * @param onDismiss Callback invoked when dismissing the dialog.
+ * @param onOpenGitHub Callback invoked to open the repository URL in the browser.
+ * @param onOpenDocumentation Callback invoked to open the documentation site in the browser.
+ */
+@Composable
+private fun AboutDialog(
+    onDismiss: () -> Unit,
+    onOpenGitHub: () -> Unit,
+    onOpenDocumentation: () -> Unit,
+) {
+    val context = LocalContext.current
+    // R.mipmap.ic_launcher is an <adaptive-icon> (background + foreground + monochrome layers).
+    // Compose's painterResource() only supports vector drawables and rasterized assets (PNG/JPG/
+    // WEBP) and throws IllegalArgumentException on an adaptive-icon XML, so the icon is instead
+    // resolved through PackageManager — which correctly returns an AdaptiveIconDrawable on API 26+
+    // — and rasterized with toBitmap(), which knows how to flatten any Drawable subtype.
+    val appIconBitmap = remember(context) {
+        runCatching {
+            context.packageManager.getApplicationIcon(context.packageName)
+                .toBitmap(width = ABOUT_ICON_SIZE_PX, height = ABOUT_ICON_SIZE_PX)
+                .asImageBitmap()
+        }.getOrNull()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            if (appIconBitmap != null) {
+                Image(
+                    bitmap = appIconBitmap,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp),
+                )
+            }
+        },
+        title = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "v${BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_about_author),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = BuildInfo.formatBuildTime(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.settings_about_license),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = onOpenDocumentation,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.action_documentation))
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onOpenGitHub,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.settings_about_github))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_dismiss))
+            }
+        },
+    )
+}
 
 /**
  * Renders the status text resulting from a Google Contacts diagnostic test.

@@ -143,6 +143,13 @@
     <string name="settings_test_running">Probando…</string>
     <string name="settings_hubspot_test_ok">HubSpot: Accesible</string>
 
+    <string name="settings_about_section_title">Acerca de</string>
+    <string name="settings_about_title">Acerca de SMS Filter</string>
+    <string name="settings_about_subtitle">v%1$s • %2$s</string>
+    <string name="settings_about_author">Desarrollado por Bill Roth</string>
+    <string name="settings_about_github">Repositorio de GitHub</string>
+    <string name="settings_about_license">Con licencia BSD de 3 cláusulas</string>
+
     <string name="rcs_service_name">Detector de notificaciones RCS</string>
     <string name="settings_rcs_title">Mensajes de chat RCS</string>
     <string name="settings_rcs_subtitle">Habilita la detección de bajas para chats RCS mediante el acceso a notificaciones.</string>
@@ -175,6 +182,7 @@
     <string name="status_title">SMS Filter</string>
     <string name="rules_title">Reglas</string>
     <string name="action_open_settings">Abrir ajustes</string>
+    <string name="action_documentation">Documentación</string>
 
     <!-- Placeholder bodies, replaced when each screen is built -->
     <string name="status_placeholder_body">El panel de estado se implementa en la siguiente fase.</string>

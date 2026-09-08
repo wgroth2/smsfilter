@@ -1,5 +1,148 @@
 # User Guide
 
+## For Everyday Users
+
+This section explains SMS Filter in plain language. No technical background needed.
+If you're comfortable with phone settings and just want the plain facts about what this
+app does and how to use it, this is the section for you.
+
+### What This App Does For You
+
+You know the annoying text messages that show up from numbers you don't recognize —
+ads for car warranties, "exclusive deals," political spam, or things that just look like
+junk? Many of those messages legally have to offer a way to unsubscribe, usually by
+replying with the word **STOP**. The problem is, most people never bother to reply,
+so the same sender (or the company that sold your number) keeps texting.
+
+SMS Filter watches for those unsubscribe messages and, when it recognizes one, sends the
+"STOP" or "END" reply for you automatically — instantly, without you having to open the
+message or type anything. Over time this means fewer spam texts, with no extra effort on
+your part.
+
+A few important things it will **never** do:
+
+- It will **not** reply to messages from people already in your phone's Contacts. Only
+  messages from unknown numbers are ever considered.
+- It will **not** become your text messaging app. Your regular Messages app still shows
+  every text exactly as it always has. SMS Filter simply works quietly in the background.
+- It will **not** read, delete, or hide any of your messages or conversations.
+
+### Is My Information Safe?
+
+Yes. SMS Filter is designed to keep everything on your phone:
+
+- Your contact list is only checked *on your phone* to tell the difference between
+  someone you know and a stranger. It is never copied, uploaded, or sent anywhere.
+- The app does not have permission to read your message history — it only looks at a
+  new text message at the moment it arrives, to decide whether that one message is an
+  unsubscribe offer.
+- Nothing is shared with advertisers or other companies. The only optional exception is
+  if you personally choose to connect a business contacts tool ("HubSpot"), which is off
+  by default and meant for small business owners, not typical personal use.
+
+(If you'd like the full technical explanation of these guarantees, see the
+[Privacy](README.md#privacy) section of the project's README.)
+
+### Setting It Up (About 5 Minutes)
+
+The first time you open the app, it walks you through a short one-time setup:
+
+1. **A welcome screen** explaining what the app does.
+2. **A few permission requests.** Your phone will ask if SMS Filter can "see" text
+   messages and "send" text messages. Both need to be allowed, or the app can't do its
+   job. It will also ask about your Contacts — allowing this lets the app recognize
+   people you already know, which is recommended but not required.
+3. **A screen about picture messages and chat-style texts.** Regular green-bubble text
+   messages are covered automatically. If you also want the app to catch spam sent as
+   picture messages or through chat features (the kind of messages that show up as blue
+   bubbles between iPhones and Android "Chat" users), tap the button to turn on
+   **Notification Access** and enable SMS Filter in the list that appears. If you'd
+   rather skip this, that's fine — you can always turn it on later from the app's main
+   screen.
+4. **A final summary screen.** This confirms everything is working and reminds you that
+   automatic replies are turned on by default. You can switch that off anytime.
+
+Once you tap **Done**, you're finished. There's nothing else to install or configure.
+
+### What You'll Notice Once It's Running
+
+Most of the time, nothing — that's by design. SMS Filter has no icon that sits on your
+home screen and no persistent notification nagging you.
+
+The only time you'll hear from it is a notification that says **"Opt-out request
+detected"**, letting you know it just replied "STOP" to a spam text on your behalf. You
+can tap that notification to see the message it reacted to, or simply ignore it — either
+way, it's just a receipt of something already handled.
+
+### Checking How It's Doing
+
+If you'd like to check in on the app, open it and look at the **Status** screen (this is
+what opens by default). It shows you, in plain terms:
+
+- Whether it's able to see all your text messages properly (a green checkmark means yes).
+- How many messages it has looked at recently.
+- The last spam text it caught and stopped.
+
+There's also an **Activity** tab at the bottom of the app that lists every message it has
+ever looked at, and what it decided to do about each one — handy if you're curious or
+want to double-check its work.
+
+### Changing How It Works
+
+Tap the gear icon (⚙️) at the top of the Status screen to reach **Settings**. The two
+settings most people care about:
+
+- **Auto-Reply** — the on/off switch for sending replies automatically. Turn this off if
+  you'd rather just be notified about spam without the app replying on your behalf.
+- **Sound & Language** — turn the alert sound on or off, and switch the app between
+  English and Spanish.
+
+### Frequently Asked Questions
+
+**Will this ever reply to a real person, like a friend or my doctor's office?**
+No. It only considers messages from numbers that are not saved in your Contacts, and even
+then, it only reacts to messages that specifically look like an unsubscribe offer
+(something containing the word "stop" or "end" in a very specific way). Ordinary
+conversation is never touched.
+
+**Does replying "STOP" cost me anything?**
+No more than any other text message. If your phone plan already includes unlimited texts
+(as most modern plans do), there is no added cost.
+
+**What if it makes a mistake?**
+You can review everything it has done in the Activity tab. If you ever see something you
+disagree with, you can turn off Auto-Reply in Settings at any time — the app will keep
+watching and notifying you, it just won't send replies automatically until you turn it
+back on.
+
+**Do I need to keep the app open?**
+No. Close it like any other app. It continues working in the background whenever a text
+message arrives, the same way your phone continues receiving texts and calls when the
+Messages app isn't open.
+
+**What if I don't grant the picture-message/chat permission during setup?**
+That's fine — ordinary text messages are still fully covered. You can turn that extra
+permission on later from the warning banner on the Status screen if you change your mind.
+
+### Need More Detail?
+
+The rest of this guide, starting with "For Technical Users" below, goes into much more
+depth about exactly how the app makes its decisions. It's written for a more technical
+reader, but you're welcome to explore it — nothing there is off-limits, it's just more
+detailed than most people need day to day. For the full engineering-level writeup —
+source code layout, architecture diagrams, and build instructions — see the project's
+[README](README.md).
+
+---
+
+## For Technical Users
+
+> [!NOTE]
+> Everything below this point is the original, detailed reference documentation. It
+> assumes familiarity with Android concepts such as permissions, SMS/MMS/RCS transports,
+> and app architecture. Everyday users should refer to the [For Everyday
+> Users](#for-everyday-users) section above instead.
+
 How SMS Filter behaves from the perspective of the person using it. Every statement
 here is derived from the implementation rather than from the specification, so this
 document describes what the app *does*, not what it was intended to do.
@@ -19,6 +162,10 @@ SMS Filter is **not** a replacement messaging app. It never becomes your default
 client, never reads your message history — `READ_SMS` is deliberately not requested —
 and never hides or deletes anything. Texts still arrive in your normal inbox exactly as
 before. SMS Filter works silently alongside it.
+
+For the underlying code architecture — the ingress layer, the pure-Kotlin decision
+engine, and the source layout — see [What it does](README.md#what-it-does) and
+[Architecture](README.md#architecture) in the README.
 
 ## First launch: the setup wizard
 
@@ -136,7 +283,9 @@ be navigated away from before consent is given.
 ## What happens to each incoming message
 
 Checks run in a fixed order, cheapest first, so an ignored message costs no contact
-lookups and no network calls.
+lookups and no network calls. The README's [What it does](README.md#what-it-does)
+section walks through the same decision flow from the code's perspective, naming the
+actual classes involved.
 
 <img src="pipeline_flow.png" alt="SMS Filter Pipeline Architecture" width="100%" />
 
@@ -259,6 +408,7 @@ Reached from the gear icon on Status. What remains here is the things you *chang
 | Sound & Language | Beep on/off, a ringtone picker (falls back to the system notification sound), detection notifications on/off, and English or Spanish. |
 | HubSpot CRM | Optional API token, stored encrypted. When enabled, CRM contacts are also treated as known senders. |
 | Connection Testing | Runs the Google Contacts and HubSpot diagnostics together. |
+| About | Tapping the card at the foot of Settings opens a dialog with the app icon, installed version, developer attribution, build timestamp, [license](README.md#license), and buttons to open the full **Documentation** site and the **GitHub Repository**. |
 
 ### Incomplete permissions warning
 
@@ -276,6 +426,14 @@ where you can enable SMS Filter with a single toggle. Once enabled, returning to
 clears the warning and updates the Message Intake indicator to **Full (SMS, MMS, RCS)**. The same
 grant is offered during setup as step 3 of the wizard, so this card only appears if it was skipped
 there or revoked since.
+
+## Documentation link
+
+The **Status**, **Activity**, and **Rules** screens each carry a small **Documentation** link at
+the very bottom, and the About dialog in Settings offers the same link as a full-width button.
+All of them open the same place: the [published documentation site](https://wgroth2.github.io/smsfilter/),
+built from this guide and the [project's README](README.md), viewable in any browser
+without installing the app.
 
 ## The Activity tab
 
@@ -321,6 +479,8 @@ own message mix before letting it send anything.
 
 ## See also
 
+- [README.md](README.md) — technical architecture, the detection pipeline
+  implementation, source code layout, and build/sideloading instructions for developers.
 - [INSTALL_GUIDE.md](INSTALL_GUIDE.md) — sideloading, Play Protect, and Android behaviours
   that are not bugs, including why the app must not be force-stopped.
 - [TEST_CASES.md](TEST_CASES.md) — manual test cases for exercising these flows on a

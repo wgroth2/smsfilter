@@ -39,6 +39,7 @@ import com.digiroth.smsfilter.data.db.entity.LogEventType
 import com.digiroth.smsfilter.data.repository.ContactRepository
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import com.digiroth.smsfilter.testutil.createTestSettingsDataStore
 import com.digiroth.smsfilter.ui.settings.ConnectionHealthEvaluator
 import com.digiroth.smsfilter.ui.settings.GoogleContactsHealth
 import com.digiroth.smsfilter.ui.settings.MessageIntakeHealth
@@ -77,6 +78,7 @@ class StatusViewModelTest {
     private val testDispatcher: TestDispatcher = StandardTestDispatcher()
     private lateinit var tempDir: File
     private lateinit var context: TestContext
+    private lateinit var settingsDataStore: SettingsDataStore
     private lateinit var detectionLogDao: FakeDetectionLogDao
 
     @Before
@@ -84,11 +86,16 @@ class StatusViewModelTest {
         Dispatchers.setMain(testDispatcher)
         tempDir = Files.createTempDirectory("status_vm_test").toFile()
         context = TestContext(tempDir)
+        // See createTestSettingsDataStore's KDoc: this keeps the store's write actor on
+        // testDispatcher instead of a real thread, so advanceUntilIdle() in tearDown() fully
+        // drains it before resetMain() runs.
+        settingsDataStore = SettingsDataStore(createTestSettingsDataStore(tempDir, testDispatcher))
         detectionLogDao = FakeDetectionLogDao()
     }
 
     @After
     fun tearDown() {
+        testDispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
         tempDir.deleteRecursively()
     }
@@ -103,7 +110,7 @@ class StatusViewModelTest {
         context.grantedPermissions = grantedPermissions
         return StatusViewModel(
             context = context,
-            settingsDataStore = SettingsDataStore(context),
+            settingsDataStore = settingsDataStore,
             secureTokenStore = SecureTokenStore(context),
             contactRepository = ContactRepository(context),
             healthEvaluator = ConnectionHealthEvaluator(),

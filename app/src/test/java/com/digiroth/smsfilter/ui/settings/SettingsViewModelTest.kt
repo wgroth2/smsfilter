@@ -46,6 +46,7 @@ import com.digiroth.smsfilter.data.repository.HubSpotRepository
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
 import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotUseCase
+import com.digiroth.smsfilter.testutil.createTestSettingsDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -91,7 +92,10 @@ class SettingsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         tempDir = Files.createTempDirectory("settings_vm_test").toFile()
         fakeContext = TestContext(tempDir)
-        settingsDataStore = SettingsDataStore(fakeContext)
+        // See createTestSettingsDataStore's KDoc: this keeps the store's write actor on
+        // testDispatcher instead of a real thread, so advanceUntilIdle() in tearDown() fully
+        // drains it before resetMain() runs.
+        settingsDataStore = SettingsDataStore(createTestSettingsDataStore(tempDir, testDispatcher))
         secureTokenStore = SecureTokenStore(fakeContext)
         contactRepository = ContactRepository(fakeContext)
         hubSpotRepository = FakeHubSpotRepo()

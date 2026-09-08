@@ -2,9 +2,13 @@
 
 An Android app that watches incoming SMS, MMS, and RCS messages for opt-out requests from senders you don't know, and replies on your behalf so they stop texting you — without ever permanently syncing or copying a contact list to disk.
 
+If you are a user who plans on using the app and is not all that concerned about how it works, start with the **[User Guide](USER_GUIDE.md)**.
+
 Marketing and automated SMS/RCS messages often carry an opt-out instruction, but acting on every one of them by hand is tedious, and replying to the wrong message is worse than not replying at all. SMS Filter automates the tedious part while being deliberately conservative about the risky part: messages from people in your contacts are never touched, group chats are protected against reply broadcast, and four independent safety gates stand between a detection and an outgoing reply.
 
-**Status:** feature-complete and actively maintained. **215 JVM unit tests** and Room instrumented tests pass. Manual verification against real carrier SMS, MMS, and RCS chats is active.
+**Status:** feature-complete and actively maintained. **305 JVM unit tests** and Room instrumented tests pass. Manual verification against real carrier SMS, MMS, and RCS chats is active.
+
+**📖 Full documentation:** browse the [published site](https://wgroth2.github.io/smsfilter/) or read the **[user guide](USER_GUIDE.md)** directly in this repo.
 
 ---
 
@@ -86,6 +90,8 @@ The app never permanently stores private address books on device. This is a stru
    - Tap any pattern in **Rules → Opt-Out Patterns** to open the edit dialog and modify keywords, reply types (`STOP` vs `END`), or match modes (`ANYWHERE` vs `LAST_LINE_EXACT`). The tab's overflow menu offers **Reset to Defaults** behind a confirmation.
 4. **Build Metadata & Versioning:**
    - Displays live build timestamp and a monotonically increasing build sequence number (e.g. `Build: 21 Aug 2026, 12:35:45 PDT (#44)`) at the foot of the Status screen.
+5. **In-app documentation:** an About dialog (Settings → About) and a **Documentation** link at
+   the foot of Status, Activity, and Rules all open the published documentation site linked above.
 
 ---
 
@@ -142,7 +148,7 @@ When sideloading the release APK on physical devices:
 ## Testing
 
 ```bash
-./gradlew test                   # 215 JVM unit tests
+./gradlew test                   # 305 JVM unit tests
 ./gradlew connectedAndroidTest   # Room & migration instrumented tests
 ./gradlew lintDebug              # Android lint verification
 ```

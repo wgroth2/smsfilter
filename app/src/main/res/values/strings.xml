@@ -157,6 +157,13 @@
     <string name="settings_test_running">Testing…</string>
     <string name="settings_hubspot_test_ok">HubSpot: Reachable</string>
 
+    <string name="settings_about_section_title">About</string>
+    <string name="settings_about_title">About SMS Filter</string>
+    <string name="settings_about_subtitle">v%1$s • %2$s</string>
+    <string name="settings_about_author">Developed by Bill Roth</string>
+    <string name="settings_about_github">GitHub Repository</string>
+    <string name="settings_about_license">Licensed under BSD 3-Clause</string>
+
     <string name="rcs_service_name">RCS Notification Listener</string>
     <string name="settings_rcs_title">RCS Chat Messages</string>
     <string name="settings_rcs_subtitle">Enables opt-out detection for Google Messages RCS chats via Notification Access.</string>
@@ -189,6 +196,7 @@
     <string name="status_title">SMS Filter</string>
     <string name="rules_title">Rules</string>
     <string name="action_open_settings">Open settings</string>
+    <string name="action_documentation">Documentation</string>
 
     <!-- Placeholder bodies, replaced when each screen is built -->
     <string name="status_placeholder_body">The status dashboard is implemented in the next phase.</string>

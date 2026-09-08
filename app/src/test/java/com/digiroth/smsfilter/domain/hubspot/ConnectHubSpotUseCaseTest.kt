@@ -37,6 +37,8 @@ import com.digiroth.smsfilter.data.repository.HubSpotRepositoryImpl
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.ConnectionStatus
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import com.digiroth.smsfilter.testutil.createTestSettingsDataStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -73,7 +75,9 @@ class ConnectHubSpotUseCaseTest {
     fun setUp() {
         tempDir = Files.createTempDirectory("connect_hubspot_test").toFile()
         context = TestContext(tempDir)
-        settingsDataStore = SettingsDataStore(context)
+        // This test never overrides Dispatchers.Main, and every call here is awaited directly
+        // rather than launched, so Dispatchers.Unconfined is safe: writes settle synchronously.
+        settingsDataStore = SettingsDataStore(createTestSettingsDataStore(tempDir, Dispatchers.Unconfined))
         secureTokenStore = SecureTokenStore(context)
         hubSpotRepository = FakeHubSpotRepository()
     }

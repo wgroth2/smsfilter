@@ -1,0 +1,52 @@
+# GitHub Pages configuration for the public documentation site.
+#
+# This publishes ONLY the end-user-facing docs — README.md, USER_GUIDE.md, INSTALL_GUIDE.md, and
+# TEST_CASES.md (the latter two are included because USER_GUIDE.md links to both; excluding them
+# would leave those links broken on the published site) — plus the images and diagrams they
+# reference. Everything else in the repository (source code, build scripts, and internal
+# engineering notes such as architectural_analysis.md, build_instructions.md, todo.md, and
+# walkthrough.md) is excluded below.
+#
+# IMPORTANT: if a new top-level file or folder is added to the repository that should NOT appear
+# on the public docs site, add it to the `exclude` list below. Anything not listed here that is
+# tracked by git will be published.
+
+title: SMS Filter
+description: >-
+  An Android app that watches incoming SMS, MMS, and RCS messages for opt-out requests from
+  unknown senders and replies on your behalf, so they stop texting you.
+theme: jekyll-theme-cayman
+show_downloads: false
+
+# jekyll-relative-links rewrites relative links between markdown files (e.g. the
+# [USER_GUIDE.md](USER_GUIDE.md) link in this README) so they resolve to the published .html
+# pages instead of raw .md files. jekyll-readme-index serves README.md as the site's home page
+# at / without needing a separate index.md. Both plugins are part of GitHub Pages' supported
+# plugin set, so no custom build (e.g. a GitHub Actions workflow) is required.
+plugins:
+  - jekyll-relative-links
+  - jekyll-readme-index
+
+relative_links:
+  enabled: true
+  collections: true
+
+readme_index:
+  with_frontmatter: false
+
+exclude:
+  - app/
+  - gradle/
+  - gradlew
+  - gradlew.bat
+  - build.gradle.kts
+  - settings.gradle.kts
+  - gradle.properties
+  - build_number.properties
+  - AGENTS.md
+  - DEBUG_GUIDE.md
+  - architectural_analysis.md
+  - build_instructions.md
+  - todo.md
+  - walkthrough.md
+  - pipeline_flow.mermaid

@@ -28,14 +28,20 @@
 
 package com.digiroth.smsfilter.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.digiroth.smsfilter.R
 
 /**
  * Section headings and separators shared by the long-form screens.
@@ -63,5 +69,28 @@ fun SectionDivider() {
 fun SectionTitle(text: String) {
     Text(text = text, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
+}
+
+/**
+ * Renders a centered, tappable text link to the app's published documentation.
+ *
+ * Shared by the bottom-navigation destinations (Status, Activity, Rules) so each offers the same
+ * single way to reach the full user guide, rather than duplicating the URL and click handling in
+ * three places.
+ *
+ * @param onClick Invoked when the link is tapped. Callers open the documentation URL in a browser.
+ */
+@Composable
+fun DocumentationLink(onClick: () -> Unit) {
+    Text(
+        text = stringResource(R.string.action_documentation),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+    )
 }
 

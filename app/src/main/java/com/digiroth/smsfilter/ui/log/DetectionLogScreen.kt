@@ -64,6 +64,9 @@ import com.digiroth.smsfilter.R
 import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
 import com.digiroth.smsfilter.data.db.entity.LogEventType
 import com.digiroth.smsfilter.data.db.entity.MessageSource
+import com.digiroth.smsfilter.ui.components.DocumentationLink
+import com.digiroth.smsfilter.ui.util.DOCUMENTATION_URL
+import com.digiroth.smsfilter.ui.util.openUrl
 import java.text.DateFormat
 import java.util.Date
 
@@ -90,6 +93,7 @@ fun DetectionLogScreen(
     onNavigateBack: (() -> Unit)? = null,
     viewModel: DetectionLogViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
 
@@ -139,6 +143,7 @@ fun DetectionLogScreen(
                     Text(stringResource(R.string.log_clear))
                 }
             }
+            DocumentationLink(onClick = { openUrl(context, DOCUMENTATION_URL) })
         }
     }
 }

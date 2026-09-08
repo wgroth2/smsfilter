@@ -33,16 +33,17 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
+import com.digiroth.smsfilter.data.repository.ContactRepository
 import com.digiroth.smsfilter.data.repository.HubSpotRepository
 import com.digiroth.smsfilter.data.repository.HubSpotRepositoryImpl
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
 import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotUseCase
 import com.digiroth.smsfilter.domain.hubspot.HubSpotConnectError
+import com.digiroth.smsfilter.testutil.createTestSettingsDataStore
 import com.digiroth.smsfilter.ui.permissions.AppPermissions
 import com.digiroth.smsfilter.ui.permissions.PermissionStateEvaluator
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -75,32 +76,31 @@ class OnboardingViewModelTest {
     private lateinit var context: Context
     private lateinit var settingsDataStore: SettingsDataStore
     private lateinit var hubSpotRepository: FakeHubSpotRepository
-    private lateinit var contactRepository: com.digiroth.smsfilter.data.repository.ContactRepository
+    private lateinit var contactRepository: ContactRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         tempDir = Files.createTempDirectory("onboarding_vm_test").toFile()
         context = TestContext(tempDir)
-        settingsDataStore = SettingsDataStore(context)
+        // A DataStore scoped to this test's own dispatcher, in its own temp dir: isolated from
+        // every other test, and its write actor lives inside this test's virtual scheduler rather
+        // than a real thread. See createTestSettingsDataStore's KDoc for why that matters.
+        settingsDataStore = SettingsDataStore(createTestSettingsDataStore(tempDir, testDispatcher))
         hubSpotRepository = FakeHubSpotRepository()
-        contactRepository = com.digiroth.smsfilter.data.repository.ContactRepository(context).apply {
+        contactRepository = ContactRepository(context).apply {
             // Keep the contacts query on the test scheduler; otherwise it outlives the test.
             queryDispatcher = testDispatcher
-        }
-
-        // `preferencesDataStore` is a property delegate that caches ONE DataStore per process,
-        // whatever Context is handed to it, so every test in this JVM shares the same store and a
-        // fresh temp directory does not isolate them. Reset the keys these tests assert on.
-        runBlocking {
-            settingsDataStore.setFirstRunComplete(false)
-            settingsDataStore.setUseHubSpot(false)
-            settingsDataStore.setHubSpotPromptShown(false)
         }
     }
 
     @After
     fun tearDown() {
+        // settingsDataStore's write actor runs on testDispatcher (see setUp), so this fully drains
+        // any pending write — including its resume back onto Dispatchers.Main — before resetMain()
+        // tears Main down. Unlike a real-thread-backed DataStore, this is a guarantee, not a
+        // best-effort mitigation.
+        testDispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
         tempDir.deleteRecursively()
     }

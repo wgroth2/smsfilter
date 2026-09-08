@@ -28,6 +28,8 @@
 
 package com.digiroth.smsfilter.domain.hubspot
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
@@ -35,6 +37,9 @@ import com.digiroth.smsfilter.data.repository.HubSpotRepository
 import com.digiroth.smsfilter.data.repository.HubSpotRepositoryImpl
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -67,7 +72,15 @@ class ConnectHubSpotUseCaseInstrumentedTest {
     fun setUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         secureTokenStore = SecureTokenStore(context)
-        settingsDataStore = SettingsDataStore(context)
+        // Points at the same file the app's own Hilt-provided DataStore uses (see
+        // com.digiroth.smsfilter.di.DataStoreModule), so this exercises the real, shared store
+        // rather than an isolated one — matching this instrumented test's existing intent of
+        // verifying behavior against the app's actual on-device storage.
+        val dataStore = PreferenceDataStoreFactory.create(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+            produceFile = { context.preferencesDataStoreFile(SettingsDataStore.STORE_NAME) },
+        )
+        settingsDataStore = SettingsDataStore(dataStore)
         hubSpotRepository = FakeHubSpotRepository()
         secureTokenStore.clearAccessToken()
     }

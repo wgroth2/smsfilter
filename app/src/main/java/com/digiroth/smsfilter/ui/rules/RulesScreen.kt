@@ -31,6 +31,7 @@ package com.digiroth.smsfilter.ui.rules
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -56,9 +57,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.digiroth.smsfilter.R
+import com.digiroth.smsfilter.ui.components.DocumentationLink
+import com.digiroth.smsfilter.ui.util.DOCUMENTATION_URL
+import com.digiroth.smsfilter.ui.util.openUrl
 
 /**
  * The two rule editors this screen hosts.
@@ -96,6 +101,7 @@ fun RulesScreen(
     stopListViewModel: StopListViewModel = hiltViewModel(),
     patternsViewModel: OptOutPatternsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     var selectedTab by rememberSaveable { mutableStateOf(RulesTab.STOP_LIST) }
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
     var showOverflow by rememberSaveable { mutableStateOf(false) }
@@ -147,7 +153,8 @@ fun RulesScreen(
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             ) {
@@ -166,6 +173,7 @@ fun RulesScreen(
                     )
                 }
             }
+            DocumentationLink(onClick = { openUrl(context, DOCUMENTATION_URL) })
         }
     }
 

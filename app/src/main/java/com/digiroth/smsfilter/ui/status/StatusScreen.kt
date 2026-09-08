@@ -65,14 +65,17 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.digiroth.smsfilter.R
 import com.digiroth.smsfilter.data.db.entity.DetectionLogEntity
+import com.digiroth.smsfilter.ui.components.DocumentationLink
 import com.digiroth.smsfilter.ui.components.SectionDivider
 import com.digiroth.smsfilter.ui.components.SectionTitle
 import com.digiroth.smsfilter.ui.settings.ContactsCheck
 import com.digiroth.smsfilter.ui.settings.GoogleContactsHealth
 import com.digiroth.smsfilter.ui.settings.HubSpotHealth
 import com.digiroth.smsfilter.ui.settings.MessageIntakeHealth
+import com.digiroth.smsfilter.ui.util.DOCUMENTATION_URL
 import com.digiroth.smsfilter.ui.util.openAppSettings
 import com.digiroth.smsfilter.ui.util.openNotificationListenerSettings
+import com.digiroth.smsfilter.ui.util.openUrl
 import com.digiroth.smsfilter.util.BuildInfo
 import java.text.DateFormat
 import java.util.Date
@@ -187,6 +190,7 @@ fun StatusScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+            DocumentationLink(onClick = { openUrl(context, DOCUMENTATION_URL) })
             Spacer(Modifier.height(24.dp))
         }
     }

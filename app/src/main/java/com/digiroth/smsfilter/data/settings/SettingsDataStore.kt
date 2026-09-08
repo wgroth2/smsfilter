@@ -28,7 +28,6 @@
 
 package com.digiroth.smsfilter.data.settings
 
-import android.content.Context
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -36,8 +35,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -88,11 +85,6 @@ enum class ConnectionStatus {
     }
 }
 
-/** The single `DataStore<Preferences>` instance for the process, created lazily on first use. */
-private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = SettingsDataStore.STORE_NAME,
-)
-
 /**
  * The single store for every scalar setting and flag in the app.
  *
@@ -109,14 +101,19 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * defaults, so a corrupt preferences file degrades to first-run behaviour instead of
  * crashing the SMS pipeline.
  *
- * @property context Application context supplying the backing DataStore.
+ * The backing [DataStore] is an injected dependency, supplied in production by
+ * `com.digiroth.smsfilter.di.DataStoreModule`, rather than derived internally from a `Context`.
+ * This lets JVM tests substitute a store whose write actor runs on the same dispatcher the test
+ * uses for `Dispatchers.Main`, instead of the real `Dispatchers.IO` thread pool a
+ * `Context.preferencesDataStore(...)` delegate would hardcode — see
+ * `com.digiroth.smsfilter.di.DataStoreModule` for why that distinction matters.
+ *
+ * @property dataStore The preferences store this instance reads from and writes to.
  */
 @Singleton
 class SettingsDataStore @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+    private val dataStore: DataStore<Preferences>,
 ) {
-
-    private val dataStore: DataStore<Preferences> = context.settingsDataStore
 
     /** Every preference read, with defaults applied and IO failures neutralised. */
     private val preferences: Flow<Preferences> = dataStore.data
