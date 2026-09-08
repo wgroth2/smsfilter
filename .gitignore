@@ -81,6 +81,9 @@ gradle-app.setting
 # Chat session identifier
 chat.id
 
+# Gemini agent local state and memory
+.gemini/
+
 # PDF exports
 pdf/
 
