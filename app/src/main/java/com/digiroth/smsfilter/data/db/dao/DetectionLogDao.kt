@@ -141,4 +141,38 @@ interface DetectionLogDao {
      */
     @Query("SELECT COUNT(*) FROM ${DetectionLogEntity.TABLE_NAME}")
     suspend fun count(): Int
+
+    /**
+     * Observes how many messages were evaluated at or after [since], regardless of event type.
+     *
+     * Backs the Status screen's "messages evaluated today" figure. Every kind of entry counts,
+     * including [LogEventType.NO_MATCH]: the number is meant to answer "is the filter seeing
+     * traffic at all", which a detections-only count would misreport as zero on a quiet day.
+     *
+     * The caller supplies the boundary rather than the query computing one, because "today" is a
+     * local-calendar question — it depends on the device time zone and on the user's clock changing
+     * — and a DAO has no business deciding it.
+     *
+     * @param since Inclusive lower bound, as epoch milliseconds.
+     * @return A [Flow] that re-emits whenever the table changes.
+     */
+    @Query("SELECT COUNT(*) FROM ${DetectionLogEntity.TABLE_NAME} WHERE timestamp >= :since")
+    fun observeCountSince(since: Long): Flow<Int>
+
+    /**
+     * Observes the single most recent entry of one kind, or `null` when none exists.
+     *
+     * Backs the Status screen's "last detected opt-out" line, called with
+     * [LogEventType.DETECTION]. Ordered by `timestamp DESC, id DESC` to match every other query
+     * here, so two entries recorded in the same millisecond resolve by insertion order rather than
+     * arbitrarily.
+     *
+     * @param eventType Which kind of entry to look for.
+     * @return A [Flow] emitting the newest matching entry, or `null` if there is none.
+     */
+    @Query(
+        "SELECT * FROM ${DetectionLogEntity.TABLE_NAME} WHERE event_type = :eventType " +
+            "ORDER BY timestamp DESC, id DESC LIMIT 1",
+    )
+    fun observeLatestByType(eventType: LogEventType): Flow<DetectionLogEntity?>
 }

@@ -179,4 +179,43 @@
     <string name="log_clear">Clear Log</string>
     <string name="log_empty">No activity recorded yet.</string>
     <string name="log_back">Back</string>
+
+    <!-- Bottom navigation bar -->
+    <string name="nav_status">Status</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_rules">Rules</string>
+
+    <!-- Top-level screen titles and actions -->
+    <string name="status_title">SMS Filter</string>
+    <string name="rules_title">Rules</string>
+    <string name="action_open_settings">Open settings</string>
+
+    <!-- Placeholder bodies, replaced when each screen is built -->
+    <string name="status_placeholder_body">The status dashboard is implemented in the next phase.</string>
+    <string name="rules_placeholder_body">The stop list and opt-out pattern editors move here in the next phase.</string>
+
+    <!-- Rules screen -->
+    <string name="rules_more_actions">More actions</string>
+    <string name="rules_reset_defaults">Reset to Defaults</string>
+    <string name="rules_reset_confirm">Reset</string>
+    <string name="rules_reset_confirm_body">This deletes every opt-out pattern, including any you added, and restores the ones the app ships with. This cannot be undone.</string>
+
+    <!-- Status screen recent activity -->
+    <string name="status_recent_activity_title">Recent Activity</string>
+    <string name="status_evaluated_today">%1$d messages evaluated today</string>
+    <string name="status_last_detection">Last opt-out: %1$s — %2$s</string>
+    <string name="status_no_detections_yet">No opt-out detected yet.</string>
+
+    <!-- Onboarding step 3: Notification Access -->
+    <string name="onboarding_notification_access_title">Notification Access</string>
+    <string name="onboarding_notification_access_body">Political and promotional texts often arrive as MMS picture messages (flyers) or RCS chats rather than plain SMS.</string>
+    <string name="onboarding_notification_access_why">Android only lets an app that is not your default messaging app see those through Notification Access, a separate permission you grant in system settings.</string>
+    <string name="onboarding_notification_access_return_note">You will leave the app briefly. When you come back, this step updates on its own — no need to tap anything.</string>
+    <string name="onboarding_notification_access_skip_note">If you skip this: SMS Filter still filters standard cellular SMS. MMS picture texts and RCS chats will not be detected until you enable Notification Access from Settings.</string>
+    <string name="onboarding_skip_for_now">Skip for now</string>
+
+    <!-- Onboarding step 4: optional HubSpot -->
+    <string name="onboarding_hubspot_title">Connect HubSpot CRM?</string>
+    <string name="onboarding_hubspot_body">Optional. SMS Filter can also check unknown senders against your HubSpot contacts. You can skip this and connect later from Settings.</string>
+    <string name="onboarding_hubspot_connected">HubSpot connected.</string>
 </resources>

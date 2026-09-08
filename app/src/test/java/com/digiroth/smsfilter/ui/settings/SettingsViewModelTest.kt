@@ -45,6 +45,7 @@ import com.digiroth.smsfilter.data.repository.ContactRepository
 import com.digiroth.smsfilter.data.repository.HubSpotRepository
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -66,10 +67,11 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * JVM unit tests for [SettingsViewModel], verifying pattern and stop-list mutations.
+ * JVM unit tests for [SettingsViewModel].
  *
- * Verifies that updating and adding opt-out patterns sanitizes input text, updates the DAO,
- * and ignores empty or whitespace-only patterns.
+ * Pattern and stop-list coverage moved to `OptOutPatternsViewModelTest` and
+ * `StopListViewModelTest` when those editors became their own destination; what is verified
+ * here is the message-intake health this screen still derives.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -82,8 +84,6 @@ class SettingsViewModelTest {
     private lateinit var contactRepository: ContactRepository
     private lateinit var hubSpotRepository: FakeHubSpotRepo
     private lateinit var healthEvaluator: ConnectionHealthEvaluator
-    private lateinit var stopListDao: FakeStopListDao
-    private lateinit var optOutPatternDao: RecordingOptOutPatternDao
     private var activeViewModel: SettingsViewModel? = null
 
     @Before
@@ -96,8 +96,6 @@ class SettingsViewModelTest {
         contactRepository = ContactRepository(fakeContext)
         hubSpotRepository = FakeHubSpotRepo()
         healthEvaluator = ConnectionHealthEvaluator()
-        stopListDao = FakeStopListDao()
-        optOutPatternDao = RecordingOptOutPatternDao()
     }
 
     @After
@@ -116,136 +114,15 @@ class SettingsViewModelTest {
             secureTokenStore = secureTokenStore,
             contactRepository = contactRepository,
             hubSpotRepository = hubSpotRepository,
+            connectHubSpotUseCase = ConnectHubSpotUseCase(
+                secureTokenStore = secureTokenStore,
+                hubSpotRepository = hubSpotRepository,
+                settingsDataStore = settingsDataStore,
+            ),
             healthEvaluator = healthEvaluator,
-            stopListDao = stopListDao,
-            optOutPatternDao = optOutPatternDao,
         )
         activeViewModel = vm
         return vm
-    }
-
-    /**
-     * Tests that updatePattern trims leading and trailing whitespace from pattern text before persisting to the DAO.
-     *
-     * Preconditions: Calling updatePattern with id=42, pattern="  stop2stop  ", STOP reply type, ANYWHERE match mode.
-     * Expected: OptOutPatternDao receives an updated entity with trimmed pattern "stop2stop".
-     */
-    @Test
-    fun `updatePattern trims pattern text and updates DAO`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-
-        viewModel.updatePattern(
-            id = 42L,
-            pattern = "  stop2stop  ",
-            replyType = ReplyType.STOP,
-            matchMode = MatchMode.ANYWHERE,
-        )
-        advanceUntilIdle()
-
-        assertEquals(1, optOutPatternDao.updatedPatterns.size)
-        val updated = optOutPatternDao.updatedPatterns.single()
-        assertEquals(42L, updated.id)
-        assertEquals("stop2stop", updated.pattern)
-        assertEquals(ReplyType.STOP, updated.replyType)
-        assertEquals(MatchMode.ANYWHERE, updated.matchMode)
-    }
-
-    /**
-     * Tests that updatePattern ignores blank or whitespace-only pattern strings without calling the DAO.
-     *
-     * Preconditions: Calling updatePattern with whitespace pattern "   ".
-     * Expected: No updates are dispatched to [OptOutPatternDao].
-     */
-    @Test
-    fun `updatePattern ignores blank pattern`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-
-        viewModel.updatePattern(
-            id = 42L,
-            pattern = "   ",
-            replyType = ReplyType.END,
-            matchMode = MatchMode.LAST_LINE_EXACT,
-        )
-        advanceUntilIdle()
-
-        assertTrue(optOutPatternDao.updatedPatterns.isEmpty())
-    }
-
-    /**
-     * Tests that addPattern trims whitespace from pattern text and inserts the new entity into the DAO.
-     *
-     * Preconditions: Calling addPattern with pattern="  unsubscribe  ", STOP reply type, ANYWHERE match mode.
-     * Expected: [OptOutPatternDao] receives an insert with trimmed pattern "unsubscribe".
-     */
-    @Test
-    fun `addPattern trims pattern text and inserts into DAO`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-
-        viewModel.addPattern(
-            pattern = "  unsubscribe  ",
-            replyType = ReplyType.STOP,
-            matchMode = MatchMode.ANYWHERE,
-        )
-        advanceUntilIdle()
-
-        assertEquals(1, optOutPatternDao.insertedPatterns.size)
-        val inserted = optOutPatternDao.insertedPatterns.single()
-        assertEquals("unsubscribe", inserted.pattern)
-        assertEquals(ReplyType.STOP, inserted.replyType)
-        assertEquals(MatchMode.ANYWHERE, inserted.matchMode)
-    }
-
-    /**
-     * Tests that addPattern ignores blank or whitespace-only pattern strings without inserting into the DAO.
-     *
-     * Preconditions: Calling addPattern with whitespace pattern "   ".
-     * Expected: No inserts are dispatched to [OptOutPatternDao].
-     */
-    @Test
-    fun `addPattern ignores blank pattern`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-
-        viewModel.addPattern(
-            pattern = "   ",
-            replyType = ReplyType.STOP,
-            matchMode = MatchMode.ANYWHERE,
-        )
-        advanceUntilIdle()
-
-        assertTrue(optOutPatternDao.insertedPatterns.isEmpty())
-    }
-
-    private class RecordingOptOutPatternDao : OptOutPatternDao {
-        val insertedPatterns: MutableList<OptOutPatternEntity> = mutableListOf()
-        val updatedPatterns: MutableList<OptOutPatternEntity> = mutableListOf()
-        val patternsFlow: MutableStateFlow<List<OptOutPatternEntity>> = MutableStateFlow(emptyList())
-
-        override fun observeAll(): Flow<List<OptOutPatternEntity>> = patternsFlow
-        override suspend fun getAll(): List<OptOutPatternEntity> = patternsFlow.value
-
-        override suspend fun insert(entity: OptOutPatternEntity): Long {
-            insertedPatterns += entity
-            return 1L
-        }
-
-        override suspend fun insertAll(entities: List<OptOutPatternEntity>): List<Long> = emptyList()
-
-        override suspend fun update(pattern: OptOutPatternEntity): Int {
-            updatedPatterns += pattern
-            return 1
-        }
-
-        override suspend fun delete(entity: OptOutPatternEntity): Unit = Unit
-        override suspend fun count(): Int = patternsFlow.value.size
-    }
-
-    private class FakeStopListDao : StopListDao {
-        override fun observeAll(): Flow<List<StopListEntity>> = flowOf(emptyList())
-        override suspend fun getAll(): List<StopListEntity> = emptyList()
-        override suspend fun insert(entity: StopListEntity): Long = 1L
-        override suspend fun delete(entity: StopListEntity): Unit = Unit
-        override suspend fun deleteByKeyword(keyword: String): Int = 1
-        override suspend fun count(): Int = 0
     }
 
     private class FakeHubSpotRepo : HubSpotRepository {

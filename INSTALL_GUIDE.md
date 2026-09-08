@@ -43,22 +43,27 @@ the package has not been tampered with since it was built.
 
 ## 4. Complete setup
 
-Open the app and follow the three-step wizard:
+Open the app and follow the four-step wizard:
 
 1. **Welcome** — what the app does.
 2. **Permissions** — grant Receive SMS, Send SMS, and Notifications. Contacts is recommended but
    optional; without it every sender is treated as unknown.
-3. **Connection Test** — confirms the app can read your contacts, and tells you that auto-reply is
-   ON by default.
+3. **Notification Access** — enables MMS and RCS filtering; see the next section. Skippable, and
+   the wizard says what skipping costs.
+4. **Connection Test** — confirms the app can read your contacts, optionally connects HubSpot CRM,
+   and tells you that auto-reply is ON by default.
 
 ### 5. Enable Notification Access (For MMS & RCS Messages)
 
 Standard SMS permissions only capture basic cellular text messages. Modern campaign messages often arrive as **MMS messages** (texts containing campaign flyers, pictures, or multimedia) or **RCS chat messages** via Google Messages and Samsung Messages.
 
-To filter and auto-reply to MMS and RCS messages:
-1. When setup finishes and you land on the **Settings** screen, look for the **Incomplete Setup Warning** at the top.
-2. Tap **Grant Notification Access**.
-3. In Android's system settings under **Device & app notifications**, toggle **SMS Filter** on.
+Step 3 of the wizard handles this: tap **Grant Notification Access**, toggle **SMS Filter** on
+in Android's system settings under **Device & app notifications**, and return — the step updates
+on its own.
+
+If you skipped it during setup, the **Status** screen shows an **Incomplete Setup Warning** at the
+top with the same **Grant Notification Access** button, and clears it the moment the access is
+enabled.
 
 Without Notification Access, messages with image attachments (such as political flyers ending in `End2End`) cannot be received or opted out of.
 

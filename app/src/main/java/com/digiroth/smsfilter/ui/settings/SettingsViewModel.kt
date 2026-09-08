@@ -31,46 +31,27 @@ package com.digiroth.smsfilter.ui.settings
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.provider.Settings
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.digiroth.smsfilter.data.db.dao.OptOutPatternDao
-import com.digiroth.smsfilter.data.db.dao.StopListDao
-import com.digiroth.smsfilter.data.db.entity.MatchMode
-import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
-import com.digiroth.smsfilter.data.db.entity.ReplyType
-import com.digiroth.smsfilter.data.db.entity.StopListEntity
 import com.digiroth.smsfilter.data.repository.ContactLookupOutcome
 import com.digiroth.smsfilter.data.repository.ContactRepository
 import com.digiroth.smsfilter.data.repository.HubSpotRepository
-import com.digiroth.smsfilter.data.repository.HubSpotRepositoryImpl
 import com.digiroth.smsfilter.data.security.SecureTokenStore
 import com.digiroth.smsfilter.data.settings.ConnectionStatus
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import com.digiroth.smsfilter.ui.util.isNotificationListenerEnabled
+import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotResult
+import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotUseCase
+import com.digiroth.smsfilter.domain.hubspot.HubSpotConnectError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-/** Why a "Connect & Test" attempt failed, so the UI can explain the specific problem. */
-enum class HubSpotConnectError {
-    /** The token was rejected as invalid or revoked. */
-    INVALID_TOKEN,
-
-    /** The token is valid but lacks the crm.objects.contacts.read scope. */
-    MISSING_SCOPE,
-
-    /** HubSpot could not be reached. */
-    NETWORK,
-}
 
 /** Result of a Google Contacts diagnostic. */
 sealed interface ContactsCheck {
@@ -160,9 +141,9 @@ data class SettingsUiState(
  * the four-state HubSpot rule — in which two of the four states must never render as errors — lives
  * in one tested place.
  *
- * The stop list and pattern list are exposed as their own flows straight from Room rather than being
- * copied into [SettingsUiState], so an edit shows up without this class having to mirror the
- * database.
+ * The stop list and pattern editors moved to the Rules destination, each with its own ViewModel;
+ * what remains here is the preferences the user sets, the HubSpot credential flow, and the
+ * diagnostics that exercise both integrations.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -171,23 +152,14 @@ class SettingsViewModel @Inject constructor(
     private val secureTokenStore: SecureTokenStore,
     private val contactRepository: ContactRepository,
     private val hubSpotRepository: HubSpotRepository,
+    private val connectHubSpotUseCase: ConnectHubSpotUseCase,
     private val healthEvaluator: ConnectionHealthEvaluator,
-    private val stopListDao: StopListDao,
-    private val optOutPatternDao: OptOutPatternDao,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
 
     /** State for the Settings UI. */
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-
-    /** Live stop list, observed from Room. */
-    val stopList: StateFlow<List<StopListEntity>> = stopListDao.observeAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
-
-    /** Live opt-out patterns, observed from Room. */
-    val patterns: StateFlow<List<OptOutPatternEntity>> = optOutPatternDao.observeAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     /** Latest persisted HubSpot status, kept here so health can be derived synchronously. */
     private var lastHubSpotStatus: ConnectionStatus = ConnectionStatus.UNKNOWN
@@ -265,19 +237,6 @@ class SettingsViewModel @Inject constructor(
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) ==
             PackageManager.PERMISSION_GRANTED
 
-    /**
-     * Checks whether Notification Access is granted to this app.
-     *
-     * @param context Context used to query enabled notification listeners.
-     * @return `true` if Notification Access is active, `false` otherwise.
-     */
-    fun isNotificationListenerEnabled(context: Context): Boolean {
-        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(context)
-        if (enabledPackages.contains(context.packageName)) return true
-        val raw = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false
-        return raw.contains(context.packageName)
-    }
-
     /** @param enabled New auto-reply master switch value. */
     fun setAutoReplyEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsDataStore.setAutoReplyEnabled(enabled) }
@@ -327,33 +286,22 @@ class SettingsViewModel @Inject constructor(
     /**
      * Saves and validates a pasted Private App token.
      *
-     * The token must be written before testing, because the repository reads it from secure storage
-     * and accepts no token parameter. On failure it is cleared again, so a mistyped token never
-     * silently becomes the app's stored credential — and the status is reset to
-     * [ConnectionStatus.SETUP_INCOMPLETE], because a 401 will have persisted an auth error that is
-     * stale the instant the token is gone.
+     * The save-then-verify sequence, and the clear-on-failure guarantee that goes with it, live in
+     * [ConnectHubSpotUseCase] so the onboarding wizard performs them identically. This method owns
+     * only the screen state around the call: the in-flight spinner and the inline error.
      *
      * @param token The pasted token.
      */
     fun connectHubSpot(token: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isConnecting = true, connectError = null) }
-            secureTokenStore.saveAccessToken(token.trim())
 
-            when (val outcome = hubSpotRepository.testConnection()) {
-                is ContactLookupOutcome.Failed -> {
-                    secureTokenStore.clearAccessToken()
-                    settingsDataStore.setHubSpotStatus(ConnectionStatus.SETUP_INCOMPLETE)
-                    _uiState.update {
-                        it.copy(isConnecting = false, connectError = classify(outcome.reason))
-                    }
-                }
-
-                else -> {
-                    settingsDataStore.setHubSpotStatus(ConnectionStatus.CONNECTED)
-                    _uiState.update { it.copy(isConnecting = false, connectError = null) }
-                }
+            val error = when (val result = connectHubSpotUseCase(token)) {
+                is ConnectHubSpotResult.Failure -> result.error
+                ConnectHubSpotResult.Success -> null
             }
+
+            _uiState.update { it.copy(isConnecting = false, connectError = error) }
             refreshHealth()
         }
     }
@@ -388,7 +336,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(hubSpotCheck = HubSpotCheck.Running) }
             val result = when (val outcome = hubSpotRepository.testConnection()) {
-                is ContactLookupOutcome.Failed -> HubSpotCheck.Failed(classify(outcome.reason))
+                is ContactLookupOutcome.Failed -> HubSpotCheck.Failed(connectHubSpotUseCase.classify(outcome.reason))
                 else -> HubSpotCheck.Healthy
             }
             _uiState.update { it.copy(hubSpotCheck = result) }
@@ -400,72 +348,6 @@ class SettingsViewModel @Inject constructor(
     fun testAllConnections() {
         testContacts()
         if (_uiState.value.useHubSpot) testHubSpot()
-    }
-
-    /**
-     * Adds a stop-list keyword.
-     *
-     * Blank input is ignored: an empty keyword is a substring of every message and would silence
-     * the app entirely.
-     *
-     * @param keyword The keyword to add.
-     */
-    fun addStopListKeyword(keyword: String) {
-        val trimmed = keyword.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch { stopListDao.insert(StopListEntity(keyword = trimmed)) }
-    }
-
-    /** @param entity The stop-list row to remove. */
-    fun deleteStopListKeyword(entity: StopListEntity) {
-        viewModelScope.launch { stopListDao.delete(entity) }
-    }
-
-    /**
-     * Adds an opt-out pattern.
-     *
-     * @param pattern The pattern text; blank input is ignored.
-     * @param replyType Which keyword to reply with.
-     * @param matchMode How the pattern is evaluated.
-     */
-    fun addPattern(pattern: String, replyType: ReplyType, matchMode: MatchMode) {
-        val trimmed = pattern.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            optOutPatternDao.insert(
-                OptOutPatternEntity(pattern = trimmed, replyType = replyType, matchMode = matchMode),
-            )
-        }
-    }
-
-    /**
-     * Updates an existing opt-out pattern.
-     *
-     * Blank input is ignored.
-     *
-     * @param id The row ID of the pattern to update.
-     * @param pattern The updated pattern text; blank input is ignored.
-     * @param replyType Which keyword to reply with.
-     * @param matchMode How the pattern is evaluated.
-     */
-    fun updatePattern(id: Long, pattern: String, replyType: ReplyType, matchMode: MatchMode) {
-        val trimmed = pattern.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            optOutPatternDao.update(
-                OptOutPatternEntity(
-                    id = id,
-                    pattern = trimmed,
-                    replyType = replyType,
-                    matchMode = matchMode,
-                ),
-            )
-        }
-    }
-
-    /** @param entity The pattern row to remove. */
-    fun deletePattern(entity: OptOutPatternEntity) {
-        viewModelScope.launch { optOutPatternDao.delete(entity) }
     }
 
     /**
@@ -485,23 +367,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Maps an error reason string returned by [HubSpotRepository] to a categorized [HubSpotConnectError].
-     *
-     * @param reason The internal failure reason string.
-     * @return The classified [HubSpotConnectError] suitable for UI display.
-     */
-    private fun classify(reason: String): HubSpotConnectError = when {
-        reason == HubSpotRepositoryImpl.REASON_UNAUTHORIZED -> HubSpotConnectError.INVALID_TOKEN
-        reason == HubSpotRepositoryImpl.REASON_NO_TOKEN -> HubSpotConnectError.INVALID_TOKEN
-        reason.contains(FORBIDDEN_MARKER) -> HubSpotConnectError.MISSING_SCOPE
-        else -> HubSpotConnectError.NETWORK
-    }
-
     private companion object {
+        /** Keeps Room-backed flows alive briefly across configuration changes. */
         const val STOP_TIMEOUT_MS = 5_000L
-
-        /** Substring of the repository's `http_403` reason, meaning a missing scope. */
-        const val FORBIDDEN_MARKER = "403"
     }
 }

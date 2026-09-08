@@ -34,6 +34,9 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -74,6 +77,26 @@ class SecureTokenStore @Inject constructor(
     private val preferences: SharedPreferences? by lazy { openEncryptedPreferences() }
 
     /**
+     * Backing state for [hasToken].
+     *
+     * Lazy for the same reason [preferences] is: seeding it reads the token, which performs
+     * Keystore work, and this Hilt singleton may be constructed on a path that never touches
+     * HubSpot. Nothing forces it until something actually collects [hasToken] or mutates the
+     * token — and both of those already pay the Keystore cost.
+     */
+    private val _hasToken: MutableStateFlow<Boolean> by lazy { MutableStateFlow(hasAccessToken()) }
+
+    /**
+     * Whether a token is currently stored, as an observable value.
+     *
+     * [hasAccessToken] answers the same question but only when asked, which forces every consumer
+     * to poll. The Status screen shows HubSpot health beside the Settings screen that changes it,
+     * and without this flow a connect performed in Settings would leave Status reading
+     * "Setup incomplete" until something happened to re-run its health check.
+     */
+    val hasToken: StateFlow<Boolean> get() = _hasToken.asStateFlow()
+
+    /**
      * Reads the stored access token.
      *
      * @return The token, or `null` if none is stored or the encrypted store is unavailable.
@@ -96,7 +119,7 @@ class SecureTokenStore @Inject constructor(
         prefs.edit().putString(KEY_ACCESS_TOKEN, token).commit()
     }.onFailure { error ->
         Log.e(TAG, "Failed to persist access token", error)
-    }.getOrDefault(false)
+    }.getOrDefault(false).also { publishTokenPresence() }
 
     /**
      * Deletes the stored access token. Invoked by the explicit "Disconnect" action — turning
@@ -110,7 +133,7 @@ class SecureTokenStore @Inject constructor(
         prefs.edit().remove(KEY_ACCESS_TOKEN).commit()
     }.onFailure { error ->
         Log.e(TAG, "Failed to clear access token", error)
-    }.getOrDefault(false)
+    }.getOrDefault(false).also { publishTokenPresence() }
 
     /**
      * Whether a token is currently stored. Drives the "Setup incomplete" state in the
@@ -119,6 +142,16 @@ class SecureTokenStore @Inject constructor(
      * @return `true` if a non-blank token is present.
      */
     fun hasAccessToken(): Boolean = getAccessToken() != null
+
+    /**
+     * Re-reads token presence and pushes it to [hasToken].
+     *
+     * Called after every write and clear, and derived from the store rather than from the caller's
+     * intent: a write that silently failed must not leave observers believing a token is present.
+     */
+    private fun publishTokenPresence() {
+        _hasToken.value = hasAccessToken()
+    }
 
     /**
      * Opens the encrypted preferences file using AndroidX Security MasterKey and EncryptedSharedPreferences.

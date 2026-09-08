@@ -58,6 +58,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -94,31 +100,36 @@ import com.digiroth.smsfilter.data.db.entity.MatchMode
 import com.digiroth.smsfilter.data.db.entity.OptOutPatternEntity
 import com.digiroth.smsfilter.data.db.entity.ReplyType
 import com.digiroth.smsfilter.data.db.entity.StopListEntity
+import com.digiroth.smsfilter.domain.hubspot.HubSpotConnectError
 import com.digiroth.smsfilter.util.BuildInfo
 import android.provider.Settings as AndroidSettings
+import com.digiroth.smsfilter.ui.components.SectionDivider
+import com.digiroth.smsfilter.ui.components.SectionTitle
+import com.digiroth.smsfilter.ui.util.openUrl
 
 /**
- * The app's main screen: connection health, integrations, detection rules, and preferences.
+ * Application preferences, the HubSpot integration, and connection diagnostics.
+ *
+ * Pushed from the Status dashboard rather than being a peer destination, which is the platform
+ * convention for settings. Health indicators and the rule editors that once shared this screen
+ * now live on Status and Rules respectively; what remains is the things the user changes rather
+ * than the things the user checks.
  *
  * For official Android documentation on architecture and Navigation Compose, see:
  * - Architecture: [https://developer.android.com/topic/architecture](https://developer.android.com/topic/architecture)
  * - Navigation: [https://developer.android.com/guide/navigation/design](https://developer.android.com/guide/navigation/design)
  *
- * Connection health is re-derived on every `ON_RESUME` because contacts access can be revoked from
- * system settings while the app is backgrounded, and a stale green dot would misrepresent whether
- * the filter is actually working.
  *
- * @param onNavigateToLog Opens the activity and detection log.
+ * @param onNavigateBack Returns to the Status dashboard this screen was pushed from.
  * @param viewModel State holder, supplied by Hilt.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateToLog: () -> Unit = {},
+    onNavigateBack: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val stopList by viewModel.stopList.collectAsStateWithLifecycle()
-    val patterns by viewModel.patterns.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -132,7 +143,21 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Scaffold { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -140,67 +165,11 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
-            if (state.messageIntakeHealth != MessageIntakeHealth.FULL) {
-                IncompletePermissionsWarningCard(
-                    health = state.messageIntakeHealth,
-                    onOpenNotificationListenerSettings = { openNotificationListenerSettings(context) },
-                    onOpenAppSettings = { openAppSettings(context) },
-                )
-                Spacer(Modifier.height(16.dp))
-            }
-
-            ConnectionHealthSection(
-                googleHealth = state.googleContactsHealth,
-                hubSpotHealth = state.hubSpotHealth,
-                messageIntakeHealth = state.messageIntakeHealth,
-            )
-            SectionDivider()
-
-            GoogleContactsSection(
-                health = state.googleContactsHealth,
-                check = state.contactsCheck,
-                onTest = viewModel::testContacts,
-                onOpenAppSettings = { openAppSettings(context) },
-            )
-            SectionDivider()
-
-            RcsChatMessagesSection(
-                isNotificationAccessGranted = state.isNotificationAccessGranted,
-                onOpenNotificationListenerSettings = { openNotificationListenerSettings(context) },
-            )
-            SectionDivider()
-
-            HubSpotSection(
-                state = state,
-                onToggle = viewModel::setUseHubSpot,
-                onConnect = viewModel::connectHubSpot,
-                onDisconnect = viewModel::disconnectHubSpot,
-                onTest = viewModel::testHubSpot,
-                onOpenHelp = { openUrl(context, HUBSPOT_PRIVATE_APPS_URL) },
-            )
-            SectionDivider()
-
-            StopListSection(
-                keywords = stopList,
-                onAdd = viewModel::addStopListKeyword,
-                onDelete = viewModel::deleteStopListKeyword,
-            )
-            SectionDivider()
-
-            PatternsSection(
-                patterns = patterns,
-                onAdd = viewModel::addPattern,
-                onUpdate = viewModel::updatePattern,
-                onDelete = viewModel::deletePattern,
-            )
-            SectionDivider()
-
             AutoReplySection(
                 enabled = state.autoReplyEnabled,
                 onToggle = viewModel::setAutoReplyEnabled,
             )
             SectionDivider()
-
             SoundAndLanguageSection(
                 beepEnabled = state.beepOnOptOut,
                 notificationsEnabled = state.optOutNotificationEnabled,
@@ -211,7 +180,15 @@ fun SettingsScreen(
                 onLanguageSelected = viewModel::setAppLanguage,
             )
             SectionDivider()
-
+            HubSpotSection(
+                state = state,
+                onToggle = viewModel::setUseHubSpot,
+                onConnect = viewModel::connectHubSpot,
+                onDisconnect = viewModel::disconnectHubSpot,
+                onTest = viewModel::testHubSpot,
+                onOpenHelp = { openUrl(context, HUBSPOT_PRIVATE_APPS_URL) },
+            )
+            SectionDivider()
             DiagnosticsSection(
                 contactsCheck = state.contactsCheck,
                 hubSpotCheck = state.hubSpotCheck,
@@ -219,17 +196,9 @@ fun SettingsScreen(
             )
             SectionDivider()
 
-            OutlinedButton(onClick = onNavigateToLog, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.settings_open_log))
-            }
-            Spacer(Modifier.height(16.dp))
 
-            Text(
-                text = BuildInfo.formatBuildTime(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
+
+
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -238,279 +207,6 @@ fun SettingsScreen(
         HubSpotPromptDialog(
             onConnect = { viewModel.onHubSpotPromptDismissed(connect = true) },
             onDecline = { viewModel.onHubSpotPromptDismissed(connect = false) },
-        )
-    }
-}
-
-/**
- * Renders a visual divider with standard vertical spacing between settings sections.
- */
-@Composable
-private fun SectionDivider() {
-    Spacer(Modifier.height(16.dp))
-    HorizontalDivider()
-    Spacer(Modifier.height(16.dp))
-}
-
-/**
- * Renders a section header title.
- *
- * @param text The section title text to display.
- */
-@Composable
-private fun SectionTitle(text: String) {
-    Text(text = text, style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-}
-
-/**
- * Displays a prominent warning card when permissions or notification access are incomplete,
- * alerting the user that incoming messages may be missed.
- *
- * @param health The evaluated message intake health.
- * @param onOpenNotificationListenerSettings Launches notification access settings.
- * @param onOpenAppSettings Launches application details settings.
- */
-@Composable
-private fun IncompletePermissionsWarningCard(
-    health: MessageIntakeHealth,
-    onOpenNotificationListenerSettings: () -> Unit,
-    onOpenAppSettings: () -> Unit,
-) {
-    val isSmsDisabled = health == MessageIntakeHealth.DISABLED
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSmsDisabled) {
-                MaterialTheme.colorScheme.errorContainer
-            } else {
-                MaterialTheme.colorScheme.tertiaryContainer
-            },
-        ),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(
-                    if (isSmsDisabled) {
-                        R.string.settings_intake_warning_title_sms
-                    } else {
-                        R.string.settings_intake_warning_title_rcs_mms
-                    },
-                ),
-                style = MaterialTheme.typography.titleSmall,
-                color = if (isSmsDisabled) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                },
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = stringResource(
-                    if (isSmsDisabled) {
-                        R.string.settings_intake_warning_body_sms
-                    } else {
-                        R.string.settings_intake_warning_body_rcs_mms
-                    },
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (isSmsDisabled) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                },
-            )
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = if (isSmsDisabled) onOpenAppSettings else onOpenNotificationListenerSettings,
-            ) {
-                Text(
-                    text = stringResource(
-                        if (isSmsDisabled) {
-                            R.string.permission_action_open_settings
-                        } else {
-                            R.string.settings_rcs_action_enable
-                        },
-                    ),
-                )
-            }
-        }
-    }
-}
-
-/**
- * Renders the Connection Health Summary section with color-coded status dots for Google Contacts and HubSpot.
- *
- * @param googleHealth The evaluated Google Contacts connection health.
- * @param hubSpotHealth The evaluated HubSpot integration health.
- * @param messageIntakeHealth The evaluated message intake health across SMS, MMS, and RCS.
- */
-@Composable
-private fun ConnectionHealthSection(
-    googleHealth: GoogleContactsHealth,
-    hubSpotHealth: HubSpotHealth,
-    messageIntakeHealth: MessageIntakeHealth,
-) {
-    // Session-only dismissal: there is no preference key for this and adding one is out of scope,
-    // so the card reappearing after a cold start is the accepted trade-off.
-    var privacyCardDismissed by rememberSaveable { mutableStateOf(false) }
-
-    SectionTitle(stringResource(R.string.settings_health_title))
-
-    HealthRow(
-        label = stringResource(R.string.health_message_intake),
-        color = when (messageIntakeHealth) {
-            MessageIntakeHealth.FULL -> HealthColors.GREEN
-            MessageIntakeHealth.PARTIAL_SMS_ONLY -> HealthColors.AMBER
-            MessageIntakeHealth.DISABLED -> HealthColors.RED
-        },
-        status = stringResource(
-            when (messageIntakeHealth) {
-                MessageIntakeHealth.FULL -> R.string.health_intake_full
-                MessageIntakeHealth.PARTIAL_SMS_ONLY -> R.string.health_intake_partial
-                MessageIntakeHealth.DISABLED -> R.string.health_intake_disabled
-            },
-        ),
-    )
-    Spacer(Modifier.height(8.dp))
-    HealthRow(
-        label = stringResource(R.string.health_google_contacts),
-        color = when (googleHealth) {
-            GoogleContactsHealth.CONNECTED -> HealthColors.GREEN
-            GoogleContactsHealth.PERMISSION_REQUIRED -> HealthColors.RED
-        },
-        status = stringResource(
-            when (googleHealth) {
-                GoogleContactsHealth.CONNECTED -> R.string.health_connected
-                GoogleContactsHealth.PERMISSION_REQUIRED -> R.string.health_permission_required
-            },
-        ),
-    )
-    Spacer(Modifier.height(8.dp))
-    HealthRow(
-        label = stringResource(R.string.health_hubspot),
-        color = when (hubSpotHealth) {
-            HubSpotHealth.OFF -> HealthColors.GRAY
-            HubSpotHealth.SETUP_INCOMPLETE -> HealthColors.AMBER
-            HubSpotHealth.CONNECTED -> HealthColors.GREEN
-            HubSpotHealth.ERROR -> HealthColors.RED
-        },
-        status = stringResource(
-            when (hubSpotHealth) {
-                HubSpotHealth.OFF -> R.string.health_off
-                HubSpotHealth.SETUP_INCOMPLETE -> R.string.health_setup_incomplete
-                HubSpotHealth.CONNECTED -> R.string.health_connected
-                HubSpotHealth.ERROR -> R.string.health_error
-            },
-        ),
-    )
-
-    if (!privacyCardDismissed) {
-        Spacer(Modifier.height(12.dp))
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-        ) {
-            Column(Modifier.padding(12.dp)) {
-                Text(
-                    text = stringResource(R.string.settings_privacy_card),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(onClick = { privacyCardDismissed = true }) {
-                    Text(stringResource(R.string.common_dismiss))
-                }
-            }
-        }
-    }
-}
-
-/**
- * Renders a single connection health indicator row with a colored status dot, service label, and status text.
- *
- * @param label The name of the service or integration.
- * @param color The semantic color representing the health state.
- * @param status The human-readable status description.
- */
-@Composable
-private fun HealthRow(label: String, color: Color, status: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Spacer(
-            Modifier
-                .size(12.dp)
-                .background(color = color, shape = CircleShape),
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = status,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/**
- * Renders the Google Contacts settings section, including permission status, test connection button,
- * and a shortcut to system App Settings when permission is missing.
- *
- * @param health The current Google Contacts health state.
- * @param check The active or most recent Google Contacts check result.
- * @param onTest Callback to trigger a Google Contacts lookup diagnostic test.
- * @param onOpenAppSettings Callback to open system application settings.
- */
-@Composable
-private fun GoogleContactsSection(
-    health: GoogleContactsHealth,
-    check: ContactsCheck,
-    onTest: () -> Unit,
-    onOpenAppSettings: () -> Unit,
-) {
-    SectionTitle(stringResource(R.string.settings_google_title))
-    Text(
-        text = stringResource(
-            if (health == GoogleContactsHealth.CONNECTED) {
-                R.string.settings_google_permission_granted
-            } else {
-                R.string.settings_google_permission_denied
-            },
-        ),
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    if (health == GoogleContactsHealth.PERMISSION_REQUIRED) {
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onOpenAppSettings) {
-            Text(stringResource(R.string.permission_action_open_settings))
-        }
-    }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = onTest) { Text(stringResource(R.string.common_test_connection)) }
-    Spacer(Modifier.height(8.dp))
-    ContactsCheckText(check)
-}
-
-/**
- * Renders the status text resulting from a Google Contacts diagnostic test.
- *
- * @param check The current Google Contacts check result.
- */
-@Composable
-private fun ContactsCheckText(check: ContactsCheck) {
-    when (check) {
-        ContactsCheck.NotRun -> Unit
-        ContactsCheck.Running -> Text(
-            stringResource(R.string.connection_contacts_checking),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        is ContactsCheck.Accessible -> Text(
-            stringResource(R.string.connection_contacts_accessible, check.count),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        ContactsCheck.Denied -> Text(
-            stringResource(R.string.connection_contacts_denied),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
         )
     }
 }
@@ -645,282 +341,6 @@ private fun connectErrorMessage(error: HubSpotConnectError): Int = when (error) 
     HubSpotConnectError.INVALID_TOKEN -> R.string.settings_hubspot_error_invalid_token
     HubSpotConnectError.MISSING_SCOPE -> R.string.settings_hubspot_error_missing_scope
     HubSpotConnectError.NETWORK -> R.string.settings_hubspot_error_network
-}
-
-/**
- * Renders the Stop List management section for adding and deleting keyword rules.
- *
- * @param keywords List of active stop-list keyword entities.
- * @param onAdd Callback invoked to add a new stop-list keyword string.
- * @param onDelete Callback invoked to remove a stop-list keyword entity.
- */
-@Composable
-private fun StopListSection(
-    keywords: List<StopListEntity>,
-    onAdd: (String) -> Unit,
-    onDelete: (StopListEntity) -> Unit,
-) {
-    var input by rememberSaveable { mutableStateOf("") }
-
-    SectionTitle(stringResource(R.string.settings_stop_list_title))
-    if (keywords.isEmpty()) {
-        Text(
-            stringResource(R.string.settings_stop_list_empty),
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-    keywords.forEach { entry ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(entry.keyword, style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { onDelete(entry) }) {
-                Text(stringResource(R.string.common_delete))
-            }
-        }
-    }
-    Spacer(Modifier.height(8.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(
-            value = input,
-            onValueChange = { input = it },
-            label = { Text(stringResource(R.string.settings_stop_list_hint)) },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(8.dp))
-        Button(
-            onClick = {
-                onAdd(input)
-                input = ""
-            },
-            enabled = input.isNotBlank(),
-        ) {
-            Text(stringResource(R.string.common_add))
-        }
-    }
-}
-
-/**
- * Renders the Opt-Out Patterns configuration section, listing custom and default pattern rules
- * and providing an inline input row to add new patterns.
- *
- * @param patterns The list of active opt-out pattern entities.
- * @param onAdd Callback invoked to add a new pattern entity.
- * @param onUpdate Callback invoked to edit an existing pattern entity.
- * @param onDelete Callback invoked to delete an opt-out pattern entity.
- */
-@Composable
-private fun PatternsSection(
-    patterns: List<OptOutPatternEntity>,
-    onAdd: (String, ReplyType, MatchMode) -> Unit,
-    onUpdate: (Long, String, ReplyType, MatchMode) -> Unit,
-    onDelete: (OptOutPatternEntity) -> Unit,
-) {
-    var input by rememberSaveable { mutableStateOf("") }
-    var replyType by rememberSaveable { mutableStateOf(ReplyType.STOP) }
-    var matchMode by rememberSaveable { mutableStateOf(MatchMode.LAST_LINE_EXACT) }
-    var patternToEdit by remember { mutableStateOf<OptOutPatternEntity?>(null) }
-
-    SectionTitle(stringResource(R.string.settings_patterns_title))
-    Text(
-        stringResource(R.string.settings_patterns_case_note),
-        style = MaterialTheme.typography.bodySmall,
-    )
-    Spacer(Modifier.height(8.dp))
-
-    patterns.forEach { pattern ->
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { patternToEdit = pattern }
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(pattern.pattern, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = stringResource(matchModeLabel(pattern.matchMode)) +
-                        " · " + pattern.replyType.keyword,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            TextButton(onClick = { onDelete(pattern) }) {
-                Text(stringResource(R.string.common_delete))
-            }
-        }
-    }
-
-    patternToEdit?.let { target ->
-        EditPatternDialog(
-            pattern = target,
-            onDismiss = { patternToEdit = null },
-            onSave = onUpdate,
-        )
-    }
-
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
-        value = input,
-        onValueChange = { input = it },
-        label = { Text(stringResource(R.string.settings_patterns_hint)) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(8.dp))
-
-    Text(
-        stringResource(R.string.settings_patterns_reply_type),
-        style = MaterialTheme.typography.labelMedium,
-    )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ReplyType.entries.forEach { type ->
-            RadioButton(selected = replyType == type, onClick = { replyType = type })
-            Text(type.keyword, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.width(8.dp))
-        }
-    }
-
-    Text(
-        stringResource(R.string.settings_patterns_match_mode),
-        style = MaterialTheme.typography.labelMedium,
-    )
-    MatchMode.entries.forEach { mode ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = matchMode == mode, onClick = { matchMode = mode })
-            Text(stringResource(matchModeLabel(mode)), style = MaterialTheme.typography.bodySmall)
-        }
-    }
-
-    Spacer(Modifier.height(8.dp))
-    Button(
-        onClick = {
-            onAdd(input, replyType, matchMode)
-            input = ""
-        },
-        enabled = input.isNotBlank(),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(stringResource(R.string.common_add))
-    }
-}
-
-/**
- * Dialog for editing an existing opt-out pattern's keyword, reply type, and match mode.
- *
- * @param pattern The pattern entity being edited.
- * @param onDismiss Callback invoked when the dialog is cancelled or dismissed.
- * @param onSave Callback invoked with the updated pattern values (id, pattern, replyType, matchMode).
- */
-@Composable
-private fun EditPatternDialog(
-    pattern: OptOutPatternEntity,
-    onDismiss: () -> Unit,
-    onSave: (Long, String, ReplyType, MatchMode) -> Unit,
-) {
-    var text by rememberSaveable { mutableStateOf(pattern.pattern) }
-    var replyType by rememberSaveable { mutableStateOf(pattern.replyType) }
-    var matchMode by rememberSaveable { mutableStateOf(pattern.matchMode) }
-
-    val trimmed = text.trim()
-    val isChanged = (trimmed != pattern.pattern) || (replyType != pattern.replyType) || (matchMode != pattern.matchMode)
-    val isValid = trimmed.isNotEmpty() && isChanged
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_patterns_edit_title)) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text(stringResource(R.string.settings_patterns_hint)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    stringResource(R.string.settings_patterns_reply_type),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ReplyType.entries.forEach { type ->
-                        RadioButton(selected = replyType == type, onClick = { replyType = type })
-                        Text(type.keyword, style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    stringResource(R.string.settings_patterns_match_mode),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                MatchMode.entries.forEach { mode ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = matchMode == mode, onClick = { matchMode = mode })
-                        Text(stringResource(matchModeLabel(mode)), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    text = stringResource(matchModeExplanation(matchMode)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(pattern.id, trimmed, replyType, matchMode)
-                    onDismiss()
-                },
-                enabled = isValid,
-            ) {
-                Text(stringResource(R.string.common_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.common_cancel))
-            }
-        },
-    )
-}
-
-/**
- * Resolves the descriptive explanation string resource ID for a given match mode.
- *
- * @param mode The match mode to explain.
- * @return String resource ID explaining the matching rule behavior.
- */
-private fun matchModeExplanation(mode: MatchMode): Int = when (mode) {
-    MatchMode.ANYWHERE -> R.string.match_mode_anywhere_desc
-    MatchMode.LAST_LINE_EXACT -> R.string.match_mode_last_line_desc
-    MatchMode.LAST_LINE_CONTAINS -> R.string.match_mode_last_line_contains_desc
-}
-
-/**
- * Resolves the short display name string resource ID for a given match mode.
- *
- * @param mode The match mode to name.
- * @return String resource ID of the match mode label.
- */
-private fun matchModeLabel(mode: MatchMode): Int = when (mode) {
-    MatchMode.ANYWHERE -> R.string.match_mode_anywhere
-    MatchMode.LAST_LINE_EXACT -> R.string.match_mode_last_line
-    MatchMode.LAST_LINE_CONTAINS -> R.string.match_mode_last_line_contains
 }
 
 /**
@@ -1146,81 +566,26 @@ private val LANGUAGES = listOf(
 )
 
 /**
- * Renders the RCS and Chat Messages notification listener status and configuration section.
+ * Renders the status text resulting from a Google Contacts diagnostic test.
  *
- * @param isNotificationAccessGranted Whether system Notification Access is granted to the app.
- * @param onOpenNotificationListenerSettings Callback to open the system Notification Access settings screen.
+ * @param check The current Google Contacts check result.
  */
 @Composable
-private fun RcsChatMessagesSection(
-    isNotificationAccessGranted: Boolean,
-    onOpenNotificationListenerSettings: () -> Unit,
-) {
-    SectionTitle(stringResource(R.string.settings_rcs_title))
-    Text(
-        text = stringResource(R.string.settings_rcs_subtitle),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(Modifier.height(8.dp))
-    Text(
-        text = stringResource(
-            if (isNotificationAccessGranted) {
-                R.string.settings_rcs_status_enabled
-            } else {
-                R.string.settings_rcs_status_disabled
-            },
-        ),
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    if (!isNotificationAccessGranted) {
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onOpenNotificationListenerSettings) {
-            Text(stringResource(R.string.settings_rcs_action_enable))
-        }
-    }
-}
-
-/**
- * Launches the system Notification Listener access settings screen.
- *
- * @param context Android context used to launch the settings activity.
- */
-private fun openNotificationListenerSettings(context: Context) {
-    runCatching {
-        context.startActivity(
-            Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+private fun ContactsCheckText(check: ContactsCheck) {
+    when (check) {
+        ContactsCheck.NotRun -> Unit
+        ContactsCheck.Running -> Text(
+            stringResource(R.string.connection_contacts_checking),
+            style = MaterialTheme.typography.bodySmall,
         )
-    }
-}
-
-/**
- * Launches the system Application Details Settings screen for this package.
- *
- * @param context Android context used to launch the settings activity.
- */
-private fun openAppSettings(context: Context) {
-    runCatching {
-        context.startActivity(
-            Intent(
-                AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.fromParts("package", context.packageName, null),
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        is ContactsCheck.Accessible -> Text(
+            stringResource(R.string.connection_contacts_accessible, check.count),
+            style = MaterialTheme.typography.bodySmall,
         )
-    }
-}
-
-/**
- * Opens a web URL in the system browser.
- *
- * @param context Android context used to launch the browser intent.
- * @param url The external URL string to open.
- */
-private fun openUrl(context: Context, url: String) {
-    runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        ContactsCheck.Denied -> Text(
+            stringResource(R.string.connection_contacts_denied),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
         )
     }
 }

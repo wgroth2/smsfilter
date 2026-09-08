@@ -31,7 +31,12 @@ package com.digiroth.smsfilter.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.digiroth.smsfilter.data.repository.ContactRepository
+import android.content.Context
 import com.digiroth.smsfilter.data.settings.SettingsDataStore
+import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotResult
+import com.digiroth.smsfilter.domain.hubspot.ConnectHubSpotUseCase
+import com.digiroth.smsfilter.domain.hubspot.HubSpotConnectError
+import com.digiroth.smsfilter.ui.util.isNotificationListenerEnabled
 import com.digiroth.smsfilter.ui.permissions.AppPermissions
 import com.digiroth.smsfilter.ui.permissions.PermissionState
 import com.digiroth.smsfilter.ui.permissions.PermissionStateEvaluator
@@ -43,7 +48,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** The wizard's three sequential steps. */
+/** The wizard's four sequential steps. */
 enum class OnboardingStep {
     /** Explains what the app does. */
     WELCOME,
@@ -51,7 +56,15 @@ enum class OnboardingStep {
     /** Requests the runtime permissions. */
     PERMISSIONS,
 
-    /** Verifies contacts access and discloses the auto-reply default. */
+    /**
+     * Offers Notification Access, which MMS and RCS filtering depend on.
+     *
+     * Non-blocking. Skipping it leaves cellular SMS filtering fully working, and the Status
+     * dashboard keeps surfacing the gap afterwards, so refusing here is recoverable.
+     */
+    NOTIFICATION_ACCESS,
+
+    /** Verifies contacts access, offers HubSpot, and discloses the auto-reply default. */
     CONNECTION_TEST,
     ;
 
@@ -65,7 +78,7 @@ enum class OnboardingStep {
     }
 }
 
-/** Outcome of the step 3 contacts check. */
+/** Outcome of the contacts check on the final step. */
 sealed interface ContactsTestResult {
 
     /** Not yet run. */
@@ -90,13 +103,21 @@ sealed interface ContactsTestResult {
  *
  * @property step The step currently displayed.
  * @property permissionStates Evaluated state per permission.
- * @property contactsTest Result of the step 3 check.
+ * @property isNotificationAccessGranted Whether Notification Access is currently granted.
+ * @property contactsTest Result of the contacts check.
+ * @property hubSpotConnecting Whether an optional HubSpot connect is in flight.
+ * @property hubSpotConnected Whether HubSpot was connected during the wizard.
+ * @property hubSpotError Inline error under the token field, if the last attempt failed.
  * @property isFinished Set once onboarding has been marked complete, so navigation can react.
  */
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.WELCOME,
     val permissionStates: Map<String, PermissionState> = emptyMap(),
+    val isNotificationAccessGranted: Boolean = false,
     val contactsTest: ContactsTestResult = ContactsTestResult.NotRun,
+    val hubSpotConnecting: Boolean = false,
+    val hubSpotConnected: Boolean = false,
+    val hubSpotError: HubSpotConnectError? = null,
     val isFinished: Boolean = false,
 ) {
     /** Whether every blocking permission is granted, so step 2 may be left. */
@@ -138,6 +159,7 @@ class OnboardingViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
     private val contactRepository: ContactRepository,
     private val permissionStateEvaluator: PermissionStateEvaluator,
+    private val connectHubSpotUseCase: ConnectHubSpotUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
@@ -203,13 +225,37 @@ class OnboardingViewModel @Inject constructor(
 
     /**
      * Advances past the permissions step, if the blocking permissions allow it.
-     *
-     * Runs the contacts check on arrival so step 3 shows a result immediately.
      */
     fun onPermissionsContinue() {
         if (!_uiState.value.canLeavePermissionsStep) return
+        _uiState.update { it.copy(step = OnboardingStep.NOTIFICATION_ACCESS) }
+    }
+
+    /**
+     * Advances past the Notification Access step, granted or not.
+     *
+     * Deliberately unconditional. Notification Access only affects MMS and RCS; blocking here
+     * would strand a user who declines it, and cellular SMS filtering — the app's core function —
+     * works without it.
+     *
+     * Runs the contacts check on arrival so the final step shows a result immediately.
+     */
+    fun onNotificationAccessContinue() {
         _uiState.update { it.copy(step = OnboardingStep.CONNECTION_TEST) }
         runContactsTest()
+    }
+
+    /**
+     * Re-reads Notification Access from the platform.
+     *
+     * Called on every resume, so returning from the system settings screen updates this step
+     * without the user tapping anything.
+     *
+     * @param context Context used to query enabled notification listeners.
+     */
+    fun onNotificationAccessRefreshed(context: Context) {
+        val granted = isNotificationListenerEnabled(context)
+        _uiState.update { it.copy(isNotificationAccessGranted = granted) }
     }
 
     /** Returns to the previous step. */
@@ -218,7 +264,8 @@ class OnboardingViewModel @Inject constructor(
             val previous = when (state.step) {
                 OnboardingStep.WELCOME -> OnboardingStep.WELCOME
                 OnboardingStep.PERMISSIONS -> OnboardingStep.WELCOME
-                OnboardingStep.CONNECTION_TEST -> OnboardingStep.PERMISSIONS
+                OnboardingStep.NOTIFICATION_ACCESS -> OnboardingStep.PERMISSIONS
+                OnboardingStep.CONNECTION_TEST -> OnboardingStep.NOTIFICATION_ACCESS
             }
             state.copy(step = previous)
         }
@@ -247,6 +294,40 @@ class OnboardingViewModel @Inject constructor(
     }
 
     /**
+     * Connects an optional HubSpot token entered during the final step.
+     *
+     * Delegates to [ConnectHubSpotUseCase] so the save-then-verify ordering, and the
+     * clear-on-failure guarantee that goes with it, are identical to the Settings screen's. A
+     * failure here never blocks the wizard: HubSpot is optional and can be set up later.
+     *
+     * @param token The pasted Private App access token.
+     */
+    fun onConnectHubSpot(token: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(hubSpotConnecting = true, hubSpotError = null) }
+            when (val result = connectHubSpotUseCase(token)) {
+                is ConnectHubSpotResult.Failure -> _uiState.update {
+                    it.copy(hubSpotConnecting = false, hubSpotError = result.error)
+                }
+
+                ConnectHubSpotResult.Success -> {
+                    settingsDataStore.setUseHubSpot(true)
+                    // The one-time post-setup prompt asks whether to connect HubSpot. Connecting
+                    // it here answers that question, so the prompt must never fire afterwards.
+                    settingsDataStore.setHubSpotPromptShown(true)
+                    _uiState.update {
+                        it.copy(
+                            hubSpotConnecting = false,
+                            hubSpotConnected = true,
+                            hubSpotError = null,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Marks onboarding complete.
      *
      * This is the only place in the app that sets `firstRunComplete`. The SMS pipeline's onboarding
@@ -267,7 +348,10 @@ class OnboardingViewModel @Inject constructor(
      * @return The step to display.
      */
     fun resolveResumeStep(): OnboardingStep = if (_uiState.value.canLeavePermissionsStep) {
-        OnboardingStep.CONNECTION_TEST
+        // Resumes at Notification Access rather than the final step: it is the one thing a
+        // half-finished run is most likely to be missing, and it is not recorded anywhere that
+        // would let the wizard know it had already been offered.
+        OnboardingStep.NOTIFICATION_ACCESS
     } else {
         OnboardingStep.PERMISSIONS
     }

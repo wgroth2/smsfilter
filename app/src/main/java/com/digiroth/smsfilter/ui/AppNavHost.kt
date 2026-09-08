@@ -30,32 +30,42 @@ package com.digiroth.smsfilter.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.digiroth.smsfilter.platform.NotificationRoute
 import com.digiroth.smsfilter.ui.log.DetectionLogScreen
 import com.digiroth.smsfilter.ui.onboarding.OnboardingScreen
+import com.digiroth.smsfilter.ui.rules.RulesScreen
 import com.digiroth.smsfilter.ui.settings.SettingsScreen
+import com.digiroth.smsfilter.ui.status.StatusScreen
 
 /** Navigation route names. */
 object AppRoute {
     /** The first-run wizard. */
     const val ONBOARDING: String = "onboarding"
 
-    /** The settings screen, which is the app's home. */
-    const val SETTINGS: String = "settings"
+    /** The health dashboard, and the app's home. */
+    const val STATUS: String = "status"
 
     /** The activity and detection log. */
-    const val DETECTION_LOG: String = "detection_log"
+    const val ACTIVITY: String = "activity"
+
+    /** The stop list and opt-out patterns, as tabs. */
+    const val RULES: String = "rules"
+
+    /** Application settings; pushed from Status rather than a peer destination. */
+    const val SETTINGS: String = "settings"
 }
 
 /**
@@ -69,13 +79,22 @@ object AppRoute {
  * asynchronously, and picking a default would show one screen and then replace it — visible as a
  * flash of the wizard for users who finished setup long ago.
  *
- * @param requestedScreen The value of `NotificationRoute.EXTRA_OPEN_SCREEN` from the launching
- *   intent, or `null` for an ordinary launcher start.
+ * **The start destination never varies by launch intent.** An earlier design made a notification tap
+ * start the graph at the log itself, which left nothing beneath it: `popUpTo(STATUS)` was a silent
+ * no-op because Status had never been pushed, and system Back exited the app instead of returning to
+ * the dashboard. A notification is now handled as a navigation *event* after composition, so Status
+ * is genuinely underneath and Back behaves.
+ *
+ * @param requestedScreen The value of `NotificationRoute.EXTRA_OPEN_SCREEN` from the launching or
+ *   most recent intent, or `null` for an ordinary launcher start.
+ * @param onRequestedScreenHandled Invoked once the request has been navigated, so a recomposition
+ *   or configuration change cannot replay the same tap.
  * @param viewModel Supplies the start destination.
  */
 @Composable
 fun AppNavHost(
     requestedScreen: String?,
+    onRequestedScreenHandled: () -> Unit,
     viewModel: MainViewModel = hiltViewModel(),
 ) {
     val startDestination by viewModel.startDestination.collectAsStateWithLifecycle()
@@ -84,59 +103,78 @@ fun AppNavHost(
     when (startDestination) {
         null -> LoadingScreen()
 
-        StartDestination.ONBOARDING -> NavGraph(
-            navController = navController,
-            startRoute = AppRoute.ONBOARDING,
-        )
+        StartDestination.ONBOARDING -> AppScaffold(navController) { padding ->
+            NavGraph(navController, AppRoute.ONBOARDING, Modifier.padding(padding))
+        }
 
-        StartDestination.MAIN -> NavGraph(
-            navController = navController,
-            // A notification tap routes straight to the screen it refers to. Ordinary launcher
-            // starts land on Settings — never on a hidden or backgrounded task, which would leave
-            // the user unable to reach Settings at all.
-            startRoute = when (requestedScreen) {
-                NotificationRoute.SCREEN_DETECTION_LOG -> AppRoute.DETECTION_LOG
-                else -> AppRoute.SETTINGS
-            },
-        )
+        StartDestination.MAIN -> {
+            AppScaffold(navController) { padding ->
+                NavGraph(navController, AppRoute.STATUS, Modifier.padding(padding))
+            }
+
+            // Deliberately not keyed on the NavController: this reacts to a new intent arriving,
+            // and clearing the request afterwards is what stops it firing again on recomposition.
+            LaunchedEffect(requestedScreen) {
+                val target = NotificationRouteResolver.resolve(requestedScreen)
+                    ?: return@LaunchedEffect
+
+                navController.navigate(target) {
+                    // Anchor on Status so Back from the opened screen returns to the dashboard
+                    // rather than leaving the app.
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                onRequestedScreenHandled()
+            }
+        }
     }
 }
 
 /**
- * Builds the application [NavHost] destinations and back-stack transitions.
+ * Builds the application [NavHost] destinations.
  *
  * @param navController The navigation controller managing app navigation.
  * @param startRoute The initial destination route.
+ * @param modifier Applied to the host so bottom-bar insets reach every screen.
  */
 @Composable
-private fun NavGraph(navController: NavHostController, startRoute: String) {
-    NavHost(navController = navController, startDestination = startRoute) {
+private fun NavGraph(
+    navController: NavHostController,
+    startRoute: String,
+    modifier: Modifier = Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = startRoute,
+        modifier = modifier,
+    ) {
         composable(AppRoute.ONBOARDING) {
             OnboardingScreen(
                 onFinished = {
-                    navController.navigate(AppRoute.SETTINGS) {
-                        // The wizard must not remain on the back stack: pressing back from Settings
+                    navController.navigate(AppRoute.STATUS) {
+                        // The wizard must not remain on the back stack: pressing back from Status
                         // should leave the app, not re-enter setup that is already complete.
                         popUpTo(AppRoute.ONBOARDING) { inclusive = true }
                     }
                 },
             )
         }
-        composable(AppRoute.SETTINGS) {
-            SettingsScreen(
-                onNavigateToLog = { navController.navigate(AppRoute.DETECTION_LOG) },
+        composable(AppRoute.STATUS) {
+            StatusScreen(
+                onNavigateToSettings = { navController.navigate(AppRoute.SETTINGS) },
             )
         }
-        composable(AppRoute.DETECTION_LOG) {
-            DetectionLogScreen(
-                // popBackStack returns false when the log is the start destination, which happens
-                // when the screen was opened straight from a notification tap. Fall back to
-                // navigating to Settings so the button is never a dead control.
-                onNavigateBack = {
-                    if (!navController.popBackStack()) {
-                        navController.navigate(AppRoute.SETTINGS)
-                    }
-                },
+        composable(AppRoute.ACTIVITY) {
+            // No back affordance: this is a peer destination, reached from the bottom bar.
+            DetectionLogScreen()
+        }
+        composable(AppRoute.RULES) {
+            RulesScreen()
+        }
+        composable(AppRoute.SETTINGS) {
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
             )
         }
     }

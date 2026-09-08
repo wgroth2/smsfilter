@@ -36,6 +36,8 @@ import android.provider.ContactsContract
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.annotation.VisibleForTesting
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -60,6 +62,17 @@ class ContactRepository @Inject constructor(
 ) {
 
     /**
+     * Dispatcher the ContentResolver queries run on.
+     *
+     * Production always uses [Dispatchers.IO] — a contacts query is blocking disk I/O and must not
+     * occupy the main thread. It is overridable only so JVM tests can run the query on their own
+     * scheduler; without that a test cannot await the result deterministically, and a query still
+     * in flight when the test ends leaks into the next one.
+     */
+    @VisibleForTesting
+    internal var queryDispatcher: CoroutineDispatcher = Dispatchers.IO
+
+    /**
      * Whether the sender matches a saved contact.
      *
      * **Permission guard.** `READ_CONTACTS` is checked before every query, and a missing
@@ -75,7 +88,7 @@ class ContactRepository @Inject constructor(
      *   itself errored.
      */
     suspend fun isKnownContact(lookupValue: String): ContactLookupOutcome =
-        withContext(Dispatchers.IO) {
+        withContext(queryDispatcher) {
             if (lookupValue.isBlank()) return@withContext ContactLookupOutcome.NotFound
 
             if (!hasReadContactsPermission()) {
@@ -110,7 +123,7 @@ class ContactRepository @Inject constructor(
      * @return The number of contacts with a phone number, or `null` if the permission is missing
      *   or the query failed.
      */
-    suspend fun countContactsWithPhoneNumbers(): Int? = withContext(Dispatchers.IO) {
+    suspend fun countContactsWithPhoneNumbers(): Int? = withContext(queryDispatcher) {
         if (!hasReadContactsPermission()) return@withContext null
 
         runCatching {
@@ -135,6 +148,7 @@ class ContactRepository @Inject constructor(
             PackageManager.PERMISSION_GRANTED
 
     private companion object {
+        /** Logging tag for this class. */
         const val TAG = "ContactRepository"
     }
 }

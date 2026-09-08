@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -80,12 +81,13 @@ private const val TAG: String = "DetectionLogScreen"
  * the timestamp, message source designator badge, optional sender address chip (which can be tapped
  * to open the messaging app), event-specific outcome/reason, and the message preview.
  *
- * @param onNavigateBack Returns to Settings.
+ * @param onNavigateBack Returns to the previous screen, or `null` when this screen is a
+ *   bottom-bar peer destination and therefore has no back affordance of its own.
  * @param viewModel State holder, supplied by Hilt.
  */
 @Composable
 fun DetectionLogScreen(
-    onNavigateBack: () -> Unit = {},
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: DetectionLogViewModel = hiltViewModel(),
 ) {
     val entries by viewModel.entries.collectAsStateWithLifecycle()
@@ -126,8 +128,12 @@ fun DetectionLogScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                OutlinedButton(onClick = onNavigateBack) {
-                    Text(stringResource(R.string.log_back))
+                if (onNavigateBack != null) {
+                    OutlinedButton(onClick = onNavigateBack) {
+                        Text(stringResource(R.string.log_back))
+                    }
+                } else {
+                    Spacer(Modifier.width(0.dp))
                 }
                 OutlinedButton(onClick = viewModel::clearLog, enabled = entries.isNotEmpty()) {
                     Text(stringResource(R.string.log_clear))

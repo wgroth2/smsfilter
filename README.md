@@ -44,7 +44,7 @@ graph TD
 - **`[RCS]`**: Rich Communication Services chat messages intercepted in real time via `NotificationListenerService` with inline direct reply capability (`RemoteInput`).
 - **`[MMS]`**: Multimedia messages (picture attachments, long multimedia texts, and group threads) intercepted via `NotificationListenerService` and resolved via telephony MMS storage (`MmsTextResolver`).
 
-> **Note on Permissions:** Cellular SMS uses standard runtime permissions (`RECEIVE_SMS`, `SEND_SMS`). Because Android does not deliver MMS broadcasts to non-default messaging apps, **MMS and RCS interception requires Notification Access** (`Settings > Apps > Special app access > Device & app notifications`). The app monitors this and warns you on the Settings screen if Notification Access is not yet enabled.
+> **Note on Permissions:** Cellular SMS uses standard runtime permissions (`RECEIVE_SMS`, `SEND_SMS`). Because Android does not deliver MMS broadcasts to non-default messaging apps, **MMS and RCS interception requires Notification Access** (`Settings > Apps > Special app access > Device & app notifications`). The setup wizard offers this grant as its own step, and the Status screen warns you afterwards if it is still missing.
 
 **Detection is two-tiered.** A user-defined *stop list* ignores a message outright if it contains any listed keyword — checked first, so an ignored message costs no lookups. Anything surviving that is tested against *opt-out patterns*, each carrying its own match mode: `ANYWHERE` matches as a substring, while `LAST_LINE_EXACT` matches only when the final non-empty line is exactly the pattern word.
 
@@ -74,13 +74,18 @@ The app never permanently stores private address books on device. This is a stru
 
 ## Key Features & UI
 
-1. **Activity & Detection Log:**
+1. **Standard Android navigation:** a Material 3 bottom bar with three destinations — **Status**
+   (health dashboard and home), **Activity** (the detection log), and **Rules** (Stop List and
+   Opt-Out Patterns as tabs). Settings is pushed from the gear on Status, the platform convention.
+   Notification taps deep-link into Activity with Status beneath, so system Back never exits
+   the app from a tapped notification.
+2. **Activity & Detection Log:**
    - Real-time log cards showing timestamp, message type badge (`[SMS]`, `[RCS]`, `[MMS]`), and status.
    - **Click-to-Message:** Senders are displayed as clickable chips in the card header. Tapping a sender opens the conversation directly in your default messaging app (e.g. Google Messages) using `smsto:` intents.
-2. **Interactive Pattern Management:**
-   - Tap any pattern in **Settings → Opt-Out Patterns** to open the edit dialog and modify keywords, reply types (`STOP` vs `END`), or match modes (`ANYWHERE` vs `LAST_LINE_EXACT`).
-3. **Build Metadata & Versioning:**
-   - Displays live build timestamp and a monotonically increasing build sequence number (e.g. `Build: 21 Aug 2026, 12:35:45 PDT (#44)`) at the bottom of the Settings screen.
+3. **Interactive Pattern Management:**
+   - Tap any pattern in **Rules → Opt-Out Patterns** to open the edit dialog and modify keywords, reply types (`STOP` vs `END`), or match modes (`ANYWHERE` vs `LAST_LINE_EXACT`). The tab's overflow menu offers **Reset to Defaults** behind a confirmation.
+4. **Build Metadata & Versioning:**
+   - Displays live build timestamp and a monotonically increasing build sequence number (e.g. `Build: 21 Aug 2026, 12:35:45 PDT (#44)`) at the foot of the Status screen.
 
 ---
 
@@ -93,14 +98,16 @@ app/src/main/java/com/digiroth/smsfilter/
 ├── receiver/     SmsReceiver, RcsNotificationListenerService
 ├── worker/       SmsLookupWorker (thin adapter) + SmsProcessingPipeline (pure Kotlin engine)
 ├── detection/    OptOutDetector, StopListMatcher, OptOutResult
+├── domain/       ConnectHubSpotUseCase — the save-verify-clear token flow shared by onboarding and Settings
 ├── data/
-│   ├── db/       Room entities, DAOs, AppDatabase (Schema v4 with migrations)
+│   ├── db/       Room entities, DAOs, AppDatabase (Schema v5 with migrations)
 │   ├── remote/   Retrofit service + Moshi models for HubSpot
 │   ├── repository/  ContactRepository, HubSpotRepository, lookup cache
 │   ├── settings/ SettingsDataStore — single source for scalar preferences
 │   └── security/ SecureTokenStore — EncryptedSharedPreferences
 ├── platform/     Thin wrappers over SmsManager, RemoteInput direct reply, notifications, ringtones
-├── ui/           Compose screens: onboarding, permissions, settings, log
+├── ui/           Compose screens: onboarding, permissions, status, log, rules, settings
+│                 plus AppScaffold (bottom bar), AppNavHost, and shared components/util
 ├── util/         Phone normalization, hashing, time, logging, build metadata
 └── di/           Hilt modules
 ```

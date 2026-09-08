@@ -165,4 +165,43 @@
     <string name="log_clear">Borrar registro</string>
     <string name="log_empty">Aún no se ha registrado ninguna actividad.</string>
     <string name="log_back">Atrás</string>
+
+    <!-- Bottom navigation bar -->
+    <string name="nav_status">Estado</string>
+    <string name="nav_activity">Actividad</string>
+    <string name="nav_rules">Reglas</string>
+
+    <!-- Top-level screen titles and actions -->
+    <string name="status_title">SMS Filter</string>
+    <string name="rules_title">Reglas</string>
+    <string name="action_open_settings">Abrir ajustes</string>
+
+    <!-- Placeholder bodies, replaced when each screen is built -->
+    <string name="status_placeholder_body">El panel de estado se implementa en la siguiente fase.</string>
+    <string name="rules_placeholder_body">Los editores de la lista de exclusión y de patrones de baja se trasladan aquí en la siguiente fase.</string>
+
+    <!-- Rules screen -->
+    <string name="rules_more_actions">Más acciones</string>
+    <string name="rules_reset_defaults">Restablecer valores predeterminados</string>
+    <string name="rules_reset_confirm">Restablecer</string>
+    <string name="rules_reset_confirm_body">Esto elimina todos los patrones de baja, incluidos los que hayas añadido, y restaura los que trae la aplicación. No se puede deshacer.</string>
+
+    <!-- Status screen recent activity -->
+    <string name="status_recent_activity_title">Actividad reciente</string>
+    <string name="status_evaluated_today">%1$d mensajes evaluados hoy</string>
+    <string name="status_last_detection">Última baja: %1$s — %2$s</string>
+    <string name="status_no_detections_yet">Aún no se ha detectado ninguna baja.</string>
+
+    <!-- Onboarding step 3: Notification Access -->
+    <string name="onboarding_notification_access_title">Acceso a notificaciones</string>
+    <string name="onboarding_notification_access_body">Los mensajes políticos y promocionales suelen llegar como mensajes MMS con imágenes (folletos) o chats RCS en lugar de SMS normales.</string>
+    <string name="onboarding_notification_access_why">Android solo permite que una aplicación que no es tu aplicación de mensajería predeterminada los vea mediante el acceso a notificaciones, un permiso aparte que concedes en los ajustes del sistema.</string>
+    <string name="onboarding_notification_access_return_note">Saldrás de la aplicación un momento. Al volver, este paso se actualiza solo — no hace falta tocar nada.</string>
+    <string name="onboarding_notification_access_skip_note">Si omites esto: SMS Filter seguirá filtrando los SMS normales. Los MMS con imágenes y los chats RCS no se detectarán hasta que actives el acceso a notificaciones desde Ajustes.</string>
+    <string name="onboarding_skip_for_now">Omitir por ahora</string>
+
+    <!-- Onboarding step 4: optional HubSpot -->
+    <string name="onboarding_hubspot_title">¿Conectar HubSpot CRM?</string>
+    <string name="onboarding_hubspot_body">Opcional. SMS Filter también puede comprobar los remitentes desconocidos en tus contactos de HubSpot. Puedes omitirlo y conectarlo más tarde desde Ajustes.</string>
+    <string name="onboarding_hubspot_connected">HubSpot conectado.</string>
 </resources>

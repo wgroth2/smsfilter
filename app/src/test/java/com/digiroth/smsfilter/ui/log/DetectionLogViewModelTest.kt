@@ -244,6 +244,11 @@ class DetectionLogViewModelTest {
             excludedType: LogEventType,
         ): Flow<List<DetectionLogEntity>> = flowOf(emptyList())
 
+        override fun observeCountSince(since: Long): Flow<Int> = flowOf(0)
+
+        override fun observeLatestByType(eventType: LogEventType): Flow<DetectionLogEntity?> =
+            flowOf(null)
+
         override fun observeRecentByType(
             eventType: LogEventType,
             limit: Int,

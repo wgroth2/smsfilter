@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.digiroth.smsfilter.R
+import com.digiroth.smsfilter.ui.onboarding.OnboardingStep
 
 /**
  * Reads the current grant state of every app permission.
@@ -138,7 +139,11 @@ fun PermissionsScreen(
             .padding(24.dp),
     ) {
         Text(
-            text = stringResource(R.string.onboarding_step_indicator, 2, 3),
+            text = stringResource(
+                R.string.onboarding_step_indicator,
+                OnboardingStep.PERMISSIONS.displayNumber,
+                OnboardingStep.COUNT,
+            ),
             style = MaterialTheme.typography.labelMedium,
         )
         Spacer(Modifier.height(8.dp))

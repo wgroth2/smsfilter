@@ -22,7 +22,7 @@ before. SMS Filter works silently alongside it.
 
 ## First launch: the setup wizard
 
-A three-step wizard runs once, on first launch.
+A four-step wizard runs once, on first launch.
 
 ### Step 1 — Welcome
 
@@ -49,7 +49,9 @@ the system prompt and offers an **Open App Settings** button instead. Permission
 re-read every time the screen resumes, so returning from system settings updates the
 wizard without any further tap.
 
-#### Additional Permission Needed: Notification Access (for MMS & RCS)
+### Step 3 — Notification Access (for MMS & RCS)
+
+<img src="docs/onboarding-notification-access.png" alt="The Notification Access step" width="320" />
 
 Standard Android SMS permissions (`RECEIVE_SMS`, `SEND_SMS`) receive cellular SMS only.
 They **do not** receive:
@@ -59,23 +61,29 @@ They **do not** receive:
 On Android, third-party apps that are not set as the default SMS app cannot receive MMS
 broadcasts directly over cellular. Instead, SMS Filter intercepts MMS and RCS messages
 when your messaging app posts an incoming notification, and then resolves the full text
-from the system MMS store.
+from the system MMS store. For that it needs **Notification Access**, a Special App Access
+that Android only grants from its own settings screen.
 
-For this to work, you must grant **Notification Access** (Special App Access):
-1. Finish the onboarding wizard.
-2. Once setup is complete, the **Settings** screen displays an **Incomplete Setup Warning**
-   noting that MMS and RCS messages cannot be filtered without Notification Access.
-3. Tap **Grant Notification Access** (or navigate to Android **Settings → Apps → Special app access → Device & app notifications**).
-4. Enable **SMS Filter**.
+Tapping **Grant Notification Access** opens that screen; enable **SMS Filter** there and
+come back. The step re-reads the grant every time it resumes, so it flips to
+`Notification Access: Active` on its own — no further tap needed — and the action button
+changes from **Skip for now** to **Next**.
 
-Without Notification Access, messages that contain images (such as political campaign flyers
-ending in `End2End`) or messages arriving via RCS will **not** be seen or opted out of.
+The step never blocks. Cellular SMS filtering works without it, so **Skip for now**
+continues to the last step, after a note stating the consequence: MMS picture texts and
+RCS chats will not be detected until you enable the access from the Status screen later.
 
-### Step 3 — Connection test
+### Step 4 — Connection test
 
 Counts how many of your contacts have phone numbers and reports the result, for example
-`Google Contacts: Accessible (247 contacts found)`. It also reminds you that Notification
-Access is required for full MMS and RCS coverage.
+`Google Contacts: Accessible (247 contacts found)`.
+
+An optional **Connect HubSpot CRM?** card lets you paste a Private App access token and
+connect during setup. It is skippable in the strong sense: the token is a credential you
+very likely do not have to hand on first run, a rejected token shows its error inline
+without trapping you on the step, and the wizard finishes either way. Connecting here
+switches the integration on and answers the question the one-time Settings prompt would
+otherwise ask, so that prompt is suppressed.
 
 This step also carries the consent disclosure:
 
@@ -91,8 +99,13 @@ anything being sent on your behalf.
 
 ### After the wizard
 
-A one-time "Connect HubSpot CRM?" prompt appears. Dismissing it by any route means it
-never appears again. HubSpot is entirely optional and off by default.
+**Done** lands on the Status screen. If you granted Notification Access in step 3, the
+Message Intake indicator reads `Full (SMS, MMS, RCS)` from the first moment; if you
+skipped it, a warning card at the top of Status says so and carries the grant button.
+
+Unless you already connected HubSpot in step 4, a one-time "Connect HubSpot CRM?" prompt
+appears the first time you open Settings. Dismissing it by any route means it never
+appears again. HubSpot is entirely optional and off by default.
 
 ## Everyday use
 
@@ -100,8 +113,25 @@ Almost nothing. This is a background utility with no persistent icon, no foregro
 service, and no ongoing notification.
 
 The only time it surfaces is a notification reading **Opt-out request detected**, with a
-preview of the message text. Tapping it opens the Activity & Detection Log. If sound is
-enabled a tone also plays, but only when a reply was actually sent.
+preview of the message text. Tapping it opens the Activity tab — whether the app was
+closed or already running — and pressing Back from there returns to the Status screen
+rather than leaving the app. If sound is enabled a tone also plays, but only when a reply
+was actually sent.
+
+### Finding your way around
+
+Opening the app lands on **Status**. A bottom navigation bar carries the three
+destinations:
+
+| Tab | What it holds |
+|---|---|
+| **Status** | The health dashboard: message intake, contacts, HubSpot, and recent activity. |
+| **Activity** | The detection log — every message evaluated, and what was decided. |
+| **Rules** | The Stop List and Opt-Out Patterns editors, as two tabs. |
+
+**Settings** is not on the bar; the gear icon in the Status header opens it, and its back
+arrow returns to Status. The bar is absent during first-run setup, so the wizard cannot
+be navigated away from before consent is given.
 
 ## What happens to each incoming message
 
@@ -186,28 +216,55 @@ the non-breaking space are handled, so a message ending in `"STOP "` still match
 The notification fires *before* these gates, so you are told an opt-out was detected even
 when no reply was permitted.
 
-## Settings
+## The Status screen
 
-Launching the app after setup lands on Settings.
+<img src="docs/status.png" alt="The Status screen" width="320" />
 
-| Section | What it controls |
+The app's home. Everything here is a thing you *check* rather than a thing you change:
+
+| Section | What it shows |
 |---|---|
 | Incomplete Setup Warning | Appears automatically when Notification Access or SMS permissions are missing, warning that MMS and RCS messages will be missed and providing a direct button to enable access. |
 | Connection Health | Status indicators for Message Intake (`Full (SMS, MMS, RCS)` vs `SMS only`), Google Contacts, and HubSpot, re-checked on every resume so revoking contacts access or notification access is reflected rather than leaving a stale result. |
-| RCS Chat Messages | Displays Notification Access grant status and offers a direct shortcut to system settings to enable it. |
-| Auto-Reply | Master on/off, plus a note explaining the 24-hour cooldown. Off means detect and notify only. |
+| Recent Activity | Messages evaluated since midnight — every event type counts, so the number answers "is the filter seeing traffic at all" — and the most recent detection. Updates live as messages arrive. |
+| Google Contacts | Permission state and a **Test Connection** diagnostic reporting how many contacts have phone numbers. |
+| RCS Chat Messages | Notification Access grant status and a direct shortcut to system settings to enable it. |
+
+The build stamp (for example `Build: 7 Sep 2026, 10:23:52 PDT (#204)`) sits at the foot.
+
+## The Rules screen
+
+<img src="docs/rules-patterns.png" alt="The Rules screen, Opt-Out Patterns tab" width="320" />
+
+Two tabs, two halves of the same decision — what counts as an opt-out, and what is exempt
+from being treated as one:
+
+| Tab | What it controls |
+|---|---|
 | Stop List | Keywords marking messages the app should never touch. Coarse substring match, so `promo` also matches `promotional`. Over-matching is safe: it only means a message is left alone. |
 | Opt-Out Patterns | Add, edit, and remove detection rules. Tapping any pattern row opens an edit dialog allowing you to change its keyword, reply type (`stop` or `end`), and match mode. User-added patterns behave identically to the seeded defaults. |
+
+The Patterns tab's ⋮ menu offers **Reset to Defaults**, behind a confirmation dialog: it
+deletes every pattern — including yours — and restores the sixteen the app ships with.
+
+## Settings
+
+<img src="docs/settings.png" alt="The Settings screen" width="320" />
+
+Reached from the gear icon on Status. What remains here is the things you *change*:
+
+| Section | What it controls |
+|---|---|
+| Auto-Reply | Master on/off, plus a note explaining the 24-hour cooldown. Off means detect and notify only. |
+| Sound & Language | Beep on/off, a ringtone picker (falls back to the system notification sound), detection notifications on/off, and English or Spanish. |
 | HubSpot CRM | Optional API token, stored encrypted. When enabled, CRM contacts are also treated as known senders. |
-| Sound | On/off and a ringtone picker. Falls back to the system notification sound. |
-| Language | English or Spanish. |
-| Activity & Detection Log | Opens the log screen. |
+| Connection Testing | Runs the Google Contacts and HubSpot diagnostics together. |
 
 ### Incomplete permissions warning
 
 Once setup is complete, SMS Filter actively checks whether all message intake channels can function.
 If Notification Access has not been granted, a prominent warning card is displayed at the top of
-the screen:
+the Status screen:
 
 > **Warning: You won't receive all messages**
 > Notification Access is not granted. SMS Filter can only see standard cellular SMS. MMS messages
@@ -216,12 +273,15 @@ the screen:
 
 Tapping **Grant Notification Access** takes you directly to Android's Notification Access screen
 where you can enable SMS Filter with a single toggle. Once enabled, returning to the app immediately
-clears the warning and updates the Message Intake indicator to **Full (SMS, MMS, RCS)**.
+clears the warning and updates the Message Intake indicator to **Full (SMS, MMS, RCS)**. The same
+grant is offered during setup as step 3 of the wizard, so this card only appears if it was skipped
+there or revoked since.
 
-## The detection log
+## The Activity tab
 
 A chronological record of every decision, with three event types (detections, ignored
-messages, and non-matching messages).
+messages, and non-matching messages). It is a bottom-bar destination — there is no back
+button on it, and **Clear Log** in the corner empties it.
 
 Filter chips let you view:
 - **All**: Displays every evaluated message received by the app, including detections, ignored messages, and unmatched texts.
@@ -252,7 +312,7 @@ The app sends real SMS messages on your behalf, and replying `stop` to a spam nu
 confirms to the sender that your number is live. Verify the detection logic against your
 own message mix before letting it send anything.
 
-1. Finish onboarding, then turn Auto-Reply **off** in Settings.
+1. Finish onboarding, then turn Auto-Reply **off** (Status → gear → Settings).
 2. Run in detection-only mode for a week. Notifications and log entries still show exactly
    what would have been sent.
 3. Review the detection log. For any message you would not want replied to, add a keyword

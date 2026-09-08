@@ -31,9 +31,12 @@
 
         <!-- Forward declaration: implemented in Phase 6. The APK builds and installs
              before then, but will crash on launch until MainActivity exists. -->
+        <!-- singleTop pairs with MainActivity.onNewIntent: a notification tap on an already
+             running app must deliver its routing extra rather than silently resuming the task. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.SmsFilter">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

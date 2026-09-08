@@ -109,4 +109,21 @@ interface OptOutPatternDao {
      */
     @Query("SELECT COUNT(*) FROM ${OptOutPatternEntity.TABLE_NAME}")
     suspend fun count(): Int
+
+    /**
+     * Deletes every stored pattern. Backs the "Reset to Defaults" action, which clears the table
+     * and then re-inserts `AppDatabase.DEFAULT_PATTERNS` through [insertAll].
+     *
+     * The reset path must re-insert through [insertAll] rather than re-running the seeding SQL in
+     * `AppDatabase`: that SQL writes enum names as string literals, and `RoomConverters` documents
+     * how the two drift apart silently. Going through the entity list keeps the converters as the
+     * single encoder of those names.
+     *
+     * Destructive and unconditional — it discards user-authored patterns as well as the seeded
+     * defaults, so callers must confirm with the user first.
+     *
+     * @return The number of rows deleted.
+     */
+    @Query("DELETE FROM ${OptOutPatternEntity.TABLE_NAME}")
+    suspend fun deleteAll(): Int
 }

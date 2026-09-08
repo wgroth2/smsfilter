@@ -264,6 +264,12 @@ class PipelineFakes {
         override suspend fun update(pattern: OptOutPatternEntity): Int = throw NotImplementedError()
 
         override suspend fun delete(entity: OptOutPatternEntity): Unit = throw NotImplementedError()
+
+        override suspend fun deleteAll(): Int {
+            val removed = patterns.size
+            patterns = emptyList()
+            return removed
+        }
     }
 
     class FakeDetectionLogDao : DetectionLogDao {
@@ -298,6 +304,12 @@ class PipelineFakes {
         }
 
         override suspend fun count(): Int = inserted.size
+
+        override fun observeCountSince(since: Long): Flow<Int> =
+            flowOf(inserted.count { it.timestamp >= since })
+
+        override fun observeLatestByType(eventType: LogEventType): Flow<DetectionLogEntity?> =
+            flowOf(inserted.filter { it.eventType == eventType }.maxByOrNull { it.timestamp })
     }
 
     class FakeCooldownDao : AutoReplyCooldownDao {

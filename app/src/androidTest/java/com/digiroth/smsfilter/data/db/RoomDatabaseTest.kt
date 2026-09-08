@@ -1066,4 +1066,121 @@ class RoomDatabaseTest {
             Triple("stop=end", "STOP", "ANYWHERE"),
         )
     }
+
+    /**
+     * Tests that deleteAll empties the pattern table.
+     *
+     * Preconditions: a freshly seeded database holding the default patterns.
+     * Expected: deleteAll reports the seeded row count and leaves the table empty, which is the
+     * first half of the "Reset to Defaults" action.
+     */
+    @Test
+    fun optOutPattern_deleteAllEmptiesTheTable() = runBlocking {
+        val seeded = optOutPatternDao.count()
+        assertTrue("expected a seeded database", seeded > 0)
+
+        val removed = optOutPatternDao.deleteAll()
+
+        assertEquals(seeded, removed)
+        assertEquals(0, optOutPatternDao.count())
+    }
+
+    /**
+     * Tests that the full reset cycle restores exactly the declared defaults.
+     *
+     * Preconditions: the seeded table is cleared and a user-authored pattern is added.
+     * Expected: after deleteAll plus insertAll(DEFAULT_PATTERNS) the table holds the declared
+     * defaults and nothing else — proving the reset re-inserts through the converters rather than
+     * relying on the seeding SQL, and that the user's own row is gone.
+     */
+    @Test
+    fun optOutPattern_resetToDefaultsRestoresDeclaredPatterns() = runBlocking {
+        optOutPatternDao.deleteAll()
+        optOutPatternDao.insert(
+            OptOutPatternEntity(
+                pattern = "quit texting me",
+                replyType = ReplyType.STOP,
+                matchMode = MatchMode.ANYWHERE,
+            ),
+        )
+
+        optOutPatternDao.deleteAll()
+        optOutPatternDao.insertAll(AppDatabase.DEFAULT_PATTERNS)
+
+        val stored = optOutPatternDao.getAll()
+        assertEquals(AppDatabase.DEFAULT_PATTERNS.size, stored.size)
+        assertEquals(
+            AppDatabase.DEFAULT_PATTERNS.map { it.pattern }.sorted(),
+            stored.map { it.pattern }.sorted(),
+        )
+        assertTrue(stored.none { it.pattern == "quit texting me" })
+    }
+
+    /**
+     * Tests that observeCountSince counts every event type at or after the boundary.
+     *
+     * Preconditions: three entries either side of a boundary timestamp, spanning DETECTION,
+     * IGNORED and NO_MATCH.
+     * Expected: the count includes NO_MATCH rows, because the Status figure answers "is the filter
+     * seeing traffic", and excludes anything strictly older than the boundary.
+     */
+    @Test
+    fun detectionLog_observeCountSinceCountsAllEventTypes() = runBlocking {
+        val boundary = 1_000L
+        detectionLogDao.insert(logEntry(timestamp = boundary - 1, type = LogEventType.DETECTION))
+        detectionLogDao.insert(logEntry(timestamp = boundary, type = LogEventType.NO_MATCH))
+        detectionLogDao.insert(logEntry(timestamp = boundary + 50, type = LogEventType.IGNORED))
+        detectionLogDao.insert(logEntry(timestamp = boundary + 99, type = LogEventType.DETECTION))
+
+        assertEquals(3, detectionLogDao.observeCountSince(boundary).first())
+    }
+
+    /**
+     * Tests that observeLatestByType returns the newest matching entry only.
+     *
+     * Preconditions: two DETECTION entries and one later IGNORED entry.
+     * Expected: the newer DETECTION, not the IGNORED row that is newer still.
+     */
+    @Test
+    fun detectionLog_observeLatestByTypeReturnsNewestOfThatType() = runBlocking {
+        detectionLogDao.insert(logEntry(timestamp = 100, type = LogEventType.DETECTION, preview = "older"))
+        detectionLogDao.insert(logEntry(timestamp = 200, type = LogEventType.DETECTION, preview = "newer"))
+        detectionLogDao.insert(logEntry(timestamp = 300, type = LogEventType.IGNORED, preview = "ignored"))
+
+        val latest = detectionLogDao.observeLatestByType(LogEventType.DETECTION).first()
+
+        assertEquals("newer", latest?.messagePreview)
+    }
+
+    /**
+     * Tests that observeLatestByType emits null when nothing of that type exists.
+     *
+     * Preconditions: a log holding only NO_MATCH entries.
+     * Expected: null rather than an empty-list error, so the Status card can render "no detections
+     * yet" without special-casing.
+     */
+    @Test
+    fun detectionLog_observeLatestByTypeEmitsNullWhenAbsent() = runBlocking {
+        detectionLogDao.insert(logEntry(timestamp = 10, type = LogEventType.NO_MATCH))
+
+        assertNull(detectionLogDao.observeLatestByType(LogEventType.DETECTION).first())
+    }
+
+    /**
+     * Builds a log entry for the queries above.
+     *
+     * @param timestamp Epoch milliseconds to record.
+     * @param type The event type.
+     * @param preview Message preview text.
+     * @return An unsaved entity ready to insert.
+     */
+    private fun logEntry(
+        timestamp: Long,
+        type: LogEventType,
+        preview: String = "body",
+    ): DetectionLogEntity = DetectionLogEntity(
+        timestamp = timestamp,
+        eventType = type,
+        messagePreview = preview,
+    )
 }
