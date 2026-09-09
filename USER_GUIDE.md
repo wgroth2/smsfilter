@@ -27,6 +27,52 @@ A few important things it will **never** do:
   every text exactly as it always has. SMS Filter simply works quietly in the background.
 - It will **not** read, delete, or hide any of your messages or conversations.
 
+### Quick Start Guide (5 Minutes)
+
+1. Download the installer file
+   On your Android phone, download the latest app installer file (.apk)
+   from the project's Releases page on GitHub.
+
+2. Allow installation if prompted
+   When opening the downloaded file, Android may ask for permission to
+   install unknown apps from your web browser or Files app. Tap Settings
+   in that prompt and turn on the switch for "Allow from this source."
+
+3. Proceed past Play Protect
+   If a Play Protect warning banner appears, tap "More details" and then
+   choose "Install anyway." This is standard for apps installed outside the
+   Google Play Store.
+
+4. Open SMS Filter
+   Tap Open once installation finishes, or open SMS Filter from your app
+   drawer to begin the four-step setup wizard.
+
+5. Review the Welcome screen
+   Read the privacy summary confirming your contacts stay strictly on your
+   phone, then tap Next.
+
+6. Grant text and contact permissions
+   When prompted, allow permissions to "Receive SMS" and "Send SMS" so the
+   app can inspect incoming messages and send "STOP" replies. Allowing
+   access to Contacts is also recommended so the app knows never to reply
+   to people you already know.
+
+7. Enable Notification Access (recommended)
+   To catch spam sent as picture messages (MMS) or modern chat bubbles
+   (RCS), tap "Grant Notification Access." Android will open its Special
+   App Access screen. Tap SMS Filter in that list, turn on the toggle, and
+   tap Allow. Return to the app and tap Next. (You can also skip this and
+   enable it later.)
+
+8. Complete setup
+   Review the final summary screen, which tests your contact list access
+   and reminds you that automatic replies are turned on. Tap Done.
+
+9. You are all set
+   Close the app. SMS Filter runs quietly in the background. Whenever it
+   catches an unsubscribe offer from a stranger, it will text back "STOP"
+   and post a notification to let you know.
+
 ### Is My Information Safe?
 
 Yes. SMS Filter is designed to keep everything on your phone:
