@@ -209,6 +209,33 @@ class SmsProcessingPipelineTest {
     }
 
     /**
+     * Tests that an RCS notification from a known contact identified by display name (e.g. "Pge")
+     * is ignored even if the message contains an opt-out phrase and carries a direct reply handle.
+     *
+     * Preconditions: Sender is alphanumeric display name "Pge", contactSource returns Found,
+     * direct reply key is present.
+     * Expected: Outcome is [ProcessingOutcome.Ignored] with [IgnoreReason.KNOWN_GOOGLE_CONTACT],
+     * no reply is sent via direct reply or SMS, and log records ignore reason.
+     */
+    @Test
+    fun `known contact with alphanumeric display name in rcs message is ignored`() = runTest {
+        fakes.contactSource.outcome = ContactLookupOutcome.Found
+
+        val outcome = pipeline().process(
+            senderAddress = "Pge",
+            messageBody = "PG&E: Bill ready. Txt STOP to cancel",
+            receivedAtMillis = now,
+            directReplyKey = "rcs-direct-reply-key",
+            messageSource = MessageSource.RCS,
+        )
+
+        assertEquals(ProcessingOutcome.Ignored(IgnoreReason.KNOWN_GOOGLE_CONTACT), outcome)
+        assertTrue("direct reply must not be sent to known contact", fakes.directReplySender.sent.isEmpty())
+        assertTrue("sms must not be sent to known contact", fakes.smsSender.sent.isEmpty())
+        assertEquals("Ignored: Known Google Contact", fakes.logDao.inserted.single().ignoreReason)
+    }
+
+    /**
      * Tests that a transient failure or timeout in HubSpot lookup does not abort processing and allows detection to proceed.
      *
      * Preconditions: HubSpot integration enabled and HubSpot returns Failed outcome.

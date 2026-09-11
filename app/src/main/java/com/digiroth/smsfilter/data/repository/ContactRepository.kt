@@ -46,13 +46,18 @@ import javax.inject.Singleton
 /**
  * Checks incoming senders against the device's synced Google Contacts.
  *
- * For official Android documentation on `ContactsContract.PhoneLookup`, see:
+ * For official Android documentation on `ContactsContract.PhoneLookup` and `ContactsContract.Contacts`, see:
  * - PhoneLookup Content Provider: [https://developer.android.com/reference/android/provider/ContactsContract.PhoneLookup](https://developer.android.com/reference/android/provider/ContactsContract.PhoneLookup)
+ * - Contacts Content Provider: [https://developer.android.com/reference/android/provider/ContactsContract.Contacts](https://developer.android.com/reference/android/provider/ContactsContract.Contacts)
  *
- * Uses `ContactsContract.PhoneLookup`, which performs the platform's own number matching — that
- * is what allows a contact stored as "(650) 555-1234" to match an incoming "+16505551234"
- * without the app doing its own normalization. The query is local, so no network call and no
- * Google Sign-In or OAuth is involved.
+ * Uses `ContactsContract.PhoneLookup` for telephone numbers, which performs the platform's own number
+ * matching — that is what allows a contact stored as "(650) 555-1234" to match an incoming "+16505551234"
+ * without the app doing its own normalization. If the sender address contains letters or represents a
+ * contact display name (frequent in RCS notifications where the messaging app has already resolved the
+ * contact to their display name), it queries `ContactsContract.Contacts` by display name using
+ * case-insensitive matching.
+ *
+ * The query is local, so no network call and no Google Sign-In or OAuth is involved.
  *
  * No contact data is retained: the query asks only whether a row exists.
  */
@@ -81,39 +86,93 @@ class ContactRepository @Inject constructor(
      * so an unguarded query would raise `SecurityException` inside the worker on the very first
      * message. Treating the sender as unknown is the specified behaviour — detection continues.
      *
-     * @param lookupValue The number to look up; the E.164 form when available, otherwise the raw
-     *   originating address.
+     * @param lookupValue The number or display name to look up; the E.164 form when available,
+     *   otherwise the raw originating address or notification sender name.
      * @return [ContactLookupOutcome.Found] if a contact matches, [ContactLookupOutcome.NotFound]
      *   if none does or the permission is missing, or [ContactLookupOutcome.Failed] if the query
      *   itself errored.
      */
     suspend fun isKnownContact(lookupValue: String): ContactLookupOutcome =
         withContext(queryDispatcher) {
-            if (lookupValue.isBlank()) return@withContext ContactLookupOutcome.NotFound
+            val trimmedValue = lookupValue.trim()
+            if (trimmedValue.isBlank()) return@withContext ContactLookupOutcome.NotFound
 
             if (!hasReadContactsPermission()) {
                 Log.w(TAG, "READ_CONTACTS not granted; treating sender as unknown")
                 return@withContext ContactLookupOutcome.NotFound
             }
 
-            runCatching {
-                val uri: Uri = Uri.withAppendedPath(
-                    ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-                    Uri.encode(lookupValue),
-                )
-                context.contentResolver.query(
-                    uri,
-                    arrayOf(ContactsContract.PhoneLookup._ID),
-                    null,
-                    null,
-                    null,
-                )?.use { cursor ->
-                    if (cursor.moveToFirst()) ContactLookupOutcome.Found else ContactLookupOutcome.NotFound
-                } ?: ContactLookupOutcome.NotFound
-            }.getOrElse { error ->
-                Log.e(TAG, "Contacts lookup failed", error)
-                ContactLookupOutcome.Failed(reason = error.javaClass.simpleName)
+            val hasLetters = trimmedValue.any(Char::isLetter)
+            if (hasLetters) {
+                val nameOutcome = queryNameLookup(trimmedValue)
+                if ((nameOutcome is ContactLookupOutcome.Found) || (nameOutcome is ContactLookupOutcome.Failed)) {
+                    return@withContext nameOutcome
+                }
+                queryPhoneLookup(trimmedValue)
+            } else {
+                val phoneOutcome = queryPhoneLookup(trimmedValue)
+                if ((phoneOutcome is ContactLookupOutcome.Found) || (phoneOutcome is ContactLookupOutcome.Failed)) {
+                    return@withContext phoneOutcome
+                }
+                queryNameLookup(trimmedValue)
             }
+        }
+
+    /**
+     * Queries [ContactsContract.PhoneLookup] to determine if a phone number matches any contact.
+     *
+     * @param number The phone number or dialable digits to inspect.
+     * @return [ContactLookupOutcome.Found] if matched, [ContactLookupOutcome.NotFound] if not, or
+     *   [ContactLookupOutcome.Failed] on content provider error.
+     */
+    private fun queryPhoneLookup(number: String): ContactLookupOutcome =
+        runCatching {
+            val uri: Uri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(number),
+            )
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.PhoneLookup._ID),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) ContactLookupOutcome.Found else ContactLookupOutcome.NotFound
+            } ?: ContactLookupOutcome.NotFound
+        }.getOrElse { error ->
+            Log.e(TAG, "PhoneLookup query failed for '$number'", error)
+            ContactLookupOutcome.Failed(reason = error.javaClass.simpleName)
+        }
+
+    /**
+     * Queries [ContactsContract.Contacts] by display name to determine if an alphanumeric sender
+     * or contact name matches any saved contact.
+     *
+     * Matches case-insensitively against both primary and alternative display names.
+     *
+     * @param name The contact name to match against saved display names.
+     * @return [ContactLookupOutcome.Found] if matched, [ContactLookupOutcome.NotFound] if not, or
+     *   [ContactLookupOutcome.Failed] on content provider error.
+     */
+    private fun queryNameLookup(name: String): ContactLookupOutcome =
+        runCatching {
+            val projection = arrayOf(ContactsContract.Contacts._ID)
+            val selection = "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} = ? COLLATE NOCASE " +
+                "OR ${ContactsContract.Contacts.DISPLAY_NAME_ALTERNATIVE} = ? COLLATE NOCASE"
+            val selectionArgs = arrayOf(name, name)
+            context.contentResolver.query(
+                ContactsContract.Contacts.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) ContactLookupOutcome.Found else ContactLookupOutcome.NotFound
+            } ?: ContactLookupOutcome.NotFound
+        }.getOrElse { error ->
+            Log.e(TAG, "Contacts name lookup failed for '$name'", error)
+            ContactLookupOutcome.Failed(reason = error.javaClass.simpleName)
         }
 
     /**

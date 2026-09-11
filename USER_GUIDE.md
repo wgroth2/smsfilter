@@ -333,7 +333,7 @@ lookups and no network calls. The README's [What it does](README.md#what-it-does
 section walks through the same decision flow from the code's perspective, naming the
 actual classes involved.
 
-<img src="pipeline_flow.png" alt="SMS Filter Pipeline Architecture" width="100%" />
+<img src="pipeline_flow.png" alt="SMS Filter Pipeline Architecture" width=  "100%" />
 
 <details>
 <summary>View Mermaid Source Code</summary>
