@@ -90,6 +90,11 @@ Below are the identified architectural risks, platform constraints (for Target S
 ### Recommendation:
 * Limit destructive migration specifically to **Debug builds** using conditional configuration, and enforce the creation of explicit Room migration paths for Release builds to preserve user data.
 
+### Status: ✅ Resolved (schema v6)
+* `fallbackToDestructiveMigration` has been removed from **both** debug and release builds. Every upgrade from v1 to v6 is an explicit migration, registered through the single list `AppDatabase.ALL_MIGRATIONS`.
+* A missing or broken migration now makes Room throw on first open instead of silently dropping the stop list, patterns, and log.
+* `StopListMigrationTest` opens a real v5 database file, using the schema copied from a shipped install, through Room with every migration, so Room's own schema validation runs exactly as it does on a user's phone.
+
 ---
 
 ## 8. Persistable Uri Permissions for Selected Sound Files

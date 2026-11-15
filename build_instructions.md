@@ -346,4 +346,5 @@ Then open the project in Android Studio once and confirm a clean Gradle sync wit
 | Build hangs, or lock/`.lock` errors | Android Studio and the terminal are building at once — they share the Gradle daemon and `build/` directory. Let one finish, or `./gradlew --stop` and retry. |
 | KSP or Hilt errors after a spec change | `./gradlew clean` then rebuild; generated sources can go stale. |
 | Wrong Gradle version errors | You ran bare `gradle` instead of `./gradlew`. |
-| Room schema crash on an installed build | Expected — `fallbackToDestructiveMigration(dropAllTables = true)` recreates the DB. Uninstall and reinstall if it persists. |
+| Room schema crash on an installed build (`IllegalStateException` about a migration) | A schema change shipped without a matching `Migration`. There is deliberately no destructive fallback, so the user's data is still intact. Add the migration to `AppDatabase.ALL_MIGRATIONS` and reinstall over the top (`adb install -r`). **Do not uninstall or clear storage** — that deletes the stop list and log. |
+| `connectedAndroidTest` on your own phone | Gradle uninstalls the app when the run finishes, erasing its data. Run instrumented tests on an emulator, or set `ANDROID_SERIAL` to the emulator's serial when a phone is also connected. |

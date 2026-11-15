@@ -41,6 +41,14 @@ database, preferences, and the stored HubSpot token.
 | 17 | Alphanumeric sender (e.g. PROMO) | `Hello` newline `STOP` | Alert and log "Reply skipped: alphanumeric sender" — no SMS sent | |
 | 18 | Unknown | `Hello` newline `STOP` received mid-wizard, before Done is pressed | Nothing — no reply, no notification, no log entry (onboarding gate) | |
 | 19 | Unknown | `Hello` newline `STOP` with READ_CONTACTS denied | Alert and reply "stop" — no crash; contacts lookup returns "not found" without querying | |
+| 20 | Unknown | Stop word `Avis` (both options off); message `Paid for by Davis` newline `STOP` | Ignored — substring match. Log shows "Ignored: Matched Stop List word 'Avis'" | |
+| 21 | Unknown | Same, after editing `Avis` to tick **Whole word only** | Not ignored by the stop list — alert and reply "stop" | |
+| 22 | Unknown | Stop word `Avis` with **Whole word only**; message `Your Avis, rental` newline `STOP` | Ignored — whole-word match | |
+| 23 | Unknown | Stop word `Avis` with **Case sensitive**; message `RENT FROM AVIS` newline `STOP` | Not ignored by the stop list — alert and reply "stop" | |
+| 24 | Unknown | Stop word `cooke` (both options off); message containing the bold-Unicode name 𝗖𝗼𝗼𝗸𝗲 | Ignored — styled letters are matched as plain letters | |
+| 25 | N/A | Rules → Stop List: add a keyword that already exists with identical capitalization | "That keyword is already in your stop list." appears under the box; typed text is kept | |
+| 26 | N/A | Tap a stop word, tick a checkbox, rotate the phone, then Save | Dialog stays open through rotation; row summary updates after Save | |
+| 27 | N/A | Install a new build over an existing install (`adb install -r`) | Stop list, patterns, and log are unchanged; existing stop words show "Substring · Ignores case" | |
 
 ## Notes on specific cases
 
@@ -57,3 +65,10 @@ permissions step and grant them, then send the message *before* pressing Done on
 
 **Case 19 (contacts denied)** requires revoking contacts access in system settings while leaving the
 other permissions granted.
+
+**Cases 20–23 (stop-list options)** each need a message that would otherwise trigger an opt-out, so
+the stop list is the only thing that can explain a missing reply. Check the Activity log for the
+matched word.
+
+**Case 27 (upgrade)** is the one that protects real data. Do not clear storage or uninstall before
+it; the point is to confirm an in-place update keeps everything.

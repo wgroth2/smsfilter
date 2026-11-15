@@ -96,6 +96,16 @@ To fix it, exempt the app from battery optimisation:
 Each opt-out reply is a real text message sent from your number. The app sends at most one reply per
 sender per 24 hours, which caps the volume, but the messages are billed like any other SMS.
 
+## Updating
+
+Install a newer build over the existing one: tap the new APK, or run
+`adb install -r app-debug.apk`. An update keeps your stop list, opt-out patterns, detection log,
+and settings; the app upgrades its database in place the first time it opens.
+
+Do **not** uninstall first, and do not use **Clear storage**, to "make room" for an update. Both
+erase that data. If Android refuses an update (for example, "App not installed" because the new
+build was signed with a different key), stop and resolve the signing rather than uninstalling.
+
 ## Uninstalling
 
 **Settings → Apps → SMS Filter → Uninstall.** This removes the stop list, opt-out patterns,

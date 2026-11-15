@@ -36,13 +36,24 @@ import androidx.room.PrimaryKey
 /**
  * A user-defined stop-list keyword (Tier 1 of opt-out detection).
  *
- * If any stop-list keyword appears anywhere in an incoming message body — matched
- * case-insensitively as a substring — the message is ignored entirely and never reaches
- * opt-out detection. The list starts empty; the user populates it from Settings.
+ * If a stop-list keyword matches an incoming message body, the message is ignored entirely and
+ * never reaches opt-out detection. Each keyword carries its own matching options; with both off
+ * (the default) it matches case-insensitively as a substring anywhere in the body. The list starts
+ * empty; the user populates it from the Rules screen.
+ *
+ * The two option columns were added in schema version 6 (`AppDatabase.MIGRATION_5_6`) with a
+ * default of `0`, so every keyword created before then keeps its original substring,
+ * case-insensitive behaviour. The `defaultValue` on each column must stay identical to the
+ * migration's `DEFAULT 0`, or Room's schema validation fails on upgraded installs.
  *
  * @property id Auto-generated row identifier.
- * @property keyword The keyword to match. Stored as entered, but compared
- *   case-insensitively by `StopListMatcher`. Unique across the table.
+ * @property keyword The keyword to match, stored as entered. Unique across the table with an exact
+ *   (case-sensitive) comparison, so `Avis` and `avis` may exist as separate entries.
+ * @property caseSensitive `true` to require the message to use the keyword's exact capitalization;
+ *   `false` to ignore case.
+ * @property wholeWord `true` to match only where the keyword stands as a whole word (bounded by
+ *   spaces, punctuation, or the start/end of the message); `false` to match it anywhere, including
+ *   inside a longer word.
  */
 @Entity(
     tableName = StopListEntity.TABLE_NAME,
@@ -55,6 +66,12 @@ data class StopListEntity(
 
     @ColumnInfo(name = "keyword")
     val keyword: String,
+
+    @ColumnInfo(name = "case_sensitive", defaultValue = "0")
+    val caseSensitive: Boolean = false,
+
+    @ColumnInfo(name = "whole_word", defaultValue = "0")
+    val wholeWord: Boolean = false,
 ) {
     companion object {
         /** Room table name for stop-list keywords. */

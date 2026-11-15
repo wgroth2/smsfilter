@@ -122,6 +122,16 @@
     <string name="settings_stop_list_title">Stop List</string>
     <string name="settings_stop_list_hint">Keyword to ignore</string>
     <string name="settings_stop_list_empty">No keywords yet. Messages containing a keyword you add here are ignored completely.</string>
+    <string name="stop_list_tap_to_edit">Tap a keyword to edit it.</string>
+    <string name="stop_list_edit_title">Edit Keyword</string>
+    <string name="stop_list_whole_word">Whole word only</string>
+    <string name="stop_list_case_sensitive">Case sensitive</string>
+    <string name="stop_list_summary_substring">Substring</string>
+    <string name="stop_list_summary_whole_word">Whole word</string>
+    <string name="stop_list_summary_ignores_case">Ignores case</string>
+    <string name="stop_list_summary_case_sensitive">Case sensitive</string>
+    <string name="stop_list_error_duplicate">That keyword is already in your stop list.</string>
+    <string name="stop_list_error_save_failed">Couldn\'t save the keyword. Please try again.</string>
 
     <string name="settings_patterns_title">Opt-Out Patterns</string>
     <string name="settings_patterns_edit_title">Edit Pattern</string>

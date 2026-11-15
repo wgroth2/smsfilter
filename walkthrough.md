@@ -63,11 +63,15 @@ The database schema has evolved with zero data loss through explicit migrations:
 * **`v1` ➔ `v2` (`MIGRATION_1_2`)**: Added nullable `sender_address` column to `detection_log`.
 * **`v2` ➔ `v3` (`MIGRATION_2_3`)**: Added `message_source` column (`NOT NULL DEFAULT 'SMS'`) to `detection_log`.
 * **`v3` ➔ `v4` (`MIGRATION_3_4`)**: Seeded expanded industry default patterns (`stop to cancel`, `stop to opt-out`, `stop to opt out`, `stop to end`, `stop to quit`, `stop=end`) into `opt_out_patterns`.
+* **`v4` ➔ `v5` (`MIGRATION_4_5`)**: Seeded further default patterns (`stop to unsubscribe`, `stop to optout`, `stop2quit`, `stop2end`, `end to end`, `end2stop`).
+* **`v5` ➔ `v6` (`MIGRATION_5_6`)**: Added `case_sensitive` and `whole_word` (`INTEGER NOT NULL DEFAULT 0`) to `stop_list`, so existing stop words keep their substring, case-insensitive behaviour.
+
+There is no destructive fallback: a missing migration fails loudly instead of wiping user data.
 
 ---
 
 ## Test Suite & Verification
 
-* **Unit Tests (JVM)**: **215 tests** covering pattern detection, phone normalization, the 9-step processing pipeline, all 4 auto-reply gates, notification parsing, ViewModel validation, and HubSpot MockWebServer clients.
-* **Instrumented Tests (Room)**: Verifies SQLite schema creation, DAO CRUD operations, and migrations `1->2`, `2->3`, and `3->4`.
+* **Unit Tests (JVM)**: **339 tests** covering pattern detection, stop-list options and Unicode normalization, phone normalization, the 9-step processing pipeline, all 4 auto-reply gates, notification parsing, ViewModel validation, and HubSpot MockWebServer clients.
+* **Instrumented Tests (Room)**: Verifies SQLite schema creation, DAO CRUD operations, and migrations `1->2` through `5->6`; the `5->6` test opens a real v5 database file through Room.
 * **Lint**: Clean across all debug and test configurations.

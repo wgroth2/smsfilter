@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -107,7 +108,20 @@ fun RulesScreen(
     var showOverflow by rememberSaveable { mutableStateOf(false) }
 
     val keywords by stopListViewModel.keywords.collectAsStateWithLifecycle()
+    val stopListAddState by stopListViewModel.addState.collectAsStateWithLifecycle()
+    val stopListEditState by stopListViewModel.editState.collectAsStateWithLifecycle()
     val patterns by patternsViewModel.patterns.collectAsStateWithLifecycle()
+    val stopListActions = remember(stopListViewModel) {
+        StopListActions(
+            onAdd = stopListViewModel::add,
+            onClearAddError = stopListViewModel::clearAddError,
+            onStartEdit = stopListViewModel::startEdit,
+            onSaveEdit = stopListViewModel::saveEdit,
+            onCancelEdit = stopListViewModel::cancelEdit,
+            onClearEditError = stopListViewModel::clearEditError,
+            onDelete = stopListViewModel::delete,
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -161,8 +175,9 @@ fun RulesScreen(
                 when (selectedTab) {
                     RulesTab.STOP_LIST -> StopListTab(
                         keywords = keywords,
-                        onAdd = stopListViewModel::add,
-                        onDelete = stopListViewModel::delete,
+                        addState = stopListAddState,
+                        editState = stopListEditState,
+                        actions = stopListActions,
                     )
 
                     RulesTab.PATTERNS -> OptOutPatternsTab(

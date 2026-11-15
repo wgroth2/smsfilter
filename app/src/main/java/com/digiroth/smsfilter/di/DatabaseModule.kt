@@ -29,8 +29,8 @@
 package com.digiroth.smsfilter.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
-import com.digiroth.smsfilter.BuildConfig
 import com.digiroth.smsfilter.data.db.AppDatabase
 import com.digiroth.smsfilter.data.db.dao.AutoReplyCooldownDao
 import com.digiroth.smsfilter.data.db.dao.DetectionLogDao
@@ -63,48 +63,29 @@ object DatabaseModule {
     /**
      * Builds the singleton Room database.
      *
-     * `fallbackToDestructiveMigration(dropAllTables = true)` recreates the schema instead of
-     * requiring hand-written migrations. That is an accepted trade-off during development —
-     * a schema change discards the user's stop list, custom patterns, and log history — and
-     * is why no schema is exported.
-     *
      * [AppDatabase.SEED_CALLBACK] must be attached here, since Room invokes creation callbacks
      * only through the builder; without it a fresh install would start with no opt-out
      * patterns and would never detect anything.
      *
-     * ## Data loss warning
+     * ## Upgrades preserve user data
      *
-     * This fallback is active in **release builds as well as debug**, and it is unconditional.
-     * The moment `AppDatabase`'s `version` is incremented, the next launch on an existing
-     * install drops every table and recreates it empty. The user permanently loses:
+     * Every schema version from 1 to the current one has a registered `Migration`, and there is
+     * deliberately **no** `fallbackToDestructiveMigration` — in debug or release. An app update
+     * therefore always keeps the user's stop list, custom opt-out patterns, detection log, and
+     * cooldown records.
      *
-     *  - every stop-list keyword they added,
-     *  - every custom opt-out pattern, reverting to the four seeded defaults,
-     *  - the entire detection log,
-     *  - all auto-reply cooldown records, so a sender replied to minutes earlier can be
-     *    replied to again immediately.
+     * Without the fallback, a missing or incorrect migration makes Room throw
+     * `IllegalStateException` when the database is first opened, instead of silently dropping
+     * every table. That is the intended trade: a crash is visible and recoverable by shipping a
+     * fixed migration, whereas a wiped stop list and log are gone for good.
      *
-     * There is no warning, no backup, and no way to recover: `exportSchema = false` means there
-     * is not even a schema history to write a migration against retrospectively.
+     * ## When changing the schema
      *
-     * `architectural_analysis.md` records this as a known accepted risk and recommends limiting
-     * destructive migration to debug builds. That change has deliberately not been made yet.
-     *
-     * ## What not to do
-     *
-     * **Do not bump `AppDatabase`'s `version` casually.** Treat it as a destructive operation on
-     * this configuration, not as routine bookkeeping. Adding a Room *entity* enum constant, or
-     * changing anything that is not the persisted schema, does not require a bump — see
-     * `RoomConverters` for which enum changes are safe without one.
-     *
-     * **Do not add a real column or table and "let the fallback handle it".** It will handle it,
-     * by deleting the user's data. Write a `Migration` and register it with
-     * `addMigrations(...)`, and enable `exportSchema` so the migration can be tested against a
-     * real schema history.
-     *
-     * **Do not remove this fallback without adding migrations first.** With no fallback and no
-     * migration path, a version bump throws `IllegalStateException` on startup instead, which
-     * turns silent data loss into an app that cannot launch at all.
+     * Whenever `AppDatabase`'s `version` is incremented, write a `Migration` from the previous
+     * version, append it to `AppDatabase.ALL_MIGRATIONS`, and cover it with an instrumented test
+     * (see `StopListMigrationTest` for the 5 → 6 upgrade). Adding a Room *entity* enum
+     * constant, or changing anything that is not the persisted schema, does not require a bump —
+     * see `RoomConverters` for which enum changes are safe without one.
      *
      * @param context Application context owning the database file.
      * @return The process-wide [AppDatabase] instance.
@@ -112,18 +93,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
-        val builder = Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
-            .addMigrations(
-                AppDatabase.MIGRATION_1_2,
-                AppDatabase.MIGRATION_2_3,
-                AppDatabase.MIGRATION_3_4,
-                AppDatabase.MIGRATION_4_5,
-            )
+        Log.d(TAG, "Opening ${AppDatabase.DATABASE_NAME} with ${AppDatabase.ALL_MIGRATIONS.size} migrations registered")
+        return Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .addCallback(AppDatabase.SEED_CALLBACK)
-        if (BuildConfig.DEBUG) {
-            builder.fallbackToDestructiveMigration(dropAllTables = true)
-        }
-        return builder.build()
+            .build()
     }
 
     /**
@@ -154,4 +128,7 @@ object DatabaseModule {
     @Provides
     fun provideAutoReplyCooldownDao(database: AppDatabase): AutoReplyCooldownDao =
         database.autoReplyCooldownDao()
+
+    /** Logging tag for database construction. */
+    private const val TAG: String = "DatabaseModule"
 }

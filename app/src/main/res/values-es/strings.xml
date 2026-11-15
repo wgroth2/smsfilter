@@ -108,6 +108,16 @@
     <string name="settings_stop_list_title">Lista de exclusión</string>
     <string name="settings_stop_list_hint">Palabra clave a ignorar</string>
     <string name="settings_stop_list_empty">Aún no hay palabras clave. Los mensajes que contengan una palabra clave que añadas aquí se ignoran por completo.</string>
+    <string name="stop_list_tap_to_edit">Toca una palabra clave para editarla.</string>
+    <string name="stop_list_edit_title">Editar palabra clave</string>
+    <string name="stop_list_whole_word">Solo palabra completa</string>
+    <string name="stop_list_case_sensitive">Distinguir mayúsculas y minúsculas</string>
+    <string name="stop_list_summary_substring">Parte de una palabra</string>
+    <string name="stop_list_summary_whole_word">Palabra completa</string>
+    <string name="stop_list_summary_ignores_case">Ignora mayúsculas</string>
+    <string name="stop_list_summary_case_sensitive">Distingue mayúsculas</string>
+    <string name="stop_list_error_duplicate">Esa palabra clave ya está en tu lista de exclusión.</string>
+    <string name="stop_list_error_save_failed">No se pudo guardar la palabra clave. Inténtalo de nuevo.</string>
 
     <string name="settings_patterns_title">Patrones de baja</string>
     <string name="settings_patterns_edit_title">Editar patrón</string>

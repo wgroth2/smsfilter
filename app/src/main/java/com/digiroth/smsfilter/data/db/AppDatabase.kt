@@ -70,7 +70,7 @@ import com.digiroth.smsfilter.data.db.entity.StopListEntity
         DetectionLogEntity::class,
         AutoReplyCooldownEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 @TypeConverters(RoomConverters::class)
@@ -190,6 +190,40 @@ abstract class AppDatabase : RoomDatabase() {
                 }
             }
         }
+
+        /**
+         * Migrates the database from version 5 to version 6 by adding the per-keyword matching
+         * options to the stop list: `case_sensitive` and `whole_word`.
+         *
+         * Both columns are added with `DEFAULT 0`, so every keyword that already exists keeps its
+         * pre-v6 behaviour — a case-insensitive substring match — until the user edits it. Only
+         * columns are added: no table is rebuilt or copied, so the stop list, opt-out patterns,
+         * detection log, and cooldown records are left exactly as they were.
+         *
+         * The column definitions must stay identical to [StopListEntity]'s (`INTEGER NOT NULL
+         * DEFAULT 0`), or Room's post-migration schema validation rejects the upgrade.
+         */
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.d(TAG, "Migrating 5 -> 6: adding stop-list matching options")
+                db.execSQL(
+                    "ALTER TABLE ${StopListEntity.TABLE_NAME} ADD COLUMN case_sensitive INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE ${StopListEntity.TABLE_NAME} ADD COLUMN whole_word INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+        /**
+         * Every migration, in version order, from schema version 1 to the current version.
+         *
+         * The single list registered by `DatabaseModule` and exercised by the upgrade test, so the
+         * two can never disagree about which upgrade paths exist. Append the new migration here
+         * whenever [AppDatabase]'s `version` is incremented.
+         */
+        val ALL_MIGRATIONS: Array<Migration>
+            get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         /**
          * Seeds [DEFAULT_PATTERNS] when the database file is first created.

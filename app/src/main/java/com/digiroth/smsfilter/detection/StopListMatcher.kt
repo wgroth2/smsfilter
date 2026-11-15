@@ -34,9 +34,9 @@ import javax.inject.Inject
 /**
  * Tier 1 of opt-out detection: decides whether a message should be ignored outright.
  *
- * If any user-defined stop-list keyword appears anywhere in the message body, the message is
- * ignored and never reaches opt-out detection. This runs before any contact lookup so a
- * stop-listed message costs no network calls.
+ * If any user-defined stop-list keyword matches the message body, the message is ignored and
+ * never reaches opt-out detection. This runs before any contact lookup so a stop-listed message
+ * costs no network calls.
  *
  * The keyword list is passed in by the caller rather than injected as a DAO, which keeps this
  * class pure and unit-testable on the JVM with no database.
@@ -44,12 +44,18 @@ import javax.inject.Inject
 class StopListMatcher @Inject constructor() {
 
     /**
-     * Finds the first stop-list keyword contained in the message body.
+     * Finds the first stop-list keyword that matches the message body.
      *
-     * Matching is a case-insensitive substring test, so a keyword also matches inside a longer
-     * word — for example `"promo"` matches `"promotional"`. That is the documented behaviour:
-     * the stop list is a coarse "never touch messages like this" filter, and over-matching here
-     * only means a message is left alone.
+     * Each keyword is matched according to its own options:
+     * - [StopListEntity.wholeWord] `false` (the default): a substring test, so `"promo"` also
+     *   matches `"promotional"` and `"avis"` matches `"Davis"`. `true`: the keyword must stand as a
+     *   whole word, so `"avis"` matches `"Avis,"` but not `"Davis"`.
+     * - [StopListEntity.caseSensitive] `false` (the default): capitalization is ignored. `true`:
+     *   the message must use the keyword's exact capitalization.
+     *
+     * Both the body and the keyword are first passed through
+     * [TextMatching.normalizeStyledText], so a keyword typed in plain letters still matches a name
+     * written in decorative Unicode such as mathematical bold ("𝗖𝗼𝗼𝗸𝗲").
      *
      * Blank keywords are skipped. An empty string is a substring of every string, so a blank
      * row — reachable if the UI ever admits one — would otherwise silence the entire app.
@@ -60,8 +66,16 @@ class StopListMatcher @Inject constructor() {
      */
     fun findMatch(body: String, keywords: List<StopListEntity>): StopListEntity? {
         if (body.isEmpty() || keywords.isEmpty()) return null
+        // Normalized once rather than per keyword; most messages are tested against every entry.
+        val normalizedBody = TextMatching.normalizeStyledText(body)
         return keywords.firstOrNull { entry ->
-            entry.keyword.isNotBlank() && body.contains(entry.keyword, ignoreCase = true)
+            entry.keyword.isNotBlank() &&
+                TextMatching.contains(
+                    haystack = normalizedBody,
+                    needle = TextMatching.normalizeStyledText(entry.keyword),
+                    ignoreCase = !entry.caseSensitive,
+                    wholeWord = entry.wholeWord,
+                )
         }
     }
 

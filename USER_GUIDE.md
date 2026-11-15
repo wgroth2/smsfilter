@@ -143,6 +143,17 @@ settings most people care about:
 - **Sound & Language** — turn the alert sound on or off, and switch the app between
   English and Spanish.
 
+**Keeping certain messages untouched.** If there are senders or subjects you never want
+the app to reply to, add a word to the **Stop List** (the **Rules** tab at the bottom of the
+screen). Any text containing that word is left alone. Tap a word in the list to change it.
+Two checkboxes let you be more precise:
+
+- **Whole word only** — match the word only when it stands on its own. With it ticked,
+  "Avis" catches "Avis" but not "Davis".
+- **Case sensitive** — match only when the capital letters are the same as you typed them.
+
+Both start unticked, which matches the word anywhere, in any capitalization.
+
 ### Frequently Asked Questions
 
 **Will this ever reply to a real person, like a friend or my doctor's office?**
@@ -367,6 +378,28 @@ graph TD
 
 </details>
 
+### Match modes
+
+Every opt-out pattern carries one of three match modes, chosen in the pattern's edit dialog.
+They form a ladder from broadest to narrowest; the broader the mode, the more real opt-out
+wording it catches, and the greater the risk of replying to a message that never asked.
+
+| Match mode (as shown in the app) | Internal name | Matches when |
+|---|---|---|
+| Match anywhere | `ANYWHERE` | The pattern appears anywhere in the message, even inside a longer word. |
+| Whole word on last line | `LAST_LINE_CONTAINS` | The pattern appears as a whole word somewhere on the last non-blank line. |
+| Exact match on last line | `LAST_LINE_EXACT` | The last non-blank line is exactly the pattern and nothing else. |
+
+"Whole word" means the pattern has punctuation, a space, or the edge of the line on both
+sides. That is what makes **Whole word on last line** safe for short words: the pattern `end`
+matches a last line of `Reply END to cancel.` but not `Have a great weekend!`, and `stop`
+matches `...help, STOP` but not `Visit stopandshop.com`. The cost is that run-together text
+such as `ReplySTOPtoCancel` does not match; add a **Match anywhere** pattern for a sender
+that writes that way.
+
+None of the seeded defaults below use **Whole word on last line**; it is there for patterns
+you add yourself.
+
 ### The detection patterns seeded on install
 
 | Pattern | Match mode | Reply sent |
@@ -436,11 +469,35 @@ from being treated as one:
 
 | Tab | What it controls |
 |---|---|
-| Stop List | Keywords marking messages the app should never touch. Coarse substring match, so `promo` also matches `promotional`. Over-matching is safe: it only means a message is left alone. |
-| Opt-Out Patterns | Add, edit, and remove detection rules. Tapping any pattern row opens an edit dialog allowing you to change its keyword, reply type (`stop` or `end`), and match mode. User-added patterns behave identically to the seeded defaults. |
+| Stop List | Keywords marking messages the app should never touch. Tap a keyword to edit it. Each keyword has two options, set when you add it and changeable later; see [Stop-list options](#stop-list-options). |
+| Opt-Out Patterns | Add, edit, and remove detection rules. Tapping any pattern row opens an edit dialog allowing you to change its keyword, reply type (`stop` or `end`), and match mode (one of the three described in [Match modes](#match-modes)). User-added patterns behave identically to the seeded defaults. |
 
 The Patterns tab's ⋮ menu offers **Reset to Defaults**, behind a confirmation dialog: it
 deletes every pattern — including yours — and restores the sixteen the app ships with.
+
+### Stop-list options
+
+Each stop-list keyword carries two checkboxes. Both start unticked when you add a keyword,
+and both reset to unticked after each add. Each row's grey summary line shows the current
+settings, for example `Whole word · Ignores case`.
+
+| Option | Unticked (default) | Ticked |
+|---|---|---|
+| **Whole word only** | Substring: matches anywhere, even inside a longer word, so `avis` matches `Davis`. | Matches only where the keyword stands alone, with a space, punctuation, or the start/end of the message on each side, so `avis` matches `Avis,` but not `Davis`. |
+| **Case sensitive** | Capitalization is ignored, so `avis` matches `AVIS`. | The message must use the keyword's exact capitalization, so `Avis` does not match `AVIS`. |
+
+Things to know:
+
+- Keywords created before these options existed keep the original behavior (substring,
+  ignores case) until you edit them.
+- Keywords that differ only in capitalization, such as `Avis` and `avis`, are separate
+  entries. Adding or renaming to text that already exists, with identical capitalization,
+  shows "That keyword is already in your stop list" and keeps what you typed.
+- The Edit dialog stays open until the change is saved, and it survives rotating the phone.
+- Decorative letters are matched as plain letters. Fundraising texts often write names in
+  styled Unicode such as 𝗖𝗼𝗼𝗸𝗲; the keyword `cooke` matches it.
+- A multi-word keyword such as `Rebecca Cooke` must appear with a single space between the
+  words.
 
 ## Settings
 
@@ -520,7 +577,8 @@ own message mix before letting it send anything.
 2. Run in detection-only mode for a week. Notifications and log entries still show exactly
    what would have been sent.
 3. Review the detection log. For any message you would not want replied to, add a keyword
-   to the Stop List or tighten the pattern.
+   to the Stop List or tighten the pattern. If a stop word is catching messages it
+   shouldn't, such as `Avis` matching `Davis`, tap it and tick **Whole word only**.
 4. Once the log looks right, turn Auto-Reply back on.
 
 ## See also

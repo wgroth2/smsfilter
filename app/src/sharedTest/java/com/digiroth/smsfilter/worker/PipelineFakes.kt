@@ -235,6 +235,8 @@ class PipelineFakes {
         override fun observeAll(): Flow<List<StopListEntity>> = flowOf(keywords)
         override suspend fun count(): Int = keywords.size
         override suspend fun insert(entity: StopListEntity): Long = throw NotImplementedError()
+        override suspend fun update(entity: StopListEntity): Int = throw NotImplementedError()
+        override suspend fun findByKeyword(keyword: String): StopListEntity? = throw NotImplementedError()
         override suspend fun delete(entity: StopListEntity): Unit = throw NotImplementedError()
         override suspend fun deleteByKeyword(keyword: String): Int = throw NotImplementedError()
     }

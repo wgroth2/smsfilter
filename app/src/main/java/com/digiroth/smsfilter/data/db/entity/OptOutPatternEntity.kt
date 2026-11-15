@@ -109,8 +109,9 @@ enum class MatchMode {
 /**
  * A configurable opt-out pattern (Tier 2 of opt-out detection).
  *
- * Patterns are fully user-editable. The table is seeded on first database creation with
- * four defaults (see `AppDatabase.SEED_CALLBACK`), but nothing in the detection engine
+ * Patterns are fully user-editable. The table is seeded on first database creation with the
+ * defaults listed in `AppDatabase.DEFAULT_PATTERNS` (inserted by `AppDatabase.SEED_CALLBACK`,
+ * and added to existing installs by the schema migrations), but nothing in the detection engine
  * depends on those specific rows existing.
  *
  * @property id Auto-generated row identifier.

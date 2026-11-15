@@ -33,6 +33,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.digiroth.smsfilter.data.db.entity.StopListEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -73,6 +74,32 @@ interface StopListDao {
      */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: StopListEntity): Long
+
+    /**
+     * Updates an existing keyword's text and matching options.
+     *
+     * Uses [OnConflictStrategy.ABORT]: renaming a keyword to text another row already holds
+     * violates the unique index and throws `SQLiteConstraintException`, which the caller maps to a
+     * "duplicate" error rather than silently discarding the edit.
+     *
+     * @param entity The row to update; matched by primary key.
+     * @return The number of rows updated (0 if the row no longer exists, otherwise 1).
+     */
+    @Update(onConflict = OnConflictStrategy.ABORT)
+    suspend fun update(entity: StopListEntity): Int
+
+    /**
+     * Finds the keyword whose text exactly equals [keyword], comparing case-sensitively.
+     *
+     * The comparison deliberately matches the unique index's default (binary) collation, so this
+     * answers precisely "would saving this text violate the unique index?" — `Avis` does not find
+     * `avis`.
+     *
+     * @param keyword The exact keyword text to look up.
+     * @return The matching row, or `null` if none exists.
+     */
+    @Query("SELECT * FROM ${StopListEntity.TABLE_NAME} WHERE keyword = :keyword LIMIT 1")
+    suspend fun findByKeyword(keyword: String): StopListEntity?
 
     /**
      * Deletes a keyword.

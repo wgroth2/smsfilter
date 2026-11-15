@@ -6,7 +6,7 @@ If you are a user who plans on using the app and is not all that concerned about
 
 Marketing and automated SMS/RCS messages often carry an opt-out instruction, but acting on every one of them by hand is tedious, and replying to the wrong message is worse than not replying at all. SMS Filter automates the tedious part while being deliberately conservative about the risky part: messages from people in your contacts are never touched, group chats are protected against reply broadcast, and four independent safety gates stand between a detection and an outgoing reply.
 
-**Status:** feature-complete and actively maintained. **305 JVM unit tests** and Room instrumented tests pass. Manual verification against real carrier SMS, MMS, and RCS chats is active.
+**Status:** feature-complete and actively maintained. **339 JVM unit tests** and Room instrumented tests pass. Manual verification against real carrier SMS, MMS, and RCS chats is active.
 
 **📖 Full documentation:** browse the [published site](https://wgroth2.github.io/smsfilter/) or read the **[user guide](USER_GUIDE.md)** directly in this repo.
 
@@ -50,7 +50,7 @@ graph TD
 
 > **Note on Permissions:** Cellular SMS uses standard runtime permissions (`RECEIVE_SMS`, `SEND_SMS`). Because Android does not deliver MMS broadcasts to non-default messaging apps, **MMS and RCS interception requires Notification Access** (`Settings > Apps > Special app access > Device & app notifications`). The setup wizard offers this grant as its own step, and the Status screen warns you afterwards if it is still missing.
 
-**Detection is two-tiered.** A user-defined *stop list* ignores a message outright if it contains any listed keyword — checked first, so an ignored message costs no lookups. Anything surviving that is tested against *opt-out patterns*, each carrying its own match mode: `ANYWHERE` matches as a substring, while `LAST_LINE_EXACT` matches only when the final non-empty line is exactly the pattern word.
+**Detection is two-tiered.** A user-defined *stop list* ignores a message outright if it contains any listed keyword — checked first, so an ignored message costs no lookups. Each keyword is editable and has its own *whole word only* and *case sensitive* options (both off by default, giving a case-insensitive substring match), and styled Unicode letters in the message are normalized before matching; see [Stop-list options](USER_GUIDE.md#stop-list-options). Anything surviving that is tested against *opt-out patterns*, each carrying its own match mode: `ANYWHERE` matches as a substring, `LAST_LINE_CONTAINS` matches the pattern as a whole word within the final non-empty line, and `LAST_LINE_EXACT` matches only when the final non-empty line is exactly the pattern word. See [Match modes](USER_GUIDE.md#match-modes) for examples.
 
 **Four gates guard every auto-reply**, and each is defined by something that must *not* happen:
 
@@ -87,7 +87,7 @@ The app never permanently stores private address books on device. This is a stru
    - Real-time log cards showing timestamp, message type badge (`[SMS]`, `[RCS]`, `[MMS]`), and status.
    - **Click-to-Message:** Senders are displayed as clickable chips in the card header. Tapping a sender opens the conversation directly in your default messaging app (e.g. Google Messages) using `smsto:` intents.
 3. **Interactive Pattern Management:**
-   - Tap any pattern in **Rules → Opt-Out Patterns** to open the edit dialog and modify keywords, reply types (`STOP` vs `END`), or match modes (`ANYWHERE` vs `LAST_LINE_EXACT`). The tab's overflow menu offers **Reset to Defaults** behind a confirmation.
+   - Tap any pattern in **Rules → Opt-Out Patterns** to open the edit dialog and modify keywords, reply types (`STOP` vs `END`), or match modes (`ANYWHERE`, `LAST_LINE_CONTAINS`, or `LAST_LINE_EXACT`). The tab's overflow menu offers **Reset to Defaults** behind a confirmation.
 4. **Build Metadata & Versioning:**
    - Displays live build timestamp and a monotonically increasing build sequence number (e.g. `Build: 21 Aug 2026, 12:35:45 PDT (#44)`) at the foot of the Status screen.
 5. **In-app documentation:** an About dialog (Settings → About) and a **Documentation** link at
@@ -103,10 +103,10 @@ Google's [Guide to App Architecture](https://developer.android.com/topic/archite
 app/src/main/java/com/digiroth/smsfilter/
 ├── receiver/     SmsReceiver, RcsNotificationListenerService
 ├── worker/       SmsLookupWorker (thin adapter) + SmsProcessingPipeline (pure Kotlin engine)
-├── detection/    OptOutDetector, StopListMatcher, OptOutResult
+├── detection/    OptOutDetector, StopListMatcher, OptOutResult, TextMatching (shared whole-word + Unicode-normalization helpers)
 ├── domain/       ConnectHubSpotUseCase — the save-verify-clear token flow shared by onboarding and Settings
 ├── data/
-│   ├── db/       Room entities, DAOs, AppDatabase (Schema v5 with migrations)
+│   ├── db/       Room entities, DAOs, AppDatabase (schema v6; every upgrade from v1 is a migration, never a wipe)
 │   ├── remote/   Retrofit service + Moshi models for HubSpot
 │   ├── repository/  ContactRepository, HubSpotRepository, lookup cache
 │   ├── settings/ SettingsDataStore — single source for scalar preferences
@@ -148,10 +148,12 @@ When sideloading the release APK on physical devices:
 ## Testing
 
 ```bash
-./gradlew test                   # 305 JVM unit tests
+./gradlew test                   # 339 JVM unit tests
 ./gradlew connectedAndroidTest   # Room & migration instrumented tests
 ./gradlew lintDebug              # Android lint verification
 ```
+
+> **Run instrumented tests on an emulator, not your everyday phone.** `connectedAndroidTest` uninstalls the app when it finishes, which erases its stop list and log. If a phone is also connected, target the emulator with `ANDROID_SERIAL=emulator-5554 ./gradlew connectedAndroidTest`.
 
 ---
 

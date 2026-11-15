@@ -39,7 +39,8 @@ import org.junit.Test
  * JVM unit tests for [StopListMatcher].
  *
  * Verifies stop-list keyword matching semantics, including case-insensitivity,
- * substring inclusion, multi-word matching, blank keyword handling, and first-match selection.
+ * substring inclusion, multi-word matching, blank keyword handling, and first-match selection,
+ * plus the per-keyword whole-word and case-sensitive options and styled-Unicode normalization.
  */
 class StopListMatcherTest {
 
@@ -49,6 +50,104 @@ class StopListMatcherTest {
         keywords.mapIndexed { index, keyword ->
             StopListEntity(id = index + 1L, keyword = keyword)
         }
+
+    /**
+     * Builds a one-entry stop list with explicit options.
+     *
+     * @param keyword The keyword text.
+     * @param caseSensitive Whether the entry is case sensitive.
+     * @param wholeWord Whether the entry matches whole words only.
+     * @return A single-element list.
+     */
+    private fun entry(keyword: String, caseSensitive: Boolean = false, wholeWord: Boolean = false): List<StopListEntity> =
+        listOf(StopListEntity(id = 1L, keyword = keyword, caseSensitive = caseSensitive, wholeWord = wholeWord))
+
+    /**
+     * Tests the reported problem: a default (substring) keyword "Avis" still matches "Davis",
+     * preserving the behaviour of every keyword created before the options existed.
+     *
+     * Preconditions: Keyword "Avis" with both options off.
+     * Expected: Matches "Davis".
+     */
+    @Test
+    fun `default options keep substring matching`() {
+        assertTrue(matcher.matches("Paid for by Davis for Congress", entry("Avis")))
+    }
+
+    /**
+     * Tests that whole-word matching stops "Avis" from matching "Davis" but still catches Avis.
+     *
+     * Preconditions: Keyword "Avis" with whole word on, case insensitive.
+     * Expected: No match on "Davis"; match on "AVIS," and "avis".
+     */
+    @Test
+    fun `whole word keyword does not match inside a longer word`() {
+        val keywords = entry("Avis", wholeWord = true)
+
+        assertFalse(matcher.matches("Paid for by Davis for Congress", keywords))
+        assertTrue(matcher.matches("Your AVIS, rental is ready", keywords))
+        assertTrue(matcher.matches("rent from avis today", keywords))
+    }
+
+    /**
+     * Tests that a case-sensitive keyword requires its exact capitalization.
+     *
+     * Preconditions: Keyword "Avis" with case sensitive on.
+     * Expected: No match on "AVIS" or on "Davis" (whose "avis" is lowercase); match on "Avis".
+     */
+    @Test
+    fun `case sensitive keyword requires exact capitalization`() {
+        val keywords = entry("Avis", caseSensitive = true)
+
+        assertFalse(matcher.matches("RENT FROM AVIS", keywords))
+        assertFalse(matcher.matches("Call Davis", keywords))
+        assertTrue(matcher.matches("Rent from Avis", keywords))
+    }
+
+    /**
+     * Tests that a plain keyword matches a name written in decorative bold Unicode letters.
+     *
+     * Preconditions: Keyword "cooke"; message containing "𝗖𝗼𝗼𝗸𝗲" (mathematical sans-serif bold).
+     * Expected: Match in substring mode and in whole-word mode.
+     */
+    @Test
+    fun `plain keyword matches styled unicode text`() {
+        val body = "Help \uD835\uDDD6\uD835\uDDFC\uD835\uDDFC\uD835\uDDF8\uD835\uDDF2 win in WI-03"
+
+        assertTrue(matcher.matches(body, entry("cooke")))
+        assertTrue(matcher.matches(body, entry("cooke", wholeWord = true)))
+    }
+
+    /**
+     * Tests that styled Unicode keeps its capitalization through normalization, so a
+     * case-sensitive keyword is still judged on case.
+     *
+     * Preconditions: Case-sensitive keyword "cooke"; message with bold capital-C "Cooke".
+     * Expected: No match.
+     */
+    @Test
+    fun `styled unicode keeps its capitalization`() {
+        val body = "Help \uD835\uDDD6\uD835\uDDFC\uD835\uDDFC\uD835\uDDF8\uD835\uDDF2 win"
+
+        assertFalse(matcher.matches(body, entry("cooke", caseSensitive = true)))
+    }
+
+    /**
+     * Tests that options are evaluated per keyword: a whole-word entry that does not match does not
+     * stop a later substring entry from matching.
+     *
+     * Preconditions: "avis" (whole word) followed by "vis" (substring), message "Davis".
+     * Expected: The second entry is returned.
+     */
+    @Test
+    fun `options are evaluated per keyword`() {
+        val keywords = listOf(
+            StopListEntity(id = 1L, keyword = "avis", wholeWord = true),
+            StopListEntity(id = 2L, keyword = "vis"),
+        )
+
+        assertEquals(2L, matcher.findMatch("Call Davis", keywords)?.id)
+    }
 
     /**
      * Tests that a message containing a configured stop-list keyword returns true for matching.
