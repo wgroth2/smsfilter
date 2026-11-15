@@ -51,6 +51,9 @@ object TextMatching {
      * The result may differ in length from the input, so it must only be used for matching, never
      * to compute offsets into the original text.
      *
+     * Note that NFKC does not strip diacritics or accents (e.g., `é` remains `é`), so keyword
+     * matching remains accent- and diacritic-sensitive (`Perez` does not match `Pérez`).
+     *
      * @param text The text to normalize.
      * @return The NFKC-normalized text.
      */

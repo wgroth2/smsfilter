@@ -496,6 +496,10 @@ Things to know:
 - The Edit dialog stays open until the change is saved, and it survives rotating the phone.
 - Decorative letters are matched as plain letters. Fundraising texts often write names in
   styled Unicode such as 𝗖𝗼𝗼𝗸𝗲; the keyword `cooke` matches it.
+- **Accents and diacritics are sensitive:** Matching distinguishes accented letters from
+  unaccented ones. For example, `Perez` will not match `Pérez`, and `cancion` will not match
+  `canción`. If you need to stop messages that might appear with or without an accent, add
+  both forms as separate keywords.
 - A multi-word keyword such as `Rebecca Cooke` must appear with a single space between the
   words.
 
